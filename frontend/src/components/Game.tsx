@@ -288,7 +288,7 @@ export const Game: React.FC = () => {
                                                         <button
                                                             key={color}
                                                             onClick={() => setSelectedColor(color)}
-                                                            className={`w-16 h-16 rounded-full border-2 ${
+                                                            className={`w-8 h-8 rounded-full border-2 ${
                                                                 selectedColor === color ? 'border-primary-600' : 'border-gray-300'
                                                             }`}
                                                             style={{ backgroundColor: color }}
@@ -312,7 +312,7 @@ export const Game: React.FC = () => {
                                                 <div className="relative">
                                                     <canvas
                                                         ref={canvasRef}
-                                                        className="border rounded-lg w-full h-68 sm:h-305 bg-white shadow-sm"
+                                                        className="border rounded-lg w-full h-125 sm:h-305 bg-white shadow-sm"
                                                         onMouseDown={startDrawing}
                                                         onMouseMove={draw}
                                                         onMouseUp={stopDrawing}
