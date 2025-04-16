@@ -44,23 +44,46 @@ export const Game: React.FC = () => {
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
 
-        return () => window.removeEventListener('resize', resizeCanvas);
-    }, []);
+        // Prevent scrolling when drawing on mobile
+        const preventScroll = (e: TouchEvent) => {
+            if (isDrawing) {
+                e.preventDefault();
+            }
+        };
+        canvas.addEventListener('touchmove', preventScroll, { passive: false });
 
-    const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+        return () => {
+            window.removeEventListener('resize', resizeCanvas);
+            canvas.removeEventListener('touchmove', preventScroll);
+        };
+    }, [isDrawing]);
+
+    const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
         const canvas = canvasRef.current;
-        if (!canvas) return;
+        if (!canvas) return { x: 0, y: 0 };
 
         const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        let x: number, y: number;
 
+        if ('touches' in e) {
+            x = e.touches[0].clientX - rect.left;
+            y = e.touches[0].clientY - rect.top;
+        } else {
+            x = e.clientX - rect.left;
+            y = e.clientY - rect.top;
+        }
+
+        return { x, y };
+    };
+
+    const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        const { x, y } = getCoordinates(e);
         setIsDrawing(true);
         setLastX(x);
         setLastY(y);
     };
 
-    const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
         if (!isDrawing) return;
 
         const canvas = canvasRef.current;
@@ -69,9 +92,7 @@ export const Game: React.FC = () => {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const { x, y } = getCoordinates(e);
 
         ctx.beginPath();
         ctx.moveTo(lastX, lastY);
@@ -224,6 +245,10 @@ export const Game: React.FC = () => {
                                                     onMouseMove={draw}
                                                     onMouseUp={stopDrawing}
                                                     onMouseLeave={stopDrawing}
+                                                    onTouchStart={startDrawing}
+                                                    onTouchMove={draw}
+                                                    onTouchEnd={stopDrawing}
+                                                    style={{ touchAction: 'none' }}
                                                 />
                                             </div>
                                             <div className="flex gap-2">
