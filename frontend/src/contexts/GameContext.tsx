@@ -43,7 +43,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     await signalRService.connect();
                     if (isMounted) {
                         console.log('SignalR connected successfully');
-                        await signalRService.joinGame(game.joinCode);
+                        await signalRService.joinGame(game.joinCode, player?.name || 'Unknown Player');
                     }
                 } catch (error) {
                     console.error('Error connecting to SignalR:', error);
@@ -97,7 +97,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
                 signalRService.onRoundStarted((prompt) => {
                     console.log('Round started with prompt:', prompt);
-                    setCurrentRound({ prompt, isCompleted: false });
+                    setCurrentRound({ 
+                        prompt, 
+                        isCompleted: false, 
+                        roundId: Date.now(), // Temporary ID for round
+                        gameId: game?.gameId || 0 // Use the current game's ID
+                    });
                     setAnswers([]); // Clear previous answers
                 });
 
@@ -171,7 +176,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setPlayer(playerData);
             setIsReader(true);
             
-            await signalRService.joinGame(gameData.joinCode, playerName);
+            await signalRService.joinGame(gameData.joinCode, playerName || 'Unknown Player');
             console.log('Created new game as reader:', gameData.joinCode);
         } catch (error) {
             console.error('Error creating game:', error);
@@ -204,7 +209,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setGame(gameData);
             
             // Join the game via SignalR with the player name
-            await signalRService.joinGame(joinCode, playerName);
+            await signalRService.joinGame(joinCode, playerName || 'Unknown Player');
             console.log('Successfully joined game via SignalR:', joinCode);
             
             // Add the player to the players list

@@ -23,6 +23,19 @@ export const Game: React.FC = () => {
     const [lastX, setLastX] = useState(0);
     const [lastY, setLastY] = useState(0);
     const [flippedCards, setFlippedCards] = useState<Set<number>>(new Set());
+    const [selectedColor, setSelectedColor] = useState('#000000');
+    const [brushSize, setBrushSize] = useState(2);
+
+    const colors = [
+        '#000000', // Black
+        '#FF0000', // Red
+        '#00FF00', // Green
+        '#0000FF', // Blue
+        '#FFFF00', // Yellow
+        '#FF00FF', // Magenta
+        '#00FFFF', // Cyan
+        '#FFFFFF', // White
+    ];
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -32,14 +45,18 @@ export const Game: React.FC = () => {
         if (!ctx) return;
 
         // Set up canvas
-        ctx.lineWidth = 2;
+        ctx.lineWidth = brushSize;
         ctx.lineCap = 'round';
-        ctx.strokeStyle = '#000000';
+        ctx.strokeStyle = selectedColor;
+        ctx.lineJoin = 'round';
 
         // Set canvas size
         const resizeCanvas = () => {
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
+            const currentDrawing = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            ctx.putImageData(currentDrawing, 0, 0);
         };
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
@@ -67,26 +84,19 @@ export const Game: React.FC = () => {
         if (!canvas) return { x: 0, y: 0 };
 
         const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
         let x: number, y: number;
 
         if ('touches' in e) {
-            // Prevent default touch behavior
-            e.preventDefault();
-            x = e.touches[0].clientX - rect.left;
-            y = e.touches[0].clientY - rect.top;
+            x = (e.touches[0].clientX - rect.left) * scaleX;
+            y = (e.touches[0].clientY - rect.top) * scaleY;
         } else {
-            x = e.clientX - rect.left;
-            y = e.clientY - rect.top;
+            x = (e.clientX - rect.left) * scaleX;
+            y = (e.clientY - rect.top) * scaleY;
         }
 
         return { x, y };
-    };
-
-    const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-        const { x, y } = getCoordinates(e);
-        setIsDrawing(true);
-        setLastX(x);
-        setLastY(y);
     };
 
     const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -100,6 +110,12 @@ export const Game: React.FC = () => {
 
         const { x, y } = getCoordinates(e);
 
+        // Update context properties before drawing
+        ctx.lineWidth = brushSize;
+        ctx.strokeStyle = selectedColor;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
         ctx.beginPath();
         ctx.moveTo(lastX, lastY);
         ctx.lineTo(x, y);
@@ -107,6 +123,29 @@ export const Game: React.FC = () => {
 
         setLastX(x);
         setLastY(y);
+    };
+
+    const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        const { x, y } = getCoordinates(e);
+        setIsDrawing(true);
+        setLastX(x);
+        setLastY(y);
+
+        // Initialize the drawing point
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.lineWidth = brushSize;
+        ctx.strokeStyle = selectedColor;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y);
+        ctx.stroke();
     };
 
     const stopDrawing = () => {
@@ -244,38 +283,66 @@ export const Game: React.FC = () => {
                                     ) : (
                                         <>
                                             <div className="mb-4">
-                                                <canvas
-                                                    ref={canvasRef}
-                                                    className="border rounded-lg w-full h-48 sm:h-64 bg-white shadow-sm"
-                                                    onMouseDown={startDrawing}
-                                                    onMouseMove={draw}
-                                                    onMouseUp={stopDrawing}
-                                                    onMouseLeave={stopDrawing}
-                                                    onTouchStart={startDrawing}
-                                                    onTouchMove={draw}
-                                                    onTouchEnd={stopDrawing}
-                                                    style={{ 
-                                                        touchAction: 'none',
-                                                        WebkitTouchCallout: 'none',
-                                                        WebkitUserSelect: 'none',
-                                                        userSelect: 'none',
-                                                        msTouchAction: 'none'
-                                                    }}
-                                                />
-                                            </div>
-                                            <div className="flex flex-col sm:flex-row gap-3">
-                                                <button
-                                                    onClick={clearCanvas}
-                                                    className="btn btn-secondary text-sm sm:text-base"
-                                                >
-                                                    Clear
-                                                </button>
-                                                <button
-                                                    onClick={handleSubmitAnswer}
-                                                    className="btn btn-primary text-sm sm:text-base"
-                                                >
-                                                    Submit Drawing
-                                                </button>
+                                                <div className="flex flex-wrap gap-2 mb-4">
+                                                    {colors.map((color) => (
+                                                        <button
+                                                            key={color}
+                                                            onClick={() => setSelectedColor(color)}
+                                                            className={`w-8 h-8 rounded-full border-2 ${
+                                                                selectedColor === color ? 'border-primary-600' : 'border-gray-300'
+                                                            }`}
+                                                            style={{ backgroundColor: color }}
+                                                            title={color}
+                                                        />
+                                                    ))}
+                                                </div>
+                                                <div className="mb-4">
+                                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                        Brush Size
+                                                    </label>
+                                                    <input
+                                                        type="range"
+                                                        min="1"
+                                                        max="20"
+                                                        value={brushSize}
+                                                        onChange={(e) => setBrushSize(Number(e.target.value))}
+                                                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                                    />
+                                                </div>
+                                                <div className="relative">
+                                                    <canvas
+                                                        ref={canvasRef}
+                                                        className="border rounded-lg w-full h-48 sm:h-64 bg-white shadow-sm"
+                                                        onMouseDown={startDrawing}
+                                                        onMouseMove={draw}
+                                                        onMouseUp={stopDrawing}
+                                                        onMouseLeave={stopDrawing}
+                                                        onTouchStart={startDrawing}
+                                                        onTouchMove={draw}
+                                                        onTouchEnd={stopDrawing}
+                                                        style={{ 
+                                                            touchAction: 'none',
+                                                            WebkitTouchCallout: 'none',
+                                                            WebkitUserSelect: 'none',
+                                                            userSelect: 'none',
+                                                            msTouchAction: 'none'
+                                                        }}
+                                                    />
+                                                </div>
+                                                <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                                                    <button
+                                                        onClick={clearCanvas}
+                                                        className="btn btn-secondary text-sm sm:text-base"
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                    <button
+                                                        onClick={handleSubmitAnswer}
+                                                        className="btn btn-primary text-sm sm:text-base"
+                                                    >
+                                                        Submit Drawing
+                                                    </button>
+                                                </div>
                                             </div>
                                         </>
                                     )}
