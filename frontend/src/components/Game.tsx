@@ -200,53 +200,53 @@ export const Game: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-100 p-4">
+        <div className="min-h-screen bg-gray-50 p-4">
             <div className="max-w-7xl mx-auto">
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                    <div className="mb-4">
-                        <h2 className="text-2xl font-bold">
+                <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
+                    <div className="mb-4 sm:mb-6">
+                        <h2 className="text-xl sm:text-2xl font-bold text-primary-600">
                             Game Code: {game?.joinCode}
                         </h2>
-                        <p className="text-gray-600">
+                        <p className="text-sm sm:text-base text-gray-600">
                             Player: {player?.name} {isReader ? '(Reader)' : ''}
                         </p>
                     </div>
 
                     {isReader ? (
-                        <div className="mb-4">
-                            <h3 className="text-xl font-semibold mb-2">Start a New Round</h3>
-                            <div className="flex gap-2">
+                        <div className="mb-4 sm:mb-6">
+                            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3 sm:mb-4">Start a New Round</h3>
+                            <div className="flex flex-col sm:flex-row gap-3">
                                 <input
                                     type="text"
                                     value={prompt}
                                     onChange={(e) => setPrompt(e.target.value)}
                                     placeholder="Enter the card content"
-                                    className="flex-1 p-2 border rounded"
+                                    className="input flex-1 text-sm sm:text-base"
                                 />
                                 <button
                                     onClick={handleStartRound}
-                                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                    className="btn btn-primary text-sm sm:text-base"
                                 >
                                     Start Round
                                 </button>
                             </div>
                         </div>
                     ) : (
-                        <div className="mb-4">
-                            <h3 className="text-xl font-semibold mb-2">Current Round</h3>
+                        <div className="mb-4 sm:mb-6">
+                            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3 sm:mb-4">Current Round</h3>
                             {currentRound ? (
                                 <div>
-                                    <p className="text-lg mb-2">{currentRound.prompt}</p>
+                                    <p className="text-base sm:text-lg text-gray-700 mb-4">{currentRound.prompt}</p>
                                     {playersWhoSubmitted.has(player?.playerId || 0) ? (
-                                        <div className="bg-green-100 p-4 rounded-lg">
-                                            <p className="text-green-700">You have already submitted your answer for this round!</p>
+                                        <div className="bg-green-50 p-3 sm:p-4 rounded-lg border border-green-200">
+                                            <p className="text-sm sm:text-base text-green-700">You have already submitted your answer for this round!</p>
                                         </div>
                                     ) : (
                                         <>
                                             <div className="mb-4">
                                                 <canvas
                                                     ref={canvasRef}
-                                                    className="border rounded w-full h-64 bg-white"
+                                                    className="border rounded-lg w-full h-48 sm:h-64 bg-white shadow-sm"
                                                     onMouseDown={startDrawing}
                                                     onMouseMove={draw}
                                                     onMouseUp={stopDrawing}
@@ -263,16 +263,16 @@ export const Game: React.FC = () => {
                                                     }}
                                                 />
                                             </div>
-                                            <div className="flex gap-2">
+                                            <div className="flex flex-col sm:flex-row gap-3">
                                                 <button
                                                     onClick={clearCanvas}
-                                                    className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                                                    className="btn btn-secondary text-sm sm:text-base"
                                                 >
                                                     Clear
                                                 </button>
                                                 <button
                                                     onClick={handleSubmitAnswer}
-                                                    className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                                    className="btn btn-primary text-sm sm:text-base"
                                                 >
                                                     Submit Drawing
                                                 </button>
@@ -281,15 +281,15 @@ export const Game: React.FC = () => {
                                     )}
                                 </div>
                             ) : (
-                                <p>Waiting for the reader to start a round...</p>
+                                <p className="text-sm sm:text-base text-gray-600">Waiting for the reader to start a round...</p>
                             )}
                         </div>
                     )}
 
                     {isReader && answers.length > 0 && (
-                        <div className="mt-4">
-                            <h3 className="text-xl font-semibold mb-2">Answers</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="mt-4 sm:mt-6">
+                            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3 sm:mb-4">Answers</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                                 {answers.map((answer) => renderAnswerCard(answer))}
                             </div>
                         </div>

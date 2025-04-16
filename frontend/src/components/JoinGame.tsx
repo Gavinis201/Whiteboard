@@ -22,17 +22,20 @@ export const JoinGame: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100">
-            <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-lg">
-                <div>
-                    <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-md w-full space-y-8 p-6 sm:p-8 bg-white rounded-xl shadow-lg">
+                <div className="text-center">
+                    <h2 className="text-2xl sm:text-3xl font-bold text-primary-600">
                         Join a Game
                     </h2>
+                    <p className="mt-2 text-sm sm:text-base text-gray-600">
+                        Enter the game code and your name to join
+                    </p>
                 </div>
-                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-                    <div className="rounded-md shadow-sm -space-y-px">
+                <form className="mt-6 sm:mt-8 space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
+                    <div className="space-y-4">
                         <div>
-                            <label htmlFor="join-code" className="sr-only">
+                            <label htmlFor="join-code" className="block text-sm font-medium text-gray-700 mb-1">
                                 Game Code
                             </label>
                             <input
@@ -40,14 +43,14 @@ export const JoinGame: React.FC = () => {
                                 name="joinCode"
                                 type="text"
                                 required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                                placeholder="Game Code"
+                                className="input uppercase text-sm sm:text-base"
+                                placeholder="Enter game code"
                                 value={joinCode}
                                 onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                             />
                         </div>
                         <div>
-                            <label htmlFor="player-name" className="sr-only">
+                            <label htmlFor="player-name" className="block text-sm font-medium text-gray-700 mb-1">
                                 Your Name
                             </label>
                             <input
@@ -55,8 +58,8 @@ export const JoinGame: React.FC = () => {
                                 name="playerName"
                                 type="text"
                                 required
-                                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                                placeholder="Your Name"
+                                className="input text-sm sm:text-base"
+                                placeholder="Enter your name"
                                 value={playerName}
                                 onChange={(e) => setPlayerName(e.target.value)}
                             />
@@ -64,13 +67,15 @@ export const JoinGame: React.FC = () => {
                     </div>
 
                     {error && (
-                        <div className="text-red-500 text-sm text-center">{error}</div>
+                        <div className="text-red-500 text-sm text-center bg-red-50 p-2 rounded-md">
+                            {error}
+                        </div>
                     )}
 
                     <div>
                         <button
                             type="submit"
-                            className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                            className="btn btn-primary w-full text-sm sm:text-base"
                         >
                             Join Game
                         </button>
