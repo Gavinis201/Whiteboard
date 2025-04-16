@@ -297,7 +297,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 return null;
             }
             
-            const updatedPlayers = [...prevGame.players];
+            const updatedPlayers = [...(prevGame.players || [])];
             const existingPlayerIndex = updatedPlayers.findIndex(p => p.playerId === playerData.playerId);
             
             if (existingPlayerIndex === -1) {

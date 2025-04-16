@@ -6,6 +6,7 @@ export interface Game {
     gameId: number;
     joinCode: string;
     isActive: boolean;
+    players: Player[];
 }
 
 export interface Player {
