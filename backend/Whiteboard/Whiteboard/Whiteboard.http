@@ -1,0 +1,49 @@
+@Whiteboard_HostAddress = http://localhost:5164
+
+GET {{Whiteboard_HostAddress}}/weatherforecast/
+Accept: application/json
+
+### Create a new game
+POST {{Whiteboard_HostAddress}}/api/games/create
+Content-Type: application/json
+
+### Get a game by join code
+GET {{Whiteboard_HostAddress}}/api/games/ABC123
+
+### Join a game
+POST {{Whiteboard_HostAddress}}/api/players/join
+Content-Type: application/json
+
+{
+    "name": "John",
+    "isReader": false,
+    "gameId": 1
+}
+
+### Start a new round
+POST {{Whiteboard_HostAddress}}/api/rounds/start
+Content-Type: application/json
+
+{
+    "prompt": "What's your favorite color?",
+    "isCompleted": false,
+    "gameId": 1
+}
+
+### Get rounds for a game
+GET {{Whiteboard_HostAddress}}/api/rounds/1
+
+### Submit an answer
+POST {{Whiteboard_HostAddress}}/api/answers/submit
+Content-Type: application/json
+
+{
+    "content": "Blue",
+    "playerId": 1,
+    "roundId": 1
+}
+
+### Get answers for a round
+GET {{Whiteboard_HostAddress}}/api/answers/round/1
+
+###
