@@ -18,7 +18,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("CorsPolicy", builder =>
         builder
-            .WithOrigins("http://localhost:3000") // Replace with your frontend URL
+            .WithOrigins("http://localhost:3000", "https://blue-mud-0eac3971e.6.azurestaticapps.net/") // Replace with your frontend URL
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials());
