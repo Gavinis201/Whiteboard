@@ -288,7 +288,7 @@ export const Game: React.FC = () => {
                                                         <button
                                                             key={color}
                                                             onClick={() => setSelectedColor(color)}
-                                                            className={`w-8 h-8 rounded-full border-2 ${
+                                                            className={`w-16 h-16 rounded-full border-2 ${
                                                                 selectedColor === color ? 'border-primary-600' : 'border-gray-300'
                                                             }`}
                                                             style={{ backgroundColor: color }}
