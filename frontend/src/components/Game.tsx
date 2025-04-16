@@ -44,19 +44,23 @@ export const Game: React.FC = () => {
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
 
-        // Prevent scrolling when drawing on mobile
-        const preventScroll = (e: TouchEvent) => {
-            if (isDrawing) {
-                e.preventDefault();
-            }
+        // Prevent default touch behaviors
+        const preventDefault = (e: TouchEvent) => {
+            e.preventDefault();
         };
-        canvas.addEventListener('touchmove', preventScroll, { passive: false });
+
+        // Add touch event listeners
+        canvas.addEventListener('touchstart', preventDefault, { passive: false });
+        canvas.addEventListener('touchmove', preventDefault, { passive: false });
+        canvas.addEventListener('touchend', preventDefault, { passive: false });
 
         return () => {
             window.removeEventListener('resize', resizeCanvas);
-            canvas.removeEventListener('touchmove', preventScroll);
+            canvas.removeEventListener('touchstart', preventDefault);
+            canvas.removeEventListener('touchmove', preventDefault);
+            canvas.removeEventListener('touchend', preventDefault);
         };
-    }, [isDrawing]);
+    }, []);
 
     const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
         const canvas = canvasRef.current;
@@ -66,6 +70,8 @@ export const Game: React.FC = () => {
         let x: number, y: number;
 
         if ('touches' in e) {
+            // Prevent default touch behavior
+            e.preventDefault();
             x = e.touches[0].clientX - rect.left;
             y = e.touches[0].clientY - rect.top;
         } else {
@@ -248,7 +254,13 @@ export const Game: React.FC = () => {
                                                     onTouchStart={startDrawing}
                                                     onTouchMove={draw}
                                                     onTouchEnd={stopDrawing}
-                                                    style={{ touchAction: 'none' }}
+                                                    style={{ 
+                                                        touchAction: 'none',
+                                                        WebkitTouchCallout: 'none',
+                                                        WebkitUserSelect: 'none',
+                                                        userSelect: 'none',
+                                                        msTouchAction: 'none'
+                                                    }}
                                                 />
                                             </div>
                                             <div className="flex gap-2">
