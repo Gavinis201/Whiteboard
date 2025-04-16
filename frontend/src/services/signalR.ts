@@ -48,8 +48,9 @@ class SignalRService {
 
             this.connection = new HubConnectionBuilder()
                 .withUrl('https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/gameHub', {
-                    transport: HttpTransportType.WebSockets | HttpTransportType.LongPolling,
-                    skipNegotiation: false
+                    transport: HttpTransportType.WebSockets | HttpTransportType.LongPolling | HttpTransportType.ServerSentEvents,
+                    skipNegotiation: false,
+                    withCredentials: true
                 })
                 .configureLogging(LogLevel.Debug)
                 .withAutomaticReconnect({

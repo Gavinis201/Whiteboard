@@ -312,7 +312,7 @@ export const Game: React.FC = () => {
                                                 <div className="relative">
                                                     <canvas
                                                         ref={canvasRef}
-                                                        className="border rounded-lg w-full h-48 sm:h-64 bg-white shadow-sm"
+                                                        className="border rounded-lg w-full h-68 sm:h-305 bg-white shadow-sm"
                                                         onMouseDown={startDrawing}
                                                         onMouseMove={draw}
                                                         onMouseUp={stopDrawing}
