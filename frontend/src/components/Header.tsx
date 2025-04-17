@@ -8,14 +8,14 @@ const Header: React.FC = () => {
         <header className="bg-white shadow-md">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-16">
-                    <Link to="/" className="text-xl sm:text-2xl font-bold text-primary-600">
+                    <Link to="/" className="text-xl sm:text-2xl font-bold text-purple-600">
                         WhiteBoard
                     </Link>
                     
                     {/* Mobile menu button */}
                     <button
                         onClick={() => setIsMenuOpen(!isMenuOpen)}
-                        className="md:hidden p-2 rounded-md text-gray-600 hover:text-primary-600 focus:outline-none"
+                        className="md:hidden p-2 rounded-md text-gray-600 hover:text-purple-600 focus:outline-none"
                     >
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             {isMenuOpen ? (
@@ -28,18 +28,18 @@ const Header: React.FC = () => {
 
                     {/* Desktop Navigation */}
                     <nav className="hidden md:flex items-center space-x-4">
-                        <Link to="/" className="text-gray-600 hover:text-primary-600 transition-colors duration-200">
+                        <Link to="/" className="text-gray-600 hover:text-purple-600 transition-colors duration-200">
                             Home
                         </Link>
                         <Link 
                             to="/create" 
-                            className="btn btn-primary"
+                            className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors"
                         >
                             Create Game
                         </Link>
                         <Link 
                             to="/join" 
-                            className="btn btn-secondary"
+                            className="bg-purple-100 text-purple-600 px-4 py-2 rounded-md hover:bg-purple-200 transition-colors"
                         >
                             Join Game
                         </Link>
@@ -51,21 +51,21 @@ const Header: React.FC = () => {
                     <div className="md:hidden py-4 space-y-2">
                         <Link 
                             to="/" 
-                            className="block px-4 py-2 text-gray-600 hover:text-primary-600 hover:bg-gray-50 rounded-md"
+                            className="block px-4 py-2 text-gray-600 hover:text-purple-600 hover:bg-purple-50 rounded-md"
                             onClick={() => setIsMenuOpen(false)}
                         >
                             Home
                         </Link>
                         <Link 
                             to="/create" 
-                            className="block px-4 py-2 text-white bg-primary-600 hover:bg-primary-700 rounded-md"
+                            className="block px-4 py-2 text-white bg-purple-600 hover:bg-purple-700 rounded-md"
                             onClick={() => setIsMenuOpen(false)}
                         >
                             Create Game
                         </Link>
                         <Link 
                             to="/join" 
-                            className="block px-4 py-2 text-gray-800 bg-gray-200 hover:bg-gray-300 rounded-md"
+                            className="block px-4 py-2 text-purple-600 bg-purple-100 hover:bg-purple-200 rounded-md"
                             onClick={() => setIsMenuOpen(false)}
                         >
                             Join Game

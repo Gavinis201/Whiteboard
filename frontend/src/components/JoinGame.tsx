@@ -22,10 +22,10 @@ export const JoinGame: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 sm:px-6 lg:px-8">
+        <div className="flex-1 flex items-start pt-8 sm:items-center justify-center bg-gray-50 px-4 sm:px-6 lg:px-8">
             <div className="max-w-md w-full space-y-8 p-6 sm:p-8 bg-white rounded-xl shadow-lg">
                 <div className="text-center">
-                    <h2 className="text-2xl sm:text-3xl font-bold text-primary-600">
+                    <h2 className="text-2xl sm:text-3xl font-bold text-purple-600">
                         Join a Game
                     </h2>
                     <p className="mt-2 text-sm sm:text-base text-gray-600">
@@ -75,7 +75,7 @@ export const JoinGame: React.FC = () => {
                     <div>
                         <button
                             type="submit"
-                            className="btn btn-primary w-full text-sm sm:text-base"
+                            className="w-full bg-purple-600 text-white px-6 py-3 rounded-md hover:bg-purple-700 transition-colors text-sm sm:text-base"
                         >
                             Join Game
                         </button>

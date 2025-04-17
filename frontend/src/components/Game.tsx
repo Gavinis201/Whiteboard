@@ -241,10 +241,10 @@ export const Game: React.FC = () => {
     return (
         <div className="min-h-screen bg-gray-50 p-4">
             <div className="max-w-7xl mx-auto">
-                <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
+                <div className="game-content bg-white rounded-xl shadow-lg p-4 sm:p-6">
                     <div className="mb-4 sm:mb-6">
-                        <h2 className="text-xl sm:text-2xl font-bold text-primary-600">
-                            Game Code: {game?.joinCode}
+                        <h2 className="text-xl sm:text-2xl font-bold text-purple-600">
+                            Game Code: <span className="text-2xl sm:text-3xl">{game?.joinCode}</span>
                         </h2>
                         <p className="text-sm sm:text-base text-gray-600">
                             Player: {player?.name} {isReader ? '(Reader)' : ''}
@@ -253,7 +253,7 @@ export const Game: React.FC = () => {
 
                     {isReader ? (
                         <div className="mb-4 sm:mb-6">
-                            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3 sm:mb-4">Start a New Round</h3>
+                            <h3 className="text-lg sm:text-xl font-semibold text-purple-600 mb-3 sm:mb-4">Start a New Round</h3>
                             <div className="flex flex-col sm:flex-row gap-3">
                                 <input
                                     type="text"
@@ -264,7 +264,7 @@ export const Game: React.FC = () => {
                                 />
                                 <button
                                     onClick={handleStartRound}
-                                    className="btn btn-primary text-sm sm:text-base"
+                                    className="bg-purple-600 text-white px-6 py-3 rounded-md hover:bg-purple-700 transition-colors text-sm sm:text-base"
                                 >
                                     Start Round
                                 </button>
@@ -272,10 +272,10 @@ export const Game: React.FC = () => {
                         </div>
                     ) : (
                         <div className="mb-4 sm:mb-6">
-                            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3 sm:mb-4">Current Round</h3>
+                            <h3 className="text-lg sm:text-xl font-semibold text-purple-600 mb-3 sm:mb-4">Question:</h3>
                             {currentRound ? (
                                 <div>
-                                    <p className="text-base sm:text-lg text-gray-700 mb-4">{currentRound.prompt}</p>
+                                    <p className="text-base sm:text-lg text-gray-700 mb-4">"{currentRound.prompt}"</p>
                                     {playersWhoSubmitted.has(player?.playerId || 0) ? (
                                         <div className="bg-green-50 p-3 sm:p-4 rounded-lg border border-green-200">
                                             <p className="text-sm sm:text-base text-green-700">You have already submitted your answer for this round!</p>
@@ -289,7 +289,7 @@ export const Game: React.FC = () => {
                                                             key={color}
                                                             onClick={() => setSelectedColor(color)}
                                                             className={`w-8 h-8 rounded-full border-2 ${
-                                                                selectedColor === color ? 'border-primary-600' : 'border-gray-300'
+                                                                selectedColor === color ? 'border-purple-600' : 'border-gray-300'
                                                             }`}
                                                             style={{ backgroundColor: color }}
                                                             title={color}
@@ -321,6 +321,7 @@ export const Game: React.FC = () => {
                                                         onTouchMove={draw}
                                                         onTouchEnd={stopDrawing}
                                                         style={{ 
+                                                            height: '50vh',
                                                             touchAction: 'none',
                                                             WebkitTouchCallout: 'none',
                                                             WebkitUserSelect: 'none',
@@ -332,13 +333,13 @@ export const Game: React.FC = () => {
                                                 <div className="flex flex-col sm:flex-row gap-3 mt-4">
                                                     <button
                                                         onClick={clearCanvas}
-                                                        className="btn btn-secondary text-sm sm:text-base"
+                                                        className="bg-purple-100 text-purple-600 px-6 py-3 rounded-md hover:bg-purple-200 transition-colors text-sm sm:text-base"
                                                     >
                                                         Clear
                                                     </button>
                                                     <button
                                                         onClick={handleSubmitAnswer}
-                                                        className="btn btn-primary text-sm sm:text-base"
+                                                        className="bg-purple-600 text-white px-6 py-3 rounded-md hover:bg-purple-700 transition-colors text-sm sm:text-base"
                                                     >
                                                         Submit Drawing
                                                     </button>
@@ -355,7 +356,7 @@ export const Game: React.FC = () => {
 
                     {isReader && answers.length > 0 && (
                         <div className="mt-4 sm:mt-6">
-                            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-3 sm:mb-4">Answers</h3>
+                            <h3 className="text-lg sm:text-xl font-semibold text-purple-600 mb-3 sm:mb-4">Answers</h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                                 {answers.map((answer) => renderAnswerCard(answer))}
                             </div>
