@@ -107,6 +107,12 @@ export const Game: React.FC = () => {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
+        // Draw initial point
+        ctx.beginPath();
+        ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
+        ctx.fillStyle = selectedColor;
+        ctx.fill();
+
         // Save the current state before starting a new stroke
         const currentState = ctx.getImageData(0, 0, canvas.width, canvas.height);
         setCurrentStroke(currentState);
@@ -123,26 +129,23 @@ export const Game: React.FC = () => {
 
         const { x, y } = getCoordinates(e);
 
-        // Update context properties before drawing
+        // Simple line drawing setup
         ctx.lineWidth = brushSize;
         ctx.strokeStyle = selectedColor;
-        ctx.fillStyle = selectedColor;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
-        // Draw a circle at the current position
+        // Draw the line
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+
+        // Draw a circle at the current position to ensure no gaps
         ctx.beginPath();
         ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
+        ctx.fillStyle = selectedColor;
         ctx.fill();
-
-        // Draw a line between the last point and current point to fill gaps
-        if (lastX !== 0 || lastY !== 0) {
-            ctx.beginPath();
-            ctx.moveTo(lastX, lastY);
-            ctx.lineTo(x, y);
-            ctx.lineWidth = brushSize;
-            ctx.stroke();
-        }
 
         setLastX(x);
         setLastY(y);
