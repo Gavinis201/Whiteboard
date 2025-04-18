@@ -18,6 +18,7 @@ export interface Game {
     joinCode: string;
     isActive: boolean;
     players: Player[];
+    currentRound: Round | null;
 }
 
 export interface Round {

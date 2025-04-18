@@ -3,15 +3,24 @@ import { Game, Player, Round, Answer, getGame, joinGame as joinGameApi, createGa
 import { signalRService } from '../services/signalR';
 import { setCookie, getCookie, removeCookie } from '../utils/cookieUtils';
 
+interface ExtendedGame extends Game {
+    currentRound: Round | null;
+}
+
+const convertToExtendedGame = (baseGame: Game): ExtendedGame => ({
+    ...baseGame,
+    currentRound: null
+});
+
 interface GameContextType {
-    game: Game | null;
+    game: ExtendedGame | null;
     player: Player | null;
     currentRound: Round | null;
     answers: Answer[];
     players: Player[];
     isReader: boolean;
     playersWhoSubmitted: Set<number>;
-    setGame: (game: Game) => void;
+    setGame: (game: ExtendedGame) => void;
     setPlayer: (player: Player) => void;
     setCurrentRound: (round: Round) => void;
     setAnswers: (answers: Answer[]) => void;
@@ -26,7 +35,7 @@ interface GameContextType {
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export const GameProvider = ({ children }: { children: ReactNode }) => {
-    const [game, setGame] = useState<Game | null>(null);
+    const [game, setGame] = useState<ExtendedGame | null>(null);
     const [player, setPlayer] = useState<Player | null>(null);
     const [currentRound, setCurrentRound] = useState<Round | null>(null);
     const [answers, setAnswers] = useState<Answer[]>([]);
@@ -172,7 +181,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
         if (savedGame && savedPlayer) {
             try {
-                setGame(JSON.parse(savedGame));
+                setGame(convertToExtendedGame(JSON.parse(savedGame)));
                 setPlayer(JSON.parse(savedPlayer));
                 setIsCreator(savedIsCreator === 'true');
                 setIsReader(savedIsReader === 'true');
@@ -214,17 +223,17 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     
                     // Get the latest game state
                     const gameData = await getGame(game.joinCode);
-                    setGame(gameData);
+                    setGame(convertToExtendedGame(gameData));
                     
                     // Get the latest rounds and answers if there's an active round
-                    if (gameData.currentRound) {
-                        const rounds = await getRounds(game.joinCode);
-                        const currentRound = rounds.find(r => !r.isCompleted);
-                        if (currentRound) {
-                            setCurrentRound(currentRound);
-                            const answers = await getAnswersForRound(currentRound.roundId);
-                            setAnswers(answers);
-                        }
+                    const rounds = await getRounds(Number(game.joinCode));
+                    const currentRound = rounds.find(r => !r.isCompleted);
+                    if (currentRound) {
+                        setCurrentRound(currentRound);
+                        const answers = await getAnswersForRound(currentRound.roundId);
+                        setAnswers(answers);
+                        // Update game with current round
+                        setGame(prev => prev ? { ...prev, currentRound } : null);
                     }
                 } catch (error) {
                     console.error('Error reconnecting to game:', error);
@@ -255,7 +264,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log('Creating new game for player:', playerName);
             const gameData = await createGameApi();
             console.log('Game created:', gameData);
-            setGame(gameData);
+            setGame(convertToExtendedGame(gameData));
             
             const playerData = await joinGameApi(gameData.joinCode, playerName);
             console.log('Player joined:', playerData);
@@ -300,7 +309,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             // Get the game data
             const gameData = await getGame(joinCode);
             console.log('Game data retrieved:', gameData);
-            setGame(gameData);
+            setGame(convertToExtendedGame(gameData));
             
             // Join the game via SignalR with the player name
             await signalRService.joinGame(joinCode, playerName || 'Unknown Player');
