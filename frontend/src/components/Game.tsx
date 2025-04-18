@@ -34,11 +34,12 @@ export const Game: React.FC = () => {
     const colors = [
         '#000000', // Black
         '#FF0000', // Red
-        '#00FF00', // Green
-        '#0000FF', // Blue
-        '#FFFF00', // Yellow
-        '#FF00FF', // Magenta
-        '#00FFFF', // Cyan
+        '#FFA500', // ORANGE
+        '#FFFF00', // YELLOW
+        '#008000', // GREEN
+        '#0000FF', // BLUE
+        '#800080', // PURPLE
+        '#895129', // BROWN
         '#FFFFFF', // White
     ];
 
@@ -268,9 +269,8 @@ export const Game: React.FC = () => {
                                     src={answer.content} 
                                     alt={`Drawing by ${player ? player.name : answer.playerName || 'Unknown Player'}`}
                                     style={{ 
-                                        width: '300px',
-                                        height: '500px',
-                                        objectFit: 'contain'
+                                        width: '200px',
+                                        height: '300px',
                                     }}
                                 />
                             ) : (

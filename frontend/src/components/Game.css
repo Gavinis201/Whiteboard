@@ -42,11 +42,7 @@
     transform: rotateY(180deg);
 }
 
-.card-back img {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-}
+
 
 .player-name {
     font-size: 1.2rem;
