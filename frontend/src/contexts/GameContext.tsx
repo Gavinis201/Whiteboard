@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Game, Player, Round, Answer, getGame, joinGame as joinGameApi, createGame as createGameApi, getRounds, getAnswersForRound } from '../services/api';
 import { signalRService } from '../services/signalR';
+import { setCookie, getCookie, removeCookie } from '../utils/cookieUtils';
 
 interface GameContextType {
     game: Game | null;
@@ -19,11 +20,12 @@ interface GameContextType {
     joinGame: (joinCode: string, playerName: string) => Promise<void>;
     startNewRound: (prompt: string) => Promise<void>;
     submitAnswer: (answer: string) => Promise<void>;
+    leaveGame: () => Promise<void>;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
-export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const GameProvider = ({ children }: { children: ReactNode }) => {
     const [game, setGame] = useState<Game | null>(null);
     const [player, setPlayer] = useState<Player | null>(null);
     const [currentRound, setCurrentRound] = useState<Round | null>(null);
@@ -32,6 +34,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [isReader, setIsReader] = useState(false);
     const [showAnswers, setShowAnswers] = useState(false);
     const [playersWhoSubmitted, setPlayersWhoSubmitted] = useState<Set<number>>(new Set());
+    const [isReconnecting, setIsReconnecting] = useState(false);
+    const [isCreator, setIsCreator] = useState(false);
 
     // Connect to SignalR when the game is set
     useEffect(() => {
@@ -64,37 +68,57 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
     }, [game?.joinCode]);
 
+    // Set up SignalR event handlers
+    useEffect(() => {
+        if (game?.joinCode) {
+            // Handle player joined event
+            signalRService.onPlayerJoined((playerId, playerName) => {
+                console.log('Player joined:', playerId, playerName);
+                if (!playerName) {
+                    console.warn('Received player joined event without player name');
+                    return;
+                }
+                // Only add the player if they're not already in the list
+                setPlayers(prev => {
+                    const existingPlayer = prev.find(p => p.playerId.toString() === playerId);
+                    if (existingPlayer) {
+                        return prev;
+                    }
+                    return [...prev, { 
+                        playerId: parseInt(playerId), 
+                        name: playerName,
+                        isReader: false,
+                        gameId: game.gameId
+                    }];
+                });
+            });
+
+            // Handle player left event
+            signalRService.onPlayerLeft((playerId) => {
+                console.log('Player left:', playerId);
+                setPlayers(prev => prev.filter(p => p.playerId.toString() !== playerId));
+            });
+
+            // Clean up event handlers when component unmounts or game changes
+            return () => {
+                // Clear the callbacks instead of trying to remove them
+                signalRService.onPlayerJoined(() => {});
+                signalRService.onPlayerLeft(() => {});
+            };
+        }
+    }, [game?.joinCode]);
+
     useEffect(() => {
         if (game?.joinCode) {
             console.log('Setting up SignalR handlers for game:', game.joinCode);
             
             const setupHandlers = () => {
-                signalRService.onPlayerJoined((playerId, playerName) => {
-                    console.log('Player joined:', playerId, playerName);
-                    if (!playerName) {
-                        console.warn('Received player joined event without player name');
-                        return;
-                    }
-                    // Only add the player if they're not already in the list
-                    setPlayers(prev => {
-                        const existingPlayer = prev.find(p => p.playerId.toString() === playerId);
-                        if (existingPlayer) {
-                            return prev;
-                        }
-                        return [...prev, { 
-                            playerId: parseInt(playerId), 
-                            name: playerName,
-                            isReader: false,
-                            gameId: game.gameId
-                        }];
-                    });
-                });
+                // Clear previous handlers by setting empty callbacks
+                signalRService.onRoundStarted(() => {});
+                signalRService.onRoundEnded(() => {});
+                signalRService.onAnswerReceived(() => {});
 
-                signalRService.onPlayerLeft((playerId) => {
-                    console.log('Player left:', playerId);
-                    setPlayers(prev => prev.filter(p => p.playerId.toString() !== playerId));
-                });
-
+                // Set up new handlers
                 signalRService.onRoundStarted((prompt) => {
                     console.log('Round started with prompt:', prompt);
                     setCurrentRound({ 
@@ -128,35 +152,97 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             };
 
             setupHandlers();
+
+            // Cleanup function
+            return () => {
+                console.log('Cleaning up SignalR handlers');
+                signalRService.onRoundStarted(() => {});
+                signalRService.onRoundEnded(() => {});
+                signalRService.onAnswerReceived(() => {});
+            };
         }
     }, [game?.joinCode]);
 
-    // Add localStorage persistence
+    // Load game and player state from cookies on mount
     useEffect(() => {
-        if (game && player) {
-            localStorage.setItem('currentGame', JSON.stringify({
-                game,
-                player,
-                isReader
-            }));
-        }
-    }, [game, player, isReader]);
+        const savedGame = getCookie('currentGame');
+        const savedPlayer = getCookie('currentPlayer');
+        const savedIsCreator = getCookie('isCreator');
+        const savedIsReader = getCookie('isReader');
 
-    // Load game state from localStorage on mount
-    useEffect(() => {
-        const savedGame = localStorage.getItem('currentGame');
-        if (savedGame) {
+        if (savedGame && savedPlayer) {
             try {
-                const { game: savedGameData, player: savedPlayer, isReader: savedIsReader } = JSON.parse(savedGame);
-                setGame(savedGameData);
-                setPlayer(savedPlayer);
-                setIsReader(savedIsReader);
+                setGame(JSON.parse(savedGame));
+                setPlayer(JSON.parse(savedPlayer));
+                setIsCreator(savedIsCreator === 'true');
+                setIsReader(savedIsReader === 'true');
+                setIsReconnecting(true);
             } catch (error) {
-                console.error('Error loading saved game:', error);
-                localStorage.removeItem('currentGame');
+                console.error('Error loading saved game state:', error);
+                // Clear invalid cookies
+                removeCookie('currentGame');
+                removeCookie('currentPlayer');
+                removeCookie('isCreator');
+                removeCookie('isReader');
             }
         }
     }, []);
+
+    // Save game and player state to cookies when they change
+    useEffect(() => {
+        if (game && player) {
+            setCookie('currentGame', JSON.stringify(game));
+            setCookie('currentPlayer', JSON.stringify(player));
+            setCookie('isCreator', isCreator.toString());
+            setCookie('isReader', isReader.toString());
+        } else {
+            removeCookie('currentGame');
+            removeCookie('currentPlayer');
+            removeCookie('isCreator');
+            removeCookie('isReader');
+        }
+    }, [game, player, isCreator, isReader]);
+
+    // Handle reconnection when a saved game is found
+    useEffect(() => {
+        const reconnectToGame = async () => {
+            if (isReconnecting && game?.joinCode && player?.name) {
+                try {
+                    await signalRService.connect();
+                    await signalRService.joinGame(game.joinCode, player.name);
+                    console.log('Successfully reconnected to game:', game.joinCode);
+                    
+                    // Get the latest game state
+                    const gameData = await getGame(game.joinCode);
+                    setGame(gameData);
+                    
+                    // Get the latest rounds and answers if there's an active round
+                    if (gameData.currentRound) {
+                        const rounds = await getRounds(game.joinCode);
+                        const currentRound = rounds.find(r => !r.isCompleted);
+                        if (currentRound) {
+                            setCurrentRound(currentRound);
+                            const answers = await getAnswersForRound(currentRound.roundId);
+                            setAnswers(answers);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error reconnecting to game:', error);
+                    // If reconnection fails, clear the saved game
+                    removeCookie('currentGame');
+                    removeCookie('currentPlayer');
+                    removeCookie('isCreator');
+                    removeCookie('isReader');
+                    setGame(null);
+                    setPlayer(null);
+                } finally {
+                    setIsReconnecting(false);
+                }
+            }
+        };
+
+        reconnectToGame();
+    }, [isReconnecting, game?.joinCode, player?.name]);
 
     const createGame = async (playerName: string) => {
         try {
@@ -175,9 +261,16 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.log('Player joined:', playerData);
             setPlayer(playerData);
             setIsReader(true);
+            setIsCreator(true);
             
             await signalRService.joinGame(gameData.joinCode, playerName || 'Unknown Player');
             console.log('Created new game as reader:', gameData.joinCode);
+
+            // Save to cookies
+            setCookie('currentGame', JSON.stringify(gameData));
+            setCookie('currentPlayer', JSON.stringify(playerData));
+            setCookie('isCreator', 'true');
+            setCookie('isReader', 'true');
         } catch (error) {
             console.error('Error creating game:', error);
             throw error;
@@ -202,6 +295,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.log('Player joined:', playerData);
             setPlayer(playerData);
             setIsReader(false);
+            setIsCreator(false);
             
             // Get the game data
             const gameData = await getGame(joinCode);
@@ -220,6 +314,11 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 gameId: gameData.gameId
             }]);
             
+            // Save to cookies
+            setCookie('currentGame', JSON.stringify(gameData));
+            setCookie('currentPlayer', JSON.stringify(playerData));
+            setCookie('isCreator', 'false');
+            setCookie('isReader', 'false');
         } catch (error) {
             console.error('Error joining game:', error);
             throw error;
@@ -313,6 +412,51 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
     };
 
+    const leaveGame = async () => {
+        try {
+            if (game?.joinCode) {
+                // Leave the SignalR group
+                try {
+                    await signalRService.leaveGame(game.joinCode);
+                } catch (error) {
+                    console.warn('Error leaving SignalR group, but continuing with cleanup:', error);
+                }
+            }
+            
+            // Clear all state
+            setGame(null);
+            setPlayer(null);
+            setCurrentRound(null);
+            setAnswers([]);
+            setPlayers([]);
+            setShowAnswers(false);
+            setPlayersWhoSubmitted(new Set());
+            
+            // Remove all cookies
+            removeCookie('currentGame');
+            removeCookie('currentPlayer');
+            removeCookie('isCreator');
+            removeCookie('isReader');
+            
+            console.log('Successfully left the game');
+        } catch (error) {
+            console.error('Error leaving game:', error);
+            // Even if there's an error, we should still clear the state
+            setGame(null);
+            setPlayer(null);
+            setCurrentRound(null);
+            setAnswers([]);
+            setPlayers([]);
+            setShowAnswers(false);
+            setPlayersWhoSubmitted(new Set());
+            removeCookie('currentGame');
+            removeCookie('currentPlayer');
+            removeCookie('isCreator');
+            removeCookie('isReader');
+            throw error;
+        }
+    };
+
     // Add cleanup on unmount
     useEffect(() => {
         return () => {
@@ -343,7 +487,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             createGame,
             joinGame,
             startNewRound,
-            submitAnswer
+            submitAnswer,
+            leaveGame
         }}>
             {children}
         </GameContext.Provider>

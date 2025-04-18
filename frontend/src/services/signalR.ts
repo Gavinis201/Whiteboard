@@ -270,6 +270,33 @@ class SignalRService {
         this.answersRevealedCallback = callback;
         console.log('Registered AnswersRevealed callback');
     }
+
+    async leaveGame(joinCode: string) {
+        if (!this.connection) {
+            throw new Error('SignalR connection not established');
+        }
+
+        try {
+            // Try different method names that might be implemented on the server
+            try {
+                await this.connection.invoke('LeaveGame', joinCode);
+            } catch (error) {
+                console.warn('LeaveGame method not found, trying alternative method names...');
+                try {
+                    await this.connection.invoke('Leave', joinCode);
+                } catch (error) {
+                    console.warn('Leave method not found, trying RemovePlayer...');
+                    await this.connection.invoke('RemovePlayer', joinCode);
+                }
+            }
+            console.log('Successfully left game:', joinCode);
+        } catch (error) {
+            console.error('Error leaving game:', error);
+            // Even if the server method fails, we should still disconnect from the hub
+            await this.disconnect();
+            throw error;
+        }
+    }
 }
 
 export const signalRService = new SignalRService(); 

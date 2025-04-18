@@ -47,9 +47,13 @@
               "target": "Package",
               "version": "[8.0.3, )"
             },
-            "Microsoft.AspNetCore.SignalR": {
+            "Microsoft.AspNetCore.SignalR.Client": {
               "target": "Package",
-              "version": "[1.2.0, )"
+              "version": "[8.0.3, )"
+            },
+            "Microsoft.AspNetCore.SignalR.Protocols.Json": {
+              "target": "Package",
+              "version": "[8.0.3, )"
             },
             "Microsoft.EntityFrameworkCore": {
               "target": "Package",

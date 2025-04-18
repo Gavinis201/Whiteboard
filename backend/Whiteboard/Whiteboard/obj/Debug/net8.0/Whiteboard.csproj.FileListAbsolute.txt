@@ -20,10 +20,7 @@
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.EntityFrameworkCore.Sqlite.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.Extensions.DependencyInjection.Abstractions.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.Extensions.DependencyModel.dll
-/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.Extensions.Diagnostics.Abstractions.dll
-/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.Extensions.Hosting.Abstractions.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.Extensions.Logging.Abstractions.dll
-/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.Extensions.ObjectPool.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.Extensions.Options.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.IdentityModel.Abstractions.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.IdentityModel.JsonWebTokens.dll
@@ -33,7 +30,6 @@
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.IdentityModel.Tokens.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.OpenApi.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Mono.TextTemplating.dll
-/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Newtonsoft.Json.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/SQLitePCLRaw.batteries_v2.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/SQLitePCLRaw.core.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/SQLitePCLRaw.provider.e_sqlite3.dll
@@ -47,7 +43,6 @@
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/System.Composition.Runtime.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/System.Composition.TypedParts.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/System.IdentityModel.Tokens.Jwt.dll
-/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/System.Net.WebSockets.WebSocketProtocol.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/cs/Microsoft.CodeAnalysis.resources.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/de/Microsoft.CodeAnalysis.resources.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/es/Microsoft.CodeAnalysis.resources.dll
@@ -148,3 +143,11 @@
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/publish/Whiteboard.deps.json
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/publish/Whiteboard.runtimeconfig.json
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/obj/Debug/net8.0/Whiteboard.sourcelink.json
+/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.AspNetCore.Connections.Abstractions.dll
+/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.AspNetCore.Http.Connections.Client.dll
+/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.AspNetCore.Http.Connections.Common.dll
+/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.AspNetCore.SignalR.Client.dll
+/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.AspNetCore.SignalR.Client.Core.dll
+/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.AspNetCore.SignalR.Common.dll
+/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.AspNetCore.SignalR.Protocols.Json.dll
+/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Microsoft.Extensions.Features.dll

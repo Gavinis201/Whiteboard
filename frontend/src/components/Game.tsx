@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { Answer } from '../types/game';
+import { useNavigate } from 'react-router-dom';
 import './Game.css';
 
 export const Game: React.FC = () => {
@@ -13,8 +14,10 @@ export const Game: React.FC = () => {
         playersWhoSubmitted,
         startNewRound,
         submitAnswer,
-        players
+        players,
+        leaveGame
     } = useGame();
+    const navigate = useNavigate();
 
     const [prompt, setPrompt] = useState('');
     const [answer, setAnswer] = useState('');
@@ -25,6 +28,8 @@ export const Game: React.FC = () => {
     const [flippedCards, setFlippedCards] = useState<Set<number>>(new Set());
     const [selectedColor, setSelectedColor] = useState('#000000');
     const [brushSize, setBrushSize] = useState(2);
+    const [drawingHistory, setDrawingHistory] = useState<ImageData[]>([]);
+    const [currentStroke, setCurrentStroke] = useState<ImageData | null>(null);
 
     const colors = [
         '#000000', // Black
@@ -50,32 +55,23 @@ export const Game: React.FC = () => {
         ctx.strokeStyle = selectedColor;
         ctx.lineJoin = 'round';
 
-        // Set canvas size
+        // Set canvas size to match card dimensions
         const resizeCanvas = () => {
-            const currentDrawing = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const rect = canvas.getBoundingClientRect();
-            canvas.width = rect.width;
-            canvas.height = rect.height;
-            ctx.putImageData(currentDrawing, 0, 0);
+            const targetWidth = Math.min(rect.width, 300); // Set max width to 300px
+            const targetHeight = (targetWidth * 5) / 3; // Calculate height based on 3:5 ratio
+            
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
         };
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
 
-        // Prevent default touch behaviors
-        const preventDefault = (e: TouchEvent) => {
-            e.preventDefault();
-        };
-
-        // Add touch event listeners
-        canvas.addEventListener('touchstart', preventDefault, { passive: false });
-        canvas.addEventListener('touchmove', preventDefault, { passive: false });
-        canvas.addEventListener('touchend', preventDefault, { passive: false });
-
         return () => {
             window.removeEventListener('resize', resizeCanvas);
-            canvas.removeEventListener('touchstart', preventDefault);
-            canvas.removeEventListener('touchmove', preventDefault);
-            canvas.removeEventListener('touchend', preventDefault);
         };
     }, []);
 
@@ -99,6 +95,22 @@ export const Game: React.FC = () => {
         return { x, y };
     };
 
+    const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        const { x, y } = getCoordinates(e);
+        setIsDrawing(true);
+        setLastX(x);
+        setLastY(y);
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // Save the current state before starting a new stroke
+        const currentState = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        setCurrentStroke(currentState);
+    };
+
     const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
         if (!isDrawing) return;
 
@@ -113,43 +125,64 @@ export const Game: React.FC = () => {
         // Update context properties before drawing
         ctx.lineWidth = brushSize;
         ctx.strokeStyle = selectedColor;
+        ctx.fillStyle = selectedColor;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
+        // Draw a circle at the current position
         ctx.beginPath();
-        ctx.moveTo(lastX, lastY);
-        ctx.lineTo(x, y);
-        ctx.stroke();
+        ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw a line between the last point and current point to fill gaps
+        if (lastX !== 0 || lastY !== 0) {
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(x, y);
+            ctx.lineWidth = brushSize;
+            ctx.stroke();
+        }
 
         setLastX(x);
         setLastY(y);
-    };
-
-    const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-        const { x, y } = getCoordinates(e);
-        setIsDrawing(true);
-        setLastX(x);
-        setLastY(y);
-
-        // Initialize the drawing point
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        ctx.lineWidth = brushSize;
-        ctx.strokeStyle = selectedColor;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x, y);
-        ctx.stroke();
     };
 
     const stopDrawing = () => {
+        if (!isDrawing) return;
+        
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // Save the completed stroke to history
+        const completedStroke = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        setDrawingHistory(prev => [...prev, completedStroke]);
+        setCurrentStroke(null);
+
         setIsDrawing(false);
+    };
+
+    const undoLastStroke = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        if (drawingHistory.length > 0) {
+            // Remove the last stroke from history
+            const newHistory = [...drawingHistory];
+            newHistory.pop();
+            setDrawingHistory(newHistory);
+
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Redraw all strokes except the last one
+            if (newHistory.length > 0) {
+                ctx.putImageData(newHistory[newHistory.length - 1], 0, 0);
+            }
+        }
     };
 
     const clearCanvas = () => {
@@ -160,6 +193,8 @@ export const Game: React.FC = () => {
         if (!ctx) return;
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        setDrawingHistory([]);
+        setCurrentStroke(null);
     };
 
     const handleSubmitAnswer = async () => {
@@ -223,32 +258,65 @@ export const Game: React.FC = () => {
                         </p>
                         <p>Click to see drawing</p>
                     </div>
-                    <div className="card-back">
-                        {answer.content.startsWith('data:image') ? (
-                            <img 
-                                src={answer.content} 
-                                alt={`Drawing by ${player ? player.name : answer.playerName || 'Unknown Player'}`}
-                            />
-                        ) : (
-                            <p>{answer.content}</p>
-                        )}
+                    <div className="card-back flex flex-col">
+                        <h3 className="text-sm font-semibold text-purple-600 sticky top-0 bg-white p-1 z-10">
+                            {player ? player.name : answer.playerName || 'Unknown Player'}
+                        </h3>
+                        <div className="flex-1 overflow-auto flex items-center justify-center">
+                            {answer.content.startsWith('data:image') ? (
+                                <img 
+                                    src={answer.content} 
+                                    alt={`Drawing by ${player ? player.name : answer.playerName || 'Unknown Player'}`}
+                                    style={{ 
+                                        width: '300px',
+                                        height: '500px',
+                                        objectFit: 'contain'
+                                    }}
+                                />
+                            ) : (
+                                <p>{answer.content}</p>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
         );
     };
 
+    const handleLeaveGame = async () => {
+        if (window.confirm('Are you sure you want to leave the game?')) {
+            try {
+                await leaveGame();
+                navigate('/');
+            } catch (error) {
+                console.error('Error leaving game:', error);
+                // Even if there's an error, we should still redirect to home
+                navigate('/');
+            }
+        }
+    };
+
     return (
         <div className="min-h-screen bg-gray-50 p-4">
             <div className="max-w-7xl mx-auto">
                 <div className="game-content bg-white rounded-xl shadow-lg p-4 sm:p-6">
-                    <div className="mb-4 sm:mb-6">
-                        <h2 className="text-xl sm:text-2xl font-bold text-purple-600">
-                            Game Code: <span className="text-2xl sm:text-3xl">{game?.joinCode}</span>
-                        </h2>
-                        <p className="text-sm sm:text-base text-gray-600">
-                            Player: {player?.name} {isReader ? '(Reader)' : ''}
-                        </p>
+                    <div className="mb-4 sm:mb-6 flex justify-between items-center">
+                        <div>
+                            <h2 className="text-xl sm:text-2xl font-bold text-purple-600">
+                                Game Code: <span className="text-2xl sm:text-3xl">{game?.joinCode}</span>
+                            </h2>
+                            <p className="text-sm sm:text-base text-gray-600">
+                                Player: {player?.name} {isReader ? '(Reader)' : ''}
+                            </p>
+                        </div>
+                        {!isReader && (
+                            <button
+                                onClick={handleLeaveGame}
+                                className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors text-sm sm:text-base"
+                            >
+                                Leave Game
+                            </button>
+                        )}
                     </div>
 
                     {isReader ? (
@@ -312,7 +380,7 @@ export const Game: React.FC = () => {
                                                 <div className="relative">
                                                     <canvas
                                                         ref={canvasRef}
-                                                        className="border rounded-lg w-full h-125 sm:h-305 bg-white shadow-sm"
+                                                        className="border rounded-lg bg-white shadow-sm"
                                                         onMouseDown={startDrawing}
                                                         onMouseMove={draw}
                                                         onMouseUp={stopDrawing}
@@ -321,7 +389,8 @@ export const Game: React.FC = () => {
                                                         onTouchMove={draw}
                                                         onTouchEnd={stopDrawing}
                                                         style={{ 
-                                                            height: '50vh',
+                                                            width: '300px',
+                                                            height: '500px',
                                                             touchAction: 'none',
                                                             WebkitTouchCallout: 'none',
                                                             WebkitUserSelect: 'none',
@@ -336,6 +405,13 @@ export const Game: React.FC = () => {
                                                         className="bg-purple-100 text-purple-600 px-6 py-3 rounded-md hover:bg-purple-200 transition-colors text-sm sm:text-base"
                                                     >
                                                         Clear
+                                                    </button>
+                                                    <button
+                                                        onClick={undoLastStroke}
+                                                        className="bg-purple-100 text-purple-600 px-6 py-3 rounded-md hover:bg-purple-200 transition-colors text-sm sm:text-base"
+                                                        disabled={drawingHistory.length === 0}
+                                                    >
+                                                        Undo
                                                     </button>
                                                     <button
                                                         onClick={handleSubmitAnswer}
