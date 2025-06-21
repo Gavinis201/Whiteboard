@@ -1,4 +1,4 @@
-import { HubConnectionBuilder, HubConnection, LogLevel, HttpTransportType } from '@microsoft/signalr';
+import { HubConnectionBuilder, HubConnection, LogLevel, HttpTransportType, HubConnectionState } from '@microsoft/signalr';
 
 class SignalRService {
     private connection: HubConnection | null = null;
@@ -174,7 +174,7 @@ class SignalRService {
             console.log('Joining game via SignalR:', joinCode, 'as', playerName);
             
             // Wait for the connection to be fully established
-            if (this.connection.state !== 'Connected') {
+            if (this.connection.state !== HubConnectionState.Connected) {
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
 
@@ -206,9 +206,22 @@ class SignalRService {
         }
 
         try {
-            console.log('Starting round via SignalR:', { joinCode, prompt });
-            await this.connection.invoke('StartRound', joinCode, prompt);
-            console.log('Round started successfully');
+            console.log('Starting round via SignalR:', { joinCode, prompt, connectionState: this.connection.state });
+            
+            // Retry logic for starting round
+            let retries = 3;
+            while (retries > 0) {
+                try {
+                    await this.connection.invoke('StartRound', joinCode, prompt);
+                    console.log('Round started successfully');
+                    return;
+                } catch (error) {
+                    console.warn(`Failed to start round (attempt ${4 - retries}/3):`, error);
+                    retries--;
+                    if (retries === 0) throw error;
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
         } catch (error) {
             console.error('Error starting round:', error);
             throw error;

@@ -103,11 +103,12 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             signalRService.onRoundEnded(() => {});
             signalRService.onAnswerReceived(() => {});
             
-            // Handle player joined event
+            console.log('SignalR event handlers cleared, setting up new handlers...');
+            
+            // Handle player joined event - Direct state update instead of database refresh
             signalRService.onPlayerJoined(async (playerId, playerName) => {
                 const timestamp = new Date().toISOString();
                 console.log(`[${timestamp}] Player joined event received:`, { playerId, playerName, currentPlayerId: player?.playerId, isReader, isInitializing: isInitializingRef.current });
-                console.log(`[${timestamp}] Current game state:`, { joinCode: game?.joinCode, currentPlayers: game?.players?.length || 0 });
                 
                 if (!playerName) {
                     console.warn('Received player joined event without player name');
@@ -120,91 +121,83 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     return;
                 }
                 
-                // Refresh game data from backend to get updated player list
-                if (game?.joinCode) {
-                    try {
-                        console.log(`[${timestamp}] Refreshing game data after player joined`);
-                        
-                        // Add a small delay to give the backend time to process the join
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                        
-                        const updatedGame = await getGame(game.joinCode);
-                        console.log(`[${timestamp}] Updated game data:`, updatedGame);
-                        console.log(`[${timestamp}] Updated players:`, updatedGame.players);
-                        
-                        setGame(convertToExtendedGame(updatedGame));
-                        
-                        // If the backend doesn't have the player yet, add them manually as a fallback
-                        const playerExists = updatedGame.players?.some(p => p.playerId.toString() === playerId);
-                        console.log(`[${timestamp}] Player exists in backend:`, playerExists, 'Looking for playerId:', playerId);
-                        
-                        if (!playerExists) {
-                            console.log(`[${timestamp}] Player not found in backend response, adding manually as fallback`);
-                            const newPlayer = {
-                                playerId: parseInt(playerId),
-                                name: playerName,
-                                isReader: false, // Assume not reader unless we know otherwise
-                                gameId: game.gameId
-                            };
-                            setGame(prev => {
-                                if (!prev) return null;
-                                console.log(`[${timestamp}] Adding player manually:`, newPlayer);
-                                console.log(`[${timestamp}] Current players before add:`, prev.players);
-                                const updated = {
-                                    ...prev,
-                                    players: [...(prev.players || []), newPlayer]
-                                };
-                                console.log(`[${timestamp}] Updated players after add:`, updated.players);
-                                return updated;
-                            });
-                        }
-                    } catch (error) {
-                        console.error('Error refreshing game data:', error);
-                        // Fallback: add player manually if refresh fails
-                        console.log(`[${timestamp}] Adding player manually due to refresh error`);
-                        const newPlayer = {
-                            playerId: parseInt(playerId),
-                            name: playerName,
-                            isReader: false,
-                            gameId: game.gameId
-                        };
-                        setGame(prev => prev ? {
-                            ...prev,
-                            players: [...(prev.players || []), newPlayer]
-                        } : null);
+                // Direct state update instead of database refresh
+                setGame(prev => {
+                    if (!prev) return null;
+                    
+                    // Check if player already exists to prevent duplicates
+                    const playerExists = prev.players?.some(p => p.playerId.toString() === playerId);
+                    if (playerExists) {
+                        console.log(`[${timestamp}] Player ${playerName} (${playerId}) already exists in state, skipping`);
+                        return prev;
                     }
-                } else {
-                    console.log(`[${timestamp}] No game join code available for player join event`);
-                }
+                    
+                    console.log(`[${timestamp}] Adding player to state:`, { playerId, playerName });
+                    const newPlayer = {
+                        playerId: parseInt(playerId),
+                        name: playerName,
+                        isReader: false, // Assume not reader unless we know otherwise
+                        gameId: prev.gameId
+                    };
+                    
+                    const updatedPlayers = [...(prev.players || []), newPlayer];
+                    console.log(`[${timestamp}] Updated players list:`, updatedPlayers.map(p => ({ id: p.playerId, name: p.name })));
+                    
+                    return {
+                        ...prev,
+                        players: updatedPlayers
+                    };
+                });
             });
 
-            // Handle player left event
+            // Handle player left event - Direct state update instead of database refresh
             signalRService.onPlayerLeft(async (playerId) => {
-                console.log('Player left:', playerId);
+                console.log('Player left event received:', playerId);
                 
-                // Refresh game data from backend to get updated player list
-                if (game?.joinCode) {
-                    try {
-                        console.log('Refreshing game data after player left');
-                        const updatedGame = await getGame(game.joinCode);
-                        setGame(convertToExtendedGame(updatedGame));
-                    } catch (error) {
-                        console.error('Error refreshing game data:', error);
-                    }
-                }
+                // Direct state update instead of database refresh
+                setGame(prev => {
+                    if (!prev) return null;
+                    
+                    const updatedPlayers = prev.players?.filter(p => p.playerId.toString() !== playerId) || [];
+                    console.log('Player left, updated players list:', updatedPlayers.map(p => ({ id: p.playerId, name: p.name })));
+                    
+                    return {
+                        ...prev,
+                        players: updatedPlayers
+                    };
+                });
             });
 
             // Handle round started event
             signalRService.onRoundStarted((prompt) => {
-                console.log('Round started with prompt:', prompt);
-                setCurrentRound({ 
+                console.log('RoundStarted event received in GameContext:', { 
                     prompt, 
-                    isCompleted: false, 
-                    roundId: Date.now(), // Temporary ID for round
-                    gameId: game?.gameId || 0 // Use the current game's ID
+                    gameJoinCode: game?.joinCode, 
+                    currentPlayer: player?.name,
+                    isReader,
+                    currentRound: currentRound?.prompt 
                 });
-                setAnswers([]); // Clear previous answers
+                
+                if (!prompt) {
+                    console.warn('Received RoundStarted event without prompt');
+                    return;
+                }
+                
+                try {
+                    setCurrentRound({ 
+                        prompt, 
+                        isCompleted: false, 
+                        roundId: Date.now(), // Temporary ID for round
+                        gameId: game?.gameId || 0 // Use the current game's ID
+                    });
+                    setAnswers([]); // Clear previous answers
+                    console.log('Successfully set current round:', prompt);
+                } catch (error) {
+                    console.error('Error setting current round:', error);
+                }
             });
+            
+            console.log('RoundStarted event handler registered successfully');
 
             // Handle round ended event
             signalRService.onRoundEnded(() => {
@@ -240,6 +233,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 signalRService.onRoundEnded(() => {});
                 signalRService.onAnswerReceived(() => {});
             };
+        }
+        
+        if (game?.joinCode && handlersSetupRef.current) {
+            console.log('SignalR event handlers already set up for game:', game.joinCode);
         }
     }, [game?.joinCode, handlersSetupRef, currentGameJoinCode]);
 
@@ -434,11 +431,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             isInitializingRef.current = true; // Set initialization flag
             setAnswers([]);
             setCurrentRound(null);
-            // setPlayers([]); // Clear players list - no longer needed
             setShowAnswers(false);
             setPlayersWhoSubmitted(new Set()); // Clear submitted players
             handlersSetupRef.current = false; // Reset handlers setup
-            // currentPlayersRef.current.clear(); // Clear tracking set
 
             console.log('Creating new game for player:', playerName);
             const gameData = await createGameApi();
@@ -454,23 +449,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             await signalRService.joinGame(gameData.joinCode, playerName || 'Unknown Player');
             console.log('Created new game as reader:', gameData.joinCode);
 
-            // Ensure the reader is in the player list
-            setGame(prev => {
-                if (!prev) return null;
-                const readerExists = prev.players?.some(p => p.playerId === playerData.playerId);
-                if (!readerExists) {
-                    console.log('Adding reader to player list manually');
-                    const readerPlayer = {
-                        ...playerData,
-                        isReader: true
-                    };
-                    return {
-                        ...prev,
-                        players: [...(prev.players || []), readerPlayer]
-                    };
-                }
-                return prev;
-            });
+            // Note: SignalR will automatically add the player to the list via the PlayerJoined event
+            // No need to manually add the player here
 
             // Note: Cookies are automatically saved by the useEffect when state changes
         } catch (error) {
@@ -491,11 +471,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             isInitializingRef.current = true; // Set initialization flag
             setAnswers([]);
             setCurrentRound(null);
-            // setPlayers([]); // Clear players list - no longer needed
             setShowAnswers(false);
             setPlayersWhoSubmitted(new Set()); // Clear submitted players
             handlersSetupRef.current = false; // Reset handlers setup
-            // currentPlayersRef.current.clear(); // Clear tracking set
 
             console.log('Joining game:', joinCode, 'as player:', playerName);
             
@@ -541,10 +519,21 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             throw new Error('Not the reader');
         }
 
+        if (!prompt || !prompt.trim()) {
+            console.error('Cannot start round: Empty prompt');
+            throw new Error('Prompt cannot be empty');
+        }
+
         try {
-            console.log('Starting new round with prompt:', prompt, 'for game:', game.joinCode);
-            await signalRService.startRound(game.joinCode, prompt);
-            console.log('Round started successfully');
+            console.log('Starting new round:', { 
+                joinCode: game.joinCode, 
+                prompt: prompt.trim(),
+                playerName: player?.name,
+                isReader 
+            });
+            
+            await signalRService.startRound(game.joinCode, prompt.trim());
+            console.log('Round started successfully via SignalR');
         } catch (error) {
             console.error('Error starting round:', error);
             throw error;
@@ -589,34 +578,6 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [game]);
 
-    const handlePlayerJoined = (playerData: Player) => {
-        if (!playerData) {
-            console.error('Received undefined player data in handlePlayerJoined');
-            return;
-        }
-        
-        setGame(prevGame => {
-            if (!prevGame) {
-                console.error('Cannot update game state: game is undefined');
-                return null;
-            }
-            
-            const updatedPlayers = [...(prevGame.players || [])];
-            const existingPlayerIndex = updatedPlayers.findIndex(p => p.playerId === playerData.playerId);
-            
-            if (existingPlayerIndex === -1) {
-                updatedPlayers.push(playerData);
-            } else {
-                updatedPlayers[existingPlayerIndex] = playerData;
-            }
-            
-            return {
-                ...prevGame,
-                players: updatedPlayers
-            };
-        });
-    };
-
     const leaveGame = async () => {
         try {
             if (game?.joinCode) {
@@ -634,12 +595,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setPlayer(null);
             setCurrentRound(null);
             setAnswers([]);
-            // setPlayers([]); // No longer needed - players come from game object
             setShowAnswers(false);
             setPlayersWhoSubmitted(new Set());
             handlersSetupRef.current = false;
             setCurrentGameJoinCode(null);
-            // currentPlayersRef.current.clear(); // Clear tracking set
             isInitializingRef.current = false; // Reset initialization flag
             
             // Remove all cookies
@@ -656,12 +615,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setPlayer(null);
             setCurrentRound(null);
             setAnswers([]);
-            // setPlayers([]); // No longer needed - players come from game object
             setShowAnswers(false);
             setPlayersWhoSubmitted(new Set());
             handlersSetupRef.current = false;
             setCurrentGameJoinCode(null);
-            // currentPlayersRef.current.clear(); // Clear tracking set
             isInitializingRef.current = false; // Reset initialization flag
             removeCookie('currentGame');
             removeCookie('currentPlayer');
@@ -679,7 +636,6 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setPlayer(null);
             setCurrentRound(null);
             setAnswers([]);
-            // setPlayers([]); // No longer needed - players come from game object
             setShowAnswers(false);
         };
     }, []);

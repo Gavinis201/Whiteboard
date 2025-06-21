@@ -40,6 +40,16 @@ export const Game: React.FC = () => {
         });
     }, [players, isReader]);
 
+    // Debug current round changes
+    useEffect(() => {
+        console.log('Game component - currentRound changed:', { 
+            hasCurrentRound: !!currentRound,
+            prompt: currentRound?.prompt,
+            isReader,
+            playerName: player?.name
+        });
+    }, [currentRound, isReader, player?.name]);
+
     const [prompt, setPrompt] = useState('');
     const [answer, setAnswer] = useState('');
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -438,26 +448,6 @@ export const Game: React.FC = () => {
                                     className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors text-sm sm:text-base"
                                 >
                                     Leave Game
-                                </button>
-                            )}
-                            {isReader && (
-                                <button
-                                    onClick={async () => {
-                                        try {
-                                            console.log('Manual refresh - fetching game data...');
-                                            const updatedGame = await getGame(game.joinCode);
-                                            console.log('Manual refresh - updated game data:', updatedGame);
-                                            setGame({
-                                                ...updatedGame,
-                                                currentRound: game?.currentRound || null
-                                            });
-                                        } catch (error) {
-                                            console.error('Manual refresh error:', error);
-                                        }
-                                    }}
-                                    className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors text-sm sm:text-base ml-2"
-                                >
-                                    Refresh Players
                                 </button>
                             )}
                         </div>
