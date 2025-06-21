@@ -19,6 +19,15 @@ export const Game: React.FC = () => {
     } = useGame();
     const navigate = useNavigate();
 
+    // Debug logging
+    console.log('Game component render:', { 
+        hasGame: !!game, 
+        gameJoinCode: game?.joinCode, 
+        hasPlayer: !!player, 
+        playerName: player?.name,
+        isReader 
+    });
+
     const [prompt, setPrompt] = useState('');
     const [answer, setAnswer] = useState('');
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -302,146 +311,159 @@ export const Game: React.FC = () => {
     return (
         <div className="min-h-screen bg-gray-50 p-4">
             <div className="max-w-7xl mx-auto">
-                <div className="game-content bg-white rounded-xl shadow-lg p-4 sm:p-6">
-                    <div className="mb-4 sm:mb-6 flex justify-between items-center">
-                        <div>
-                            <h2 className="text-xl sm:text-2xl font-bold text-purple-600">
-                                Game Code: <span className="text-2xl sm:text-3xl">{game?.joinCode}</span>
+                {!game || !player ? (
+                    <div className="game-content bg-white rounded-xl shadow-lg p-4 sm:p-6">
+                        <div className="text-center">
+                            <h2 className="text-xl sm:text-2xl font-bold text-purple-600 mb-4">
+                                Loading Game...
                             </h2>
                             <p className="text-sm sm:text-base text-gray-600">
-                                Player: {player?.name} {isReader ? '(Reader)' : ''}
+                                Please wait while we load your game data.
                             </p>
                         </div>
-                        {!isReader && (
-                            <button
-                                onClick={handleLeaveGame}
-                                className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors text-sm sm:text-base"
-                            >
-                                Leave Game
-                            </button>
-                        )}
                     </div>
-
-                    {isReader ? (
-                        <div className="mb-4 sm:mb-6">
-                            <h3 className="text-lg sm:text-xl font-semibold text-purple-600 mb-3 sm:mb-4">Start a New Round</h3>
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <input
-                                    type="text"
-                                    value={prompt}
-                                    onChange={(e) => setPrompt(e.target.value)}
-                                    placeholder="Enter the card content"
-                                    className="input flex-1 text-sm sm:text-base"
-                                />
-                                <button
-                                    onClick={handleStartRound}
-                                    className="bg-purple-600 text-white px-6 py-3 rounded-md hover:bg-purple-700 transition-colors text-sm sm:text-base"
-                                >
-                                    Start Round
-                                </button>
+                ) : (
+                    <div className="game-content bg-white rounded-xl shadow-lg p-4 sm:p-6">
+                        <div className="mb-4 sm:mb-6 flex justify-between items-center">
+                            <div>
+                                <h2 className="text-xl sm:text-2xl font-bold text-purple-600">
+                                    Game Code: <span className="text-2xl sm:text-3xl">{game.joinCode}</span>
+                                </h2>
+                                <p className="text-sm sm:text-base text-gray-600">
+                                    Player: {player.name} {isReader ? '(Reader)' : ''}
+                                </p>
                             </div>
-                        </div>
-                    ) : (
-                        <div className="mb-4 sm:mb-6">
-                            <h3 className="text-lg sm:text-xl font-semibold text-purple-600 mb-3 sm:mb-4">Question:</h3>
-                            {currentRound ? (
-                                <div>
-                                    <p className="text-base sm:text-lg text-gray-700 mb-4">"{currentRound.prompt}"</p>
-                                    {playersWhoSubmitted.has(player?.playerId || 0) ? (
-                                        <div className="bg-green-50 p-3 sm:p-4 rounded-lg border border-green-200">
-                                            <p className="text-sm sm:text-base text-green-700">You have already submitted your answer for this round!</p>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div className="mb-4">
-                                                <div className="flex flex-wrap gap-2 mb-4">
-                                                    {colors.map((color) => (
-                                                        <button
-                                                            key={color}
-                                                            onClick={() => setSelectedColor(color)}
-                                                            className={`w-8 h-8 rounded-full border-2 ${
-                                                                selectedColor === color ? 'border-purple-600' : 'border-gray-300'
-                                                            }`}
-                                                            style={{ backgroundColor: color }}
-                                                            title={color}
-                                                        />
-                                                    ))}
-                                                </div>
-                                                <div className="mb-4">
-                                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                        Brush Size
-                                                    </label>
-                                                    <input
-                                                        type="range"
-                                                        min="1"
-                                                        max="20"
-                                                        value={brushSize}
-                                                        onChange={(e) => setBrushSize(Number(e.target.value))}
-                                                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                                                    />
-                                                </div>
-                                                <div className="relative">
-                                                    <canvas
-                                                        ref={canvasRef}
-                                                        className="border rounded-lg bg-white shadow-sm"
-                                                        onMouseDown={startDrawing}
-                                                        onMouseMove={draw}
-                                                        onMouseUp={stopDrawing}
-                                                        onMouseLeave={stopDrawing}
-                                                        onTouchStart={startDrawing}
-                                                        onTouchMove={draw}
-                                                        onTouchEnd={stopDrawing}
-                                                        style={{ 
-                                                            width: '300px',
-                                                            height: '500px',
-                                                            touchAction: 'none',
-                                                            WebkitTouchCallout: 'none',
-                                                            WebkitUserSelect: 'none',
-                                                            userSelect: 'none',
-                                                            msTouchAction: 'none'
-                                                        }}
-                                                    />
-                                                </div>
-                                                <div className="flex flex-col sm:flex-row gap-3 mt-4">
-                                                    <button
-                                                        onClick={clearCanvas}
-                                                        className="bg-purple-100 text-purple-600 px-6 py-3 rounded-md hover:bg-purple-200 transition-colors text-sm sm:text-base"
-                                                    >
-                                                        Clear
-                                                    </button>
-                                                    <button
-                                                        onClick={undoLastStroke}
-                                                        className="bg-purple-100 text-purple-600 px-6 py-3 rounded-md hover:bg-purple-200 transition-colors text-sm sm:text-base"
-                                                        disabled={drawingHistory.length === 0}
-                                                    >
-                                                        Undo
-                                                    </button>
-                                                    <button
-                                                        onClick={handleSubmitAnswer}
-                                                        className="bg-purple-600 text-white px-6 py-3 rounded-md hover:bg-purple-700 transition-colors text-sm sm:text-base"
-                                                    >
-                                                        Submit Drawing
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            ) : (
-                                <p className="text-sm sm:text-base text-gray-600">Waiting for the reader to start a round...</p>
+                            {!isReader && (
+                                <button
+                                    onClick={handleLeaveGame}
+                                    className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors text-sm sm:text-base"
+                                >
+                                    Leave Game
+                                </button>
                             )}
                         </div>
-                    )}
 
-                    {isReader && answers.length > 0 && (
-                        <div className="mt-4 sm:mt-6">
-                            <h3 className="text-lg sm:text-xl font-semibold text-purple-600 mb-3 sm:mb-4">Answers</h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                                {answers.map((answer) => renderAnswerCard(answer))}
+                        {isReader ? (
+                            <div className="mb-4 sm:mb-6">
+                                <h3 className="text-lg sm:text-xl font-semibold text-purple-600 mb-3 sm:mb-4">Start a New Round</h3>
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <input
+                                        type="text"
+                                        value={prompt}
+                                        onChange={(e) => setPrompt(e.target.value)}
+                                        placeholder="Enter the card content"
+                                        className="input flex-1 text-sm sm:text-base"
+                                    />
+                                    <button
+                                        onClick={handleStartRound}
+                                        className="bg-purple-600 text-white px-6 py-3 rounded-md hover:bg-purple-700 transition-colors text-sm sm:text-base"
+                                    >
+                                        Start Round
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </div>
+                        ) : (
+                            <div className="mb-4 sm:mb-6">
+                                <h3 className="text-lg sm:text-xl font-semibold text-purple-600 mb-3 sm:mb-4">Question:</h3>
+                                {currentRound ? (
+                                    <div>
+                                        <p className="text-base sm:text-lg text-gray-700 mb-4">"{currentRound.prompt}"</p>
+                                        {playersWhoSubmitted.has(player?.playerId || 0) ? (
+                                            <div className="bg-green-50 p-3 sm:p-4 rounded-lg border border-green-200">
+                                                <p className="text-sm sm:text-base text-green-700">You have already submitted your answer for this round!</p>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div className="mb-4">
+                                                    <div className="flex flex-wrap gap-2 mb-4">
+                                                        {colors.map((color) => (
+                                                            <button
+                                                                key={color}
+                                                                onClick={() => setSelectedColor(color)}
+                                                                className={`w-8 h-8 rounded-full border-2 ${
+                                                                    selectedColor === color ? 'border-purple-600' : 'border-gray-300'
+                                                                }`}
+                                                                style={{ backgroundColor: color }}
+                                                                title={color}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                    <div className="mb-4">
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                            Brush Size
+                                                        </label>
+                                                        <input
+                                                            type="range"
+                                                            min="1"
+                                                            max="20"
+                                                            value={brushSize}
+                                                            onChange={(e) => setBrushSize(Number(e.target.value))}
+                                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                                        />
+                                                    </div>
+                                                    <div className="relative">
+                                                        <canvas
+                                                            ref={canvasRef}
+                                                            className="border rounded-lg bg-white shadow-sm"
+                                                            onMouseDown={startDrawing}
+                                                            onMouseMove={draw}
+                                                            onMouseUp={stopDrawing}
+                                                            onMouseLeave={stopDrawing}
+                                                            onTouchStart={startDrawing}
+                                                            onTouchMove={draw}
+                                                            onTouchEnd={stopDrawing}
+                                                            style={{ 
+                                                                width: '300px',
+                                                                height: '500px',
+                                                                touchAction: 'none',
+                                                                WebkitTouchCallout: 'none',
+                                                                WebkitUserSelect: 'none',
+                                                                userSelect: 'none',
+                                                                msTouchAction: 'none'
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <div className="flex flex-col sm:flex-row gap-3 mt-4">
+                                                        <button
+                                                            onClick={clearCanvas}
+                                                            className="bg-purple-100 text-purple-600 px-6 py-3 rounded-md hover:bg-purple-200 transition-colors text-sm sm:text-base"
+                                                        >
+                                                            Clear
+                                                        </button>
+                                                        <button
+                                                            onClick={undoLastStroke}
+                                                            className="bg-purple-100 text-purple-600 px-6 py-3 rounded-md hover:bg-purple-200 transition-colors text-sm sm:text-base"
+                                                            disabled={drawingHistory.length === 0}
+                                                        >
+                                                            Undo
+                                                        </button>
+                                                        <button
+                                                            onClick={handleSubmitAnswer}
+                                                            className="bg-purple-600 text-white px-6 py-3 rounded-md hover:bg-purple-700 transition-colors text-sm sm:text-base"
+                                                        >
+                                                            Submit Drawing
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <p className="text-sm sm:text-base text-gray-600">Waiting for the reader to start a round...</p>
+                                )}
+                            </div>
+                        )}
+
+                        {isReader && answers.length > 0 && (
+                            <div className="mt-4 sm:mt-6">
+                                <h3 className="text-lg sm:text-xl font-semibold text-purple-600 mb-3 sm:mb-4">Answers</h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                                    {answers.map((answer) => renderAnswerCard(answer))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

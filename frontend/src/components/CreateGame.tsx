@@ -14,7 +14,9 @@ export const CreateGame: React.FC = () => {
 
         try {
             await createGame(playerName);
-            navigate('/game');
+            setTimeout(() => {
+                navigate('/game');
+            }, 100);
         } catch (err) {
             setError('Failed to create game. Please try again.');
             console.error('Error creating game:', err);

@@ -45,6 +45,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const [playersWhoSubmitted, setPlayersWhoSubmitted] = useState<Set<number>>(new Set());
     const [isReconnecting, setIsReconnecting] = useState(false);
     const [isCreator, setIsCreator] = useState(false);
+    const [isInitialized, setIsInitialized] = useState(false);
+    const [isReconnectingInProgress, setIsReconnectingInProgress] = useState(false);
 
     // Connect to SignalR when the game is set
     useEffect(() => {
@@ -174,15 +176,45 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
     // Load game and player state from cookies on mount
     useEffect(() => {
+        console.log('Loading cookies on mount...');
+        console.log('All cookies:', document.cookie);
+        
+        // Test if cookies are working at all
+        console.log('Testing cookie functionality...');
+        setCookie('testCookie', 'testValue');
+        const testResult = getCookie('testCookie');
+        console.log('Test cookie result:', testResult);
+        removeCookie('testCookie');
+        
         const savedGame = getCookie('currentGame');
         const savedPlayer = getCookie('currentPlayer');
         const savedIsCreator = getCookie('isCreator');
         const savedIsReader = getCookie('isReader');
 
+        console.log('Found saved cookies:', { 
+            hasGame: !!savedGame, 
+            hasPlayer: !!savedPlayer, 
+            isCreator: savedIsCreator, 
+            isReader: savedIsReader 
+        });
+        
+        console.log('Raw cookie values:', {
+            currentGame: savedGame,
+            currentPlayer: savedPlayer,
+            isCreator: savedIsCreator,
+            isReader: savedIsReader
+        });
+
         if (savedGame && savedPlayer) {
             try {
-                setGame(convertToExtendedGame(JSON.parse(savedGame)));
-                setPlayer(JSON.parse(savedPlayer));
+                const parsedGame = JSON.parse(savedGame);
+                const parsedPlayer = JSON.parse(savedPlayer);
+                console.log('Successfully parsed saved data:', { 
+                    joinCode: parsedGame.joinCode, 
+                    playerName: parsedPlayer.name 
+                });
+                setGame(convertToExtendedGame(parsedGame));
+                setPlayer(parsedPlayer);
                 setIsCreator(savedIsCreator === 'true');
                 setIsReader(savedIsReader === 'true');
                 setIsReconnecting(true);
@@ -194,64 +226,124 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 removeCookie('isCreator');
                 removeCookie('isReader');
             }
+        } else {
+            console.log('No valid saved game data found');
         }
+        
+        // Mark as initialized after loading cookies
+        setIsInitialized(true);
     }, []);
 
     // Save game and player state to cookies when they change
     useEffect(() => {
+        // Only save cookies after the component is initialized
+        if (!isInitialized) {
+            console.log('Skipping cookie save - not yet initialized');
+            return;
+        }
+        
+        console.log('useEffect triggered for cookie saving:', { game: !!game, player: !!player, isCreator, isReader });
+        
+        // Only save cookies if we have both game and player data
         if (game && player) {
+            console.log('Saving cookies with game data:', { joinCode: game.joinCode, playerName: player.name });
             setCookie('currentGame', JSON.stringify(game));
             setCookie('currentPlayer', JSON.stringify(player));
             setCookie('isCreator', isCreator.toString());
             setCookie('isReader', isReader.toString());
-        } else {
+        } else if (game === null && player === null) {
+            // Only remove cookies if both game and player are explicitly null (not just falsy)
+            console.log('Removing cookies - game and player are null');
             removeCookie('currentGame');
             removeCookie('currentPlayer');
             removeCookie('isCreator');
             removeCookie('isReader');
+        } else {
+            console.log('Skipping cookie save/remove - partial data available');
         }
-    }, [game, player, isCreator, isReader]);
+    }, [game, player, isCreator, isReader, isInitialized]);
 
     // Handle reconnection when a saved game is found
     useEffect(() => {
+        console.log('Reconnection useEffect triggered, isReconnecting:', isReconnecting);
         const reconnectToGame = async () => {
-            if (isReconnecting && game?.joinCode && player?.name) {
-                try {
-                    await signalRService.connect();
-                    await signalRService.joinGame(game.joinCode, player.name);
-                    console.log('Successfully reconnected to game:', game.joinCode);
-                    
-                    // Get the latest game state
-                    const gameData = await getGame(game.joinCode);
-                    setGame(convertToExtendedGame(gameData));
-                    
-                    // Get the latest rounds and answers if there's an active round
-                    const rounds = await getRounds(Number(game.joinCode));
-                    const currentRound = rounds.find(r => !r.isCompleted);
-                    if (currentRound) {
-                        setCurrentRound(currentRound);
-                        const answers = await getAnswersForRound(currentRound.roundId);
-                        setAnswers(answers);
-                        // Update game with current round
-                        setGame(prev => prev ? { ...prev, currentRound } : null);
+            if (isReconnecting && !isReconnectingInProgress) {
+                setIsReconnectingInProgress(true);
+                
+                // Add a small delay to prevent rapid reconnection attempts
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // Get the saved data from cookies directly
+                const savedGame = getCookie('currentGame');
+                const savedPlayer = getCookie('currentPlayer');
+                
+                console.log('Reconnection attempt - saved data:', { 
+                    hasGame: !!savedGame, 
+                    hasPlayer: !!savedPlayer 
+                });
+                
+                if (savedGame && savedPlayer) {
+                    try {
+                        const parsedGame = JSON.parse(savedGame);
+                        const parsedPlayer = JSON.parse(savedPlayer);
+                        
+                        console.log('Attempting to reconnect to game:', parsedGame.joinCode);
+                        
+                        await signalRService.connect();
+                        await signalRService.joinGame(parsedGame.joinCode, parsedPlayer.name);
+                        console.log('Successfully reconnected to game:', parsedGame.joinCode);
+                        
+                        // Restore player state from saved data
+                        setPlayer(parsedPlayer);
+                        setIsCreator(getCookie('isCreator') === 'true');
+                        setIsReader(getCookie('isReader') === 'true');
+                        
+                        // Get the latest game state
+                        const gameData = await getGame(parsedGame.joinCode);
+                        setGame(convertToExtendedGame(gameData));
+                        
+                        // Get the latest rounds and answers if there's an active round
+                        const rounds = await getRounds(parsedGame.gameId);
+                        const currentRound = rounds.find(r => !r.isCompleted);
+                        if (currentRound) {
+                            setCurrentRound(currentRound);
+                            const answers = await getAnswersForRound(currentRound.roundId);
+                            setAnswers(answers);
+                            // Update game with current round
+                            setGame(prev => prev ? { ...prev, currentRound } : null);
+                        }
+                    } catch (error: any) {
+                        console.error('Error reconnecting to game:', error);
+                        
+                        // Only clear cookies if it's a specific error that indicates the game doesn't exist
+                        // or if the player is no longer valid
+                        if (error.response?.status === 404 || error.response?.status === 400) {
+                            console.log('Game or player no longer exists, clearing cookies');
+                            removeCookie('currentGame');
+                            removeCookie('currentPlayer');
+                            removeCookie('isCreator');
+                            removeCookie('isReader');
+                            setGame(null);
+                            setPlayer(null);
+                        } else {
+                            // For other errors (network issues, etc.), keep the cookies and try again later
+                            console.log('Temporary error during reconnection, keeping cookies for retry');
+                            // Don't clear cookies, just set reconnecting to false
+                        }
+                    } finally {
+                        setIsReconnecting(false);
+                        setIsReconnectingInProgress(false);
                     }
-                } catch (error) {
-                    console.error('Error reconnecting to game:', error);
-                    // If reconnection fails, clear the saved game
-                    removeCookie('currentGame');
-                    removeCookie('currentPlayer');
-                    removeCookie('isCreator');
-                    removeCookie('isReader');
-                    setGame(null);
-                    setPlayer(null);
-                } finally {
+                } else {
+                    console.log('No saved game data found for reconnection');
                     setIsReconnecting(false);
+                    setIsReconnectingInProgress(false);
                 }
             }
         };
 
         reconnectToGame();
-    }, [isReconnecting, game?.joinCode, player?.name]);
+    }, [isReconnecting, isReconnectingInProgress]);
 
     const createGame = async (playerName: string) => {
         try {
@@ -275,11 +367,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             await signalRService.joinGame(gameData.joinCode, playerName || 'Unknown Player');
             console.log('Created new game as reader:', gameData.joinCode);
 
-            // Save to cookies
-            setCookie('currentGame', JSON.stringify(gameData));
-            setCookie('currentPlayer', JSON.stringify(playerData));
-            setCookie('isCreator', 'true');
-            setCookie('isReader', 'true');
+            // Note: Cookies are automatically saved by the useEffect when state changes
         } catch (error) {
             console.error('Error creating game:', error);
             throw error;
@@ -323,11 +411,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 gameId: gameData.gameId
             }]);
             
-            // Save to cookies
-            setCookie('currentGame', JSON.stringify(gameData));
-            setCookie('currentPlayer', JSON.stringify(playerData));
-            setCookie('isCreator', 'false');
-            setCookie('isReader', 'false');
+            // Note: Cookies are automatically saved by the useEffect when state changes
         } catch (error) {
             console.error('Error joining game:', error);
             throw error;
