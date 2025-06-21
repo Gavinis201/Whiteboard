@@ -59,53 +59,92 @@ export const Game: React.FC = () => {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Set up canvas
-        ctx.lineWidth = brushSize;
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = selectedColor;
-        ctx.lineJoin = 'round';
-
-        // Set canvas size to match card dimensions
-        const resizeCanvas = () => {
+        // Set up canvas with proper high-DPI support
+        const setupCanvas = () => {
             const rect = canvas.getBoundingClientRect();
-            const targetWidth = Math.min(rect.width, 300); // Set max width to 300px
-            const targetHeight = (targetWidth * 5) / 3; // Calculate height based on 3:5 ratio
+            const dpr = window.devicePixelRatio || 1;
             
-            canvas.width = targetWidth;
-            canvas.height = targetHeight;
+            // Set the display size (CSS pixels)
+            const displayWidth = Math.min(rect.width, 300);
+            const displayHeight = (displayWidth * 5) / 3;
             
+            // Set the actual size in memory (scaled up for high-DPI)
+            canvas.width = displayWidth * dpr;
+            canvas.height = displayHeight * dpr;
+            
+            // Scale the drawing context so everything draws at the correct size
+            ctx.scale(dpr, dpr);
+            
+            // Set the CSS size
+            canvas.style.width = displayWidth + 'px';
+            canvas.style.height = displayHeight + 'px';
+            
+            // Set up drawing context
+            ctx.lineWidth = brushSize;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = selectedColor;
+            ctx.lineJoin = 'round';
+            
+            // Fill with white background
             ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillRect(0, 0, displayWidth, displayHeight);
         };
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
+        
+        setupCanvas();
+        
+        // Handle window resize
+        const handleResize = () => {
+            setupCanvas();
+        };
+        
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('orientationchange', handleResize);
 
         return () => {
-            window.removeEventListener('resize', resizeCanvas);
+            window.removeEventListener('resize', handleResize);
+            window.removeEventListener('orientationchange', handleResize);
         };
-    }, []);
+    }, [brushSize, selectedColor]);
+
+    // Update drawing context when brush size or color changes
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // Update drawing context properties
+        ctx.lineWidth = brushSize;
+        ctx.strokeStyle = selectedColor;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+    }, [brushSize, selectedColor]);
 
     const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
         const canvas = canvasRef.current;
         if (!canvas) return { x: 0, y: 0 };
 
         const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
         let x: number, y: number;
 
         if ('touches' in e) {
-            x = (e.touches[0].clientX - rect.left) * scaleX;
-            y = (e.touches[0].clientY - rect.top) * scaleY;
+            x = e.touches[0].clientX - rect.left;
+            y = e.touches[0].clientY - rect.top;
         } else {
-            x = (e.clientX - rect.left) * scaleX;
-            y = (e.clientY - rect.top) * scaleY;
+            x = e.clientX - rect.left;
+            y = e.clientY - rect.top;
         }
 
         return { x, y };
     };
 
     const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        // Prevent default behavior for touch events
+        if ('touches' in e) {
+            e.preventDefault();
+        }
+        
         const { x, y } = getCoordinates(e);
         setIsDrawing(true);
         setLastX(x);
@@ -129,6 +168,11 @@ export const Game: React.FC = () => {
 
     const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
         if (!isDrawing) return;
+
+        // Prevent default behavior for touch events
+        if ('touches' in e) {
+            e.preventDefault();
+        }
 
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -189,7 +233,10 @@ export const Game: React.FC = () => {
             setDrawingHistory(newHistory);
 
             // Clear the canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const rect = canvas.getBoundingClientRect();
+            const displayWidth = Math.min(rect.width, 300);
+            const displayHeight = (displayWidth * 5) / 3;
+            ctx.clearRect(0, 0, displayWidth, displayHeight);
 
             // Redraw all strokes except the last one
             if (newHistory.length > 0) {
@@ -205,7 +252,11 @@ export const Game: React.FC = () => {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const rect = canvas.getBoundingClientRect();
+        const displayWidth = Math.min(rect.width, 300);
+        const displayHeight = (displayWidth * 5) / 3;
+
+        ctx.clearRect(0, 0, displayWidth, displayHeight);
         setDrawingHistory([]);
         setCurrentStroke(null);
     };
@@ -214,11 +265,47 @@ export const Game: React.FC = () => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        // Convert canvas to base64 image
-        const base64Image = canvas.toDataURL('image/png');
-        
         try {
-            await submitAnswer(base64Image);
+            // Create a temporary canvas for compression
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            if (!tempCtx) return;
+
+            // Set a reasonable size for the compressed image (300x500 is good for drawings)
+            const targetWidth = 300;
+            const targetHeight = 500;
+            
+            tempCanvas.width = targetWidth;
+            tempCanvas.height = targetHeight;
+            
+            // Fill with white background
+            tempCtx.fillStyle = 'white';
+            tempCtx.fillRect(0, 0, targetWidth, targetHeight);
+            
+            // Draw the original canvas content scaled down
+            tempCtx.drawImage(canvas, 0, 0, targetWidth, targetHeight);
+            
+            // Convert to base64 with compression
+            const base64Image = tempCanvas.toDataURL('image/jpeg', 0.8); // Use JPEG with 80% quality for better compression
+            
+            console.log('Submitting compressed image, size:', Math.round(base64Image.length / 1024), 'KB');
+            
+            // Check if the image is still too large (should be under 1MB for SignalR)
+            if (base64Image.length > 1000000) { // 1MB limit
+                // Try with even more compression
+                const moreCompressedImage = tempCanvas.toDataURL('image/jpeg', 0.5); // 50% quality
+                console.log('Trying more compression, size:', Math.round(moreCompressedImage.length / 1024), 'KB');
+                
+                if (moreCompressedImage.length > 1000000) {
+                    alert('Drawing is too large. Please try drawing with fewer details or a smaller brush size.');
+                    return;
+                }
+                
+                await submitAnswer(moreCompressedImage);
+            } else {
+                await submitAnswer(base64Image);
+            }
+            
             clearCanvas();
         } catch (error: any) {
             console.error('Error submitting drawing:', error);
@@ -401,7 +488,7 @@ export const Game: React.FC = () => {
                                                             className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                                                         />
                                                     </div>
-                                                    <div className="relative">
+                                                    <div className="relative canvas-container">
                                                         <canvas
                                                             ref={canvasRef}
                                                             className="border rounded-lg bg-white shadow-sm"
@@ -413,8 +500,6 @@ export const Game: React.FC = () => {
                                                             onTouchMove={draw}
                                                             onTouchEnd={stopDrawing}
                                                             style={{ 
-                                                                width: '300px',
-                                                                height: '500px',
                                                                 touchAction: 'none',
                                                                 WebkitTouchCallout: 'none',
                                                                 WebkitUserSelect: 'none',

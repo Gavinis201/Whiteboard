@@ -42,11 +42,30 @@
     transform: rotateY(180deg);
 }
 
-
-
 .player-name {
     font-size: 1.2rem;
     font-weight: bold;
     margin-top: 10px;
     color: black;
+}
+
+/* Canvas drawing improvements */
+canvas {
+    touch-action: none !important;
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    -khtml-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+}
+
+/* Prevent text selection on canvas container */
+.canvas-container {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    touch-action: none;
 } 

@@ -27,11 +27,12 @@ builder.Services.AddCors(options =>
 // Add SignalR with configuration
 builder.Services.AddSignalR(hubOptions => {
     hubOptions.EnableDetailedErrors = true;
-    hubOptions.MaximumReceiveMessageSize = 10485760; // 10MB
+    hubOptions.MaximumReceiveMessageSize = 52428800; // 50MB
     hubOptions.StreamBufferCapacity = 1024;
     hubOptions.KeepAliveInterval = TimeSpan.FromSeconds(15);
     hubOptions.HandshakeTimeout = TimeSpan.FromSeconds(15);
     hubOptions.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
+    hubOptions.MaximumParallelInvocationsPerClient = 1;
 });
 
 // Add Entity Framework
@@ -92,8 +93,14 @@ app.UseEndpoints(endpoints =>
 {
     endpoints.MapControllers();
     endpoints.MapHub<GameHub>("/gameHub", options => {
-        options.TransportMaxBufferSize = 10485760; // 10MB
-        options.ApplicationMaxBufferSize = 10485760; // 10MB
+        options.TransportMaxBufferSize = 52428800; // 50MB
+        options.ApplicationMaxBufferSize = 52428800; // 50MB
+        options.TransportSendTimeout = TimeSpan.FromSeconds(30);
+        options.LongPolling.PollTimeout = TimeSpan.FromSeconds(30);
+    });
+    endpoints.MapHub<WhiteboardHub>("/whiteboardHub", options => {
+        options.TransportMaxBufferSize = 52428800; // 50MB
+        options.ApplicationMaxBufferSize = 52428800; // 50MB
         options.TransportSendTimeout = TimeSpan.FromSeconds(30);
         options.LongPolling.PollTimeout = TimeSpan.FromSeconds(30);
     });

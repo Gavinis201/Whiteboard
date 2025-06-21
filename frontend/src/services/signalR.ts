@@ -215,7 +215,17 @@ class SignalRService {
         }
 
         try {
-            console.log('Sending answer:', { joinCode, answer });
+            console.log('Sending answer:', { 
+                joinCode, 
+                answerLength: answer.length,
+                answerSizeKB: Math.round(answer.length / 1024)
+            });
+            
+            // Check if the answer is too large for SignalR
+            if (answer.length > 50000000) { // 50MB limit
+                throw new Error('Answer is too large to send. Please try a simpler drawing.');
+            }
+            
             await this.connection.invoke('SubmitAnswer', joinCode, answer);
             console.log('Answer sent successfully');
         } catch (error) {
