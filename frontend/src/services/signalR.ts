@@ -9,9 +9,19 @@ class SignalRService {
     private roundStartedCallback: ((prompt: string) => void) | null = null;
     private roundEndedCallback: (() => void) | null = null;
     private answersRevealedCallback: (() => void) | null = null;
+    
+    // Reconnection state tracking
+    private isReconnecting = false;
+    private reconnectAttempts = 0;
+    private maxReconnectAttempts = 10;
+    private currentJoinCode: string | null = null;
+    private currentPlayerName: string | null = null;
+    private reconnectionTimer: number | null = null;
+    private isConnecting = false; // Track if we're currently in the process of connecting
+    private connectionState: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' = 'disconnected';
 
     private async ensureConnection() {
-        if (this.connection?.state === 'Connected') {
+        if (this.connection?.state === HubConnectionState.Connected) {
             return;
         }
 
@@ -34,11 +44,34 @@ class SignalRService {
     }
 
     async connect() {
+        // Prevent multiple simultaneous connection attempts
+        if (this.isConnecting) {
+            console.log('Connection already in progress, waiting...');
+            if (this.connectionPromise) {
+                await this.connectionPromise;
+                return;
+            }
+        }
+
+        if (this.connection?.state === HubConnectionState.Connected) {
+            console.log('Already connected to SignalR');
+            return;
+        }
+
+        this.isConnecting = true;
+        this.connectionState = 'connecting';
+
         try {
             console.log('Attempting to connect to SignalR hub...');
             
-            if (this.connection) {
+            // Check if this is a refresh scenario
+            const refreshInProgress = sessionStorage.getItem('whiteboard_refresh_in_progress');
+            if (refreshInProgress === 'true') {
+                console.log('Refresh detected - preserving connection state');
+                // Don't stop existing connection during refresh
+            } else if (this.connection) {
                 try {
+                    console.log('Stopping existing connection...');
                     await this.connection.stop();
                 } catch (error) {
                     console.warn('Error stopping existing connection:', error);
@@ -55,10 +88,13 @@ class SignalRService {
                 .configureLogging(LogLevel.Debug)
                 .withAutomaticReconnect({
                     nextRetryDelayInMilliseconds: retryContext => {
-                        if (retryContext.elapsedMilliseconds < 30000) {
-                            return Math.random() * 5000;
+                        // More conservative reconnection strategy to avoid loops
+                        if (retryContext.elapsedMilliseconds < 30000) { // 30 seconds
+                            return Math.random() * 2000 + 2000; // 2-4 seconds
+                        } else if (retryContext.elapsedMilliseconds < 120000) { // 2 minutes
+                            return Math.random() * 5000 + 5000; // 5-10 seconds
                         }
-                        return null;
+                        return null; // Stop trying after 2 minutes
                     }
                 })
                 .build();
@@ -66,20 +102,39 @@ class SignalRService {
             this.connection.onclose((error) => {
                 console.error('SignalR connection closed:', error);
                 this.connectionPromise = null;
-                // Attempt to reconnect after a delay
-                setTimeout(() => {
-                    if (!this.connection || this.connection.state !== 'Connected') {
-                        this.connect().catch(err => console.error('Reconnection failed:', err));
-                    }
-                }, 5000);
+                this.isReconnecting = false;
+                this.isConnecting = false;
+                this.connectionState = 'disconnected';
+                
+                // Check if this is a refresh-related closure
+                const refreshInProgress = sessionStorage.getItem('whiteboard_refresh_in_progress');
+                if (refreshInProgress === 'true') {
+                    console.log('Connection closed during refresh - will restore on page load');
+                    return; // Don't attempt reconnection during refresh
+                }
+                
+                // Only attempt to reconnect if we have game context and we're not already reconnecting
+                if (this.currentJoinCode && this.currentPlayerName && !this.isReconnecting) {
+                    this.scheduleReconnection();
+                }
             });
 
             this.connection.onreconnecting((error) => {
                 console.log('SignalR reconnecting:', error);
+                this.isReconnecting = true;
+                this.connectionState = 'reconnecting';
             });
 
             this.connection.onreconnected((connectionId) => {
                 console.log('SignalR reconnected:', connectionId);
+                this.isReconnecting = false;
+                this.reconnectAttempts = 0;
+                this.connectionState = 'connected';
+                
+                // Rejoin the game if we have the context
+                if (this.currentJoinCode && this.currentPlayerName) {
+                    this.rejoinGame();
+                }
             });
 
             // Set up event handlers
@@ -93,11 +148,67 @@ class SignalRService {
 
             await Promise.race([connectionPromise, timeoutPromise]);
             console.log('SignalR Connected successfully');
+            this.connectionState = 'connected';
+            
+            // Clear refresh state after successful connection
+            sessionStorage.removeItem('whiteboard_refresh_in_progress');
         } catch (err) {
             console.error('Error while establishing SignalR connection:', err);
             this.connection = null;
             this.connectionPromise = null;
+            this.connectionState = 'disconnected';
             throw err;
+        } finally {
+            this.isConnecting = false;
+        }
+    }
+
+    private scheduleReconnection() {
+        // Prevent multiple reconnection schedules
+        if (this.reconnectionTimer || this.isReconnecting) {
+            console.log('Reconnection already scheduled or in progress, skipping...');
+            return;
+        }
+        
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.error('Max reconnection attempts reached');
+            return;
+        }
+        
+        this.reconnectAttempts++;
+        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000); // Exponential backoff, max 30s
+        
+        console.log(`Scheduling reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
+        
+        this.reconnectionTimer = setTimeout(async () => {
+            try {
+                this.isReconnecting = true;
+                await this.connect();
+                if (this.currentJoinCode && this.currentPlayerName) {
+                    await this.rejoinGame();
+                }
+            } catch (error) {
+                console.error('Reconnection failed:', error);
+                // Don't schedule another reconnection here - let the onclose handler handle it
+            } finally {
+                this.isReconnecting = false;
+                this.reconnectionTimer = null;
+            }
+        }, delay);
+    }
+
+    private async rejoinGame() {
+        if (!this.currentJoinCode || !this.currentPlayerName) {
+            console.warn('Cannot rejoin game: missing join code or player name');
+            return;
+        }
+        
+        try {
+            console.log('Rejoining game after reconnection:', this.currentJoinCode);
+            await this.joinGame(this.currentJoinCode, this.currentPlayerName);
+            console.log('Successfully rejoined game after reconnection');
+        } catch (error) {
+            console.error('Failed to rejoin game after reconnection:', error);
         }
     }
 
@@ -173,8 +284,13 @@ class SignalRService {
 
             console.log('Joining game via SignalR:', joinCode, 'as', playerName);
             
+            // Store current game context for reconnection
+            this.currentJoinCode = joinCode;
+            this.currentPlayerName = playerName;
+            
             // Wait for the connection to be fully established
             if (this.connection.state !== HubConnectionState.Connected) {
+                console.log('Waiting for connection to be established...');
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
 
@@ -243,8 +359,9 @@ class SignalRService {
             });
             
             // Check if the answer is too large for SignalR
-            if (answer.length > 50000000) { // 50MB limit
-                throw new Error('Answer is too large to send. Please try a simpler drawing.');
+            // Increased limit to 10MB for better mobile support
+            if (answer.length > 10000000) { // 10MB limit
+                throw new Error('Drawing is too large to send. Please try a simpler drawing or use a smaller brush size.');
             }
             
             await this.connection.invoke('SubmitAnswer', joinCode, answer);
@@ -314,6 +431,9 @@ class SignalRService {
         }
 
         try {
+            // Clear reconnection context
+            this.clearGameContext();
+            
             // Try different method names that might be implemented on the server
             try {
                 await this.connection.invoke('LeaveGame', joinCode);
@@ -333,6 +453,89 @@ class SignalRService {
             await this.disconnect();
             throw error;
         }
+    }
+
+    private clearGameContext() {
+        this.currentJoinCode = null;
+        this.currentPlayerName = null;
+        this.reconnectAttempts = 0;
+        this.isReconnecting = false;
+        
+        if (this.reconnectionTimer) {
+            clearTimeout(this.reconnectionTimer);
+            this.reconnectionTimer = null;
+        }
+        
+        console.log('Game context cleared, reconnection attempts stopped');
+    }
+
+    // Method to clear reconnection state manually
+    clearReconnectionState() {
+        this.reconnectAttempts = 0;
+        this.isReconnecting = false;
+        
+        if (this.reconnectionTimer) {
+            clearTimeout(this.reconnectionTimer);
+            this.reconnectionTimer = null;
+        }
+        
+        console.log('Reconnection state cleared manually');
+    }
+
+    // Method to handle refresh scenarios
+    handleRefresh() {
+        console.log('Handling page refresh - preserving connection state');
+        
+        // Store current connection state
+        if (this.currentJoinCode && this.currentPlayerName) {
+            sessionStorage.setItem('whiteboard_refresh_in_progress', 'true');
+            sessionStorage.setItem('whiteboard_signalr_state', JSON.stringify({
+                joinCode: this.currentJoinCode,
+                playerName: this.currentPlayerName,
+                timestamp: Date.now()
+            }));
+        }
+        
+        // Don't disconnect - let the connection persist through refresh
+        // The connection will be restored automatically when the page reloads
+    }
+
+    // Method to restore connection state after refresh
+    restoreFromRefresh() {
+        const refreshState = sessionStorage.getItem('whiteboard_signalr_state');
+        if (refreshState) {
+            try {
+                const state = JSON.parse(refreshState);
+                console.log('Restoring SignalR state from refresh:', state);
+                
+                this.currentJoinCode = state.joinCode;
+                this.currentPlayerName = state.playerName;
+                
+                // Clear the stored state
+                sessionStorage.removeItem('whiteboard_signalr_state');
+                
+                return true;
+            } catch (error) {
+                console.error('Error restoring SignalR state from refresh:', error);
+                sessionStorage.removeItem('whiteboard_signalr_state');
+            }
+        }
+        return false;
+    }
+
+    // Method to check if we're currently connected
+    isConnected(): boolean {
+        return this.connection?.state === HubConnectionState.Connected;
+    }
+
+    // Method to get current connection state
+    getConnectionState(): string {
+        return this.connectionState;
+    }
+
+    // Method to check if we're currently reconnecting
+    isReconnectingState(): boolean {
+        return this.isReconnecting;
     }
 }
 

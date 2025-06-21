@@ -26,8 +26,8 @@ builder.Services.AddCors(options =>
 
 // Add SignalR with configuration
 builder.Services.AddSignalR(hubOptions => {
+    hubOptions.MaximumReceiveMessageSize = 1000000; // 1MB
     hubOptions.EnableDetailedErrors = true;
-    hubOptions.MaximumReceiveMessageSize = 52428800; // 50MB
     hubOptions.StreamBufferCapacity = 1024;
     hubOptions.KeepAliveInterval = TimeSpan.FromSeconds(15);
     hubOptions.HandshakeTimeout = TimeSpan.FromSeconds(15);

@@ -102,4 +102,232 @@ canvas {
     padding: 0.25rem 0.5rem;
     border-radius: 9999px;
     white-space: nowrap;
+}
+
+/* Drawing Interface Improvements */
+.canvas-container {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Floating Toolbar */
+.canvas-container .absolute {
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    transition: all 0.3s ease;
+}
+
+.canvas-container .absolute:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+/* Color Palette Improvements */
+.canvas-container button[style*="background-color"] {
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.canvas-container button[style*="background-color"]:hover::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    border-radius: 50%;
+    background: linear-gradient(45deg, #8b5cf6, #a855f7);
+    z-index: -1;
+    opacity: 0.3;
+}
+
+/* Custom Color Picker Improvements */
+.canvas-container input[type="color"] {
+    -webkit-appearance: none;
+    appearance: none;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.canvas-container input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+    border-radius: 4px;
+}
+
+.canvas-container input[type="color"]::-webkit-color-swatch {
+    border: none;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.canvas-container input[type="color"]:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.canvas-container input[type="text"] {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+}
+
+.canvas-container input[type="text"]:focus {
+    border-color: #8b5cf6;
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+}
+
+/* Quick Color Presets */
+.canvas-container .flex.gap-1 button {
+    transition: all 0.2s ease;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.canvas-container .flex.gap-1 button:hover {
+    transform: scale(1.2);
+    border-color: #8b5cf6;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Custom Color Picker Container */
+.canvas-container .bg-white.rounded-lg.border.p-3 {
+    animation: slideDown 0.3s ease-out;
+    max-width: 200px;
+}
+
+@keyframes slideDown {
+    0% {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.95);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Range Slider Improvements */
+.canvas-container input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 8px;
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+}
+
+.canvas-container input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #8b5cf6;
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
+}
+
+.canvas-container input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.canvas-container input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #8b5cf6;
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
+}
+
+.canvas-container input[type="range"]::-moz-range-thumb:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Action Buttons */
+.canvas-container .absolute button {
+    transition: all 0.2s ease;
+}
+
+.canvas-container .absolute button:hover {
+    transform: scale(1.1);
+}
+
+.canvas-container .absolute button:active {
+    transform: scale(0.95);
+}
+
+/* Compression Status */
+.canvas-container .absolute[style*="top: 50%"] {
+    animation: fadeInOut 0.3s ease-in-out;
+}
+
+@keyframes fadeInOut {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .canvas-container .absolute {
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+        bottom: auto !important;
+        right: auto !important;
+        margin-bottom: 1rem;
+        width: 100%;
+        max-width: 300px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    
+    .canvas-container .absolute[style*="bottom: 1rem"] {
+        position: absolute !important;
+        bottom: 1rem !important;
+        right: 1rem !important;
+        width: auto;
+        max-width: none;
+    }
+    
+    .canvas-container canvas {
+        max-width: 100%;
+        height: auto;
+    }
+}
+
+/* Submit Button Improvements */
+.canvas-container + div button {
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.canvas-container + div button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+}
+
+.canvas-container + div button:hover::before {
+    left: 100%;
 } 
