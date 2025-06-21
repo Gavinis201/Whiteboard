@@ -68,4 +68,38 @@ canvas {
     -ms-user-select: none;
     user-select: none;
     touch-action: none;
+}
+
+/* Active Players List Styles */
+.player-list-item {
+    transition: all 0.2s ease-in-out;
+}
+
+.player-list-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.player-status-indicator {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+.player-badge {
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.25rem 0.5rem;
+    border-radius: 9999px;
+    white-space: nowrap;
 } 

@@ -104,43 +104,51 @@ class SignalRService {
     private setupEventHandlers() {
         if (!this.connection) return;
 
+        console.log('Setting up SignalR event handlers');
+
         this.connection.on('PlayerJoined', (playerId: string, playerName: string) => {
-            console.log('PlayerJoined event received:', playerId, playerName);
+            console.log('PlayerJoined event received in SignalR service:', playerId, playerName);
             if (this.playerJoinedCallback) {
+                console.log('Calling PlayerJoined callback');
                 this.playerJoinedCallback(playerId, playerName);
+            } else {
+                console.warn('PlayerJoined callback not registered');
             }
         });
 
         this.connection.on('PlayerLeft', (playerId: string) => {
-            console.log('PlayerLeft event received:', playerId);
+            console.log('PlayerLeft event received in SignalR service:', playerId);
             if (this.playerLeftCallback) {
+                console.log('Calling PlayerLeft callback');
                 this.playerLeftCallback(playerId);
+            } else {
+                console.warn('PlayerLeft callback not registered');
             }
         });
 
         this.connection.on('AnswerReceived', (playerId: string, playerName: string, answer: string) => {
-            console.log('AnswerReceived event:', { playerId, playerName, answer });
+            console.log('AnswerReceived event in SignalR service:', { playerId, playerName, answer });
             if (this.answerReceivedCallback) {
                 this.answerReceivedCallback(playerId, playerName, answer);
             }
         });
 
         this.connection.on('RoundStarted', (prompt: string) => {
-            console.log('RoundStarted event:', prompt);
+            console.log('RoundStarted event in SignalR service:', prompt);
             if (this.roundStartedCallback) {
                 this.roundStartedCallback(prompt);
             }
         });
 
         this.connection.on('RoundEnded', () => {
-            console.log('RoundEnded event received');
+            console.log('RoundEnded event received in SignalR service');
             if (this.roundEndedCallback) {
                 this.roundEndedCallback();
             }
         });
 
         this.connection.on('AnswersRevealed', () => {
-            console.log('AnswersRevealed event received');
+            console.log('AnswersRevealed event received in SignalR service');
             if (this.answersRevealedCallback) {
                 this.answersRevealedCallback();
             }
@@ -252,33 +260,39 @@ class SignalRService {
     }
 
     onPlayerJoined(callback: (playerId: string, name: string) => void) {
+        console.log('Registering PlayerJoined callback');
         this.playerJoinedCallback = callback;
-        console.log('Registered PlayerJoined callback');
+        console.log('PlayerJoined callback registered successfully');
     }
 
     onPlayerLeft(callback: (playerId: string) => void) {
+        console.log('Registering PlayerLeft callback');
         this.playerLeftCallback = callback;
-        console.log('Registered PlayerLeft callback');
+        console.log('PlayerLeft callback registered successfully');
     }
 
     onAnswerReceived(callback: (playerId: string, playerName: string, answer: string) => void) {
+        console.log('Registering AnswerReceived callback');
         this.answerReceivedCallback = callback;
-        console.log('Registered AnswerReceived callback');
+        console.log('AnswerReceived callback registered successfully');
     }
 
     onRoundStarted(callback: (prompt: string) => void) {
+        console.log('Registering RoundStarted callback');
         this.roundStartedCallback = callback;
-        console.log('Registered RoundStarted callback');
+        console.log('RoundStarted callback registered successfully');
     }
 
     onRoundEnded(callback: () => void) {
+        console.log('Registering RoundEnded callback');
         this.roundEndedCallback = callback;
-        console.log('Registered RoundEnded callback');
+        console.log('RoundEnded callback registered successfully');
     }
 
     onAnswersRevealed(callback: () => void) {
+        console.log('Registering AnswersRevealed callback');
         this.answersRevealedCallback = callback;
-        console.log('Registered AnswersRevealed callback');
+        console.log('AnswersRevealed callback registered successfully');
     }
 
     async leaveGame(joinCode: string) {

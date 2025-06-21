@@ -27,6 +27,13 @@ public class PlayersController : ControllerBase
             return NotFound("Game not found");
         }
 
+        // Check if player already exists in this game
+        var existingPlayer = game.Players.FirstOrDefault(p => p.Name == request.PlayerName);
+        if (existingPlayer != null)
+        {
+            return Ok(existingPlayer);
+        }
+
         var player = new Player
         {
             Name = request.PlayerName,

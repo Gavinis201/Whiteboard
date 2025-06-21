@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { Answer } from '../types/game';
 import { useNavigate } from 'react-router-dom';
+import { getGame } from '../services/api';
 import './Game.css';
 
 export const Game: React.FC = () => {
@@ -15,7 +16,8 @@ export const Game: React.FC = () => {
         startNewRound,
         submitAnswer,
         players,
-        leaveGame
+        leaveGame,
+        setGame
     } = useGame();
     const navigate = useNavigate();
 
@@ -27,6 +29,16 @@ export const Game: React.FC = () => {
         playerName: player?.name,
         isReader 
     });
+
+    // Debug player list changes
+    useEffect(() => {
+        console.log('Game component - players changed:', { 
+            players, 
+            playerCount: players.length, 
+            isReader,
+            playerNames: players.map(p => p.name)
+        });
+    }, [players, isReader]);
 
     const [prompt, setPrompt] = useState('');
     const [answer, setAnswer] = useState('');
@@ -428,7 +440,85 @@ export const Game: React.FC = () => {
                                     Leave Game
                                 </button>
                             )}
+                            {isReader && (
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            console.log('Manual refresh - fetching game data...');
+                                            const updatedGame = await getGame(game.joinCode);
+                                            console.log('Manual refresh - updated game data:', updatedGame);
+                                            setGame({
+                                                ...updatedGame,
+                                                currentRound: game?.currentRound || null
+                                            });
+                                        } catch (error) {
+                                            console.error('Manual refresh error:', error);
+                                        }
+                                    }}
+                                    className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors text-sm sm:text-base ml-2"
+                                >
+                                    Refresh Players
+                                </button>
+                            )}
                         </div>
+
+                        {/* Active Players List - Only show for host/reader */}
+                        {isReader && (
+                            <div className="mb-4 sm:mb-6">
+                                <h3 className="text-lg sm:text-xl font-semibold text-purple-600 mb-3 sm:mb-4">
+                                    Active Players ({players.length})
+                                    {currentRound && (
+                                        <span className="text-sm font-normal text-gray-600 ml-2">
+                                            • {playersWhoSubmitted.size}/{players.length} submitted
+                                        </span>
+                                    )}
+                                </h3>
+                                <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
+                                    {players.length === 0 ? (
+                                        <p className="text-sm sm:text-base text-gray-600 text-center">
+                                            No players have joined yet. Share the game code: <span className="font-mono font-bold text-purple-600">{game.joinCode}</span>
+                                        </p>
+                                    ) : (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
+                                            {players.map((playerItem) => (
+                                                <div 
+                                                    key={playerItem.playerId} 
+                                                    className={`player-list-item flex items-center gap-2 p-2 sm:p-3 rounded-md border ${
+                                                        playerItem.playerId === player?.playerId 
+                                                            ? 'bg-purple-100 border-purple-300' 
+                                                            : 'bg-white border-gray-200'
+                                                    }`}
+                                                >
+                                                    <div className={`player-status-indicator w-3 h-3 rounded-full ${
+                                                        playerItem.playerId === player?.playerId 
+                                                            ? 'bg-purple-500' 
+                                                            : 'bg-green-500'
+                                                    }`}></div>
+                                                    <span className="text-sm sm:text-base font-medium text-gray-700">
+                                                        {playerItem.name}
+                                                    </span>
+                                                    {playerItem.isReader && (
+                                                        <span className="player-badge bg-purple-100 text-purple-700">
+                                                            Reader
+                                                        </span>
+                                                    )}
+                                                    {playerItem.playerId === player?.playerId && (
+                                                        <span className="player-badge bg-blue-100 text-blue-700">
+                                                            You
+                                                        </span>
+                                                    )}
+                                                    {playersWhoSubmitted.has(playerItem.playerId) && (
+                                                        <span className="player-badge bg-green-100 text-green-700">
+                                                            Submitted
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         {isReader ? (
                             <div className="mb-4 sm:mb-6">
