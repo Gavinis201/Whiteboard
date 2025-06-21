@@ -98,12 +98,6 @@ app.UseEndpoints(endpoints =>
         options.TransportSendTimeout = TimeSpan.FromSeconds(30);
         options.LongPolling.PollTimeout = TimeSpan.FromSeconds(30);
     });
-    endpoints.MapHub<WhiteboardHub>("/whiteboardHub", options => {
-        options.TransportMaxBufferSize = 52428800; // 50MB
-        options.ApplicationMaxBufferSize = 52428800; // 50MB
-        options.TransportSendTimeout = TimeSpan.FromSeconds(30);
-        options.LongPolling.PollTimeout = TimeSpan.FromSeconds(30);
-    });
 });
 
 // Apply database migrations

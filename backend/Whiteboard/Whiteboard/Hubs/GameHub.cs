@@ -41,34 +41,51 @@ public class GameHub : Hub
             throw new HubException("Game not found");
         }
 
-        var player = game.Players.FirstOrDefault(p => p.Name == playerName);
-        if (player == null)
+        // Check if this is a reconnection attempt
+        var existingPlayer = game.Players.FirstOrDefault(p => p.Name == playerName);
+        if (existingPlayer != null)
         {
-            _logger.LogInformation("Player not found, creating new player: {PlayerName}", playerName);
-            player = new Player
+            _logger.LogInformation("Player {PlayerName} reconnecting to game {JoinCode}", playerName, joinCode);
+            
+            // Remove from disconnected players list if they were there
+            var disconnectedKey = $"{joinCode}_{playerName}";
+            if (_disconnectedPlayers.TryRemove(disconnectedKey, out var disconnectedPlayer))
             {
-                Name = playerName,
-                IsReader = !game.Players.Any(),
-                GameId = game.GameId
-            };
-            _context.Players.Add(player);
-            await _context.SaveChangesAsync();
+                _logger.LogInformation("Player {PlayerName} reconnected within grace period", playerName);
+            }
+            
+            // Add to group and store player info
+            await Groups.AddToGroupAsync(Context.ConnectionId, joinCode);
+            Context.Items["PlayerId"] = existingPlayer.PlayerId.ToString();
+            Context.Items["JoinCode"] = joinCode;
+            Context.Items["PlayerName"] = playerName;
+
+            // Notify others that player has reconnected
+            await Clients.Group(joinCode).SendAsync("PlayerReconnected", existingPlayer.PlayerId.ToString(), existingPlayer.Name);
+            _logger.LogInformation("Player {PlayerName} successfully reconnected to game {JoinCode}", playerName, joinCode);
+            return;
         }
 
-        if (player == null) 
+        // This is a new player joining
+        _logger.LogInformation("New player joining: {PlayerName}", playerName);
+        var newPlayer = new Player
         {
-            _logger.LogError("Player could not be found or created for {PlayerName}", playerName);
-            throw new HubException("Player could not be found or created");
-        }
+            Name = playerName,
+            IsReader = !game.Players.Any(),
+            GameId = game.GameId
+        };
+        _context.Players.Add(newPlayer);
+        await _context.SaveChangesAsync();
 
-        // Add to new group and store player info
+        // Add to group and store player info
         await Groups.AddToGroupAsync(Context.ConnectionId, joinCode);
-        Context.Items["PlayerId"] = player.PlayerId.ToString();
+        Context.Items["PlayerId"] = newPlayer.PlayerId.ToString();
         Context.Items["JoinCode"] = joinCode;
+        Context.Items["PlayerName"] = playerName;
 
         // Send the actual database player ID, not the connection ID
-        await Clients.Group(joinCode).SendAsync("PlayerJoined", player.PlayerId.ToString(), player.Name);
-        _logger.LogInformation("Client {ConnectionId} successfully joined game: {JoinCode} as {PlayerName} (PlayerId: {PlayerId})", Context.ConnectionId, joinCode, playerName, player.PlayerId);
+        await Clients.Group(joinCode).SendAsync("PlayerJoined", newPlayer.PlayerId.ToString(), newPlayer.Name);
+        _logger.LogInformation("New player {PlayerName} successfully joined game: {JoinCode} (PlayerId: {PlayerId})", playerName, joinCode, newPlayer.PlayerId);
     }
 
     public async Task StartRound(string joinCode, string prompt)
@@ -94,7 +111,7 @@ public class GameHub : Hub
             _logger.LogError("Player not found in database: {PlayerId}", playerId);
             throw new HubException("Player not found");
         }
-        
+
         await Clients.Group(joinCode).SendAsync("AnswerReceived", playerId, player.Name, answer);
         _logger.LogInformation("Answer submitted by {PlayerName} in game {JoinCode}", player.Name, joinCode);
     }
@@ -112,18 +129,57 @@ public class GameHub : Hub
         {
             _logger.LogError(exception, "Client {ConnectionId} disconnected with error", Context.ConnectionId);
         }
-
+        
         var playerId = Context.Items["PlayerId"]?.ToString();
         var joinCode = Context.Items["JoinCode"]?.ToString();
+        var playerName = Context.Items["PlayerName"]?.ToString();
         
-        if (!string.IsNullOrEmpty(playerId) && !string.IsNullOrEmpty(joinCode))
+        if (!string.IsNullOrEmpty(playerId) && !string.IsNullOrEmpty(joinCode) && !string.IsNullOrEmpty(playerName))
         {
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, joinCode);
-            await Clients.Group(joinCode).SendAsync("PlayerLeft", playerId);
-            _logger.LogInformation("Player {PlayerId} left game {JoinCode}", playerId, joinCode);
+            
+            // Add to disconnected players list instead of immediately removing
+            var disconnectedKey = $"{joinCode}_{playerName}";
+            _disconnectedPlayers.TryAdd(disconnectedKey, (playerId, playerName, joinCode, DateTime.UtcNow));
+            
+            _logger.LogInformation("Player {PlayerName} disconnected from game {JoinCode}, added to reconnection list", playerName, joinCode);
+            
+            // Schedule cleanup after grace period
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromMinutes(RECONNECTION_GRACE_PERIOD_MINUTES));
+                await CleanupExpiredPlayer(disconnectedKey, playerId, playerName, joinCode);
+            });
         }
         
         await base.OnDisconnectedAsync(exception);
+    }
+    
+    private async Task CleanupExpiredPlayer(string disconnectedKey, string playerId, string playerName, string joinCode)
+    {
+        if (_disconnectedPlayers.TryRemove(disconnectedKey, out var disconnectedPlayer))
+        {
+            _logger.LogInformation("Player {PlayerName} did not reconnect within grace period, removing from game {JoinCode}", playerName, joinCode);
+            
+            // Remove player from database
+            try
+            {
+                var player = await _context.Players.FindAsync(int.Parse(playerId));
+                if (player != null)
+                {
+                    _context.Players.Remove(player);
+                    await _context.SaveChangesAsync();
+                    _logger.LogInformation("Player {PlayerName} removed from database", playerName);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error removing player {PlayerName} from database", playerName);
+            }
+            
+            // Notify other players that this player has permanently left
+            await Clients.Group(joinCode).SendAsync("PlayerLeft", playerId);
+        }
     }
     
     // Clean up expired disconnected players periodically

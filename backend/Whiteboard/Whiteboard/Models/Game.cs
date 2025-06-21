@@ -13,7 +13,6 @@ public class Game
 
     public bool IsActive { get; set; }
 
-    [JsonIgnore]
     public ICollection<Player> Players { get; set; }
     [JsonIgnore]
     public ICollection<Round> Rounds { get; set; }

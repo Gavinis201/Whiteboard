@@ -5,6 +5,7 @@ class SignalRService {
     private connectionPromise: Promise<void> | null = null;
     private playerJoinedCallback: ((playerId: string, name: string) => void) | null = null;
     private playerLeftCallback: ((playerId: string) => void) | null = null;
+    private playerReconnectedCallback: ((playerId: string, name: string) => void) | null = null;
     private answerReceivedCallback: ((playerId: string, playerName: string, answer: string) => void) | null = null;
     private roundStartedCallback: ((prompt: string) => void) | null = null;
     private roundEndedCallback: (() => void) | null = null;
@@ -237,6 +238,16 @@ class SignalRService {
             }
         });
 
+        this.connection.on('PlayerReconnected', (playerId: string, playerName: string) => {
+            console.log('PlayerReconnected event received in SignalR service:', playerId, playerName);
+            if (this.playerReconnectedCallback) {
+                console.log('Calling PlayerReconnected callback');
+                this.playerReconnectedCallback(playerId, playerName);
+            } else {
+                console.warn('PlayerReconnected callback not registered');
+            }
+        });
+
         this.connection.on('AnswerReceived', (playerId: string, playerName: string, answer: string) => {
             console.log('AnswerReceived event in SignalR service:', { playerId, playerName, answer });
             if (this.answerReceivedCallback) {
@@ -399,6 +410,12 @@ class SignalRService {
         console.log('Registering PlayerLeft callback');
         this.playerLeftCallback = callback;
         console.log('PlayerLeft callback registered successfully');
+    }
+
+    onPlayerReconnected(callback: (playerId: string, name: string) => void) {
+        console.log('Registering PlayerReconnected callback');
+        this.playerReconnectedCallback = callback;
+        console.log('PlayerReconnected callback registered successfully');
     }
 
     onAnswerReceived(callback: (playerId: string, playerName: string, answer: string) => void) {

@@ -323,17 +323,17 @@ export const Game: React.FC = () => {
             console.log('Undoing last stroke, history length:', drawingHistory.length);
             
             try {
-                // Remove the last stroke from history
-                const newHistory = [...drawingHistory];
-                newHistory.pop();
-                setDrawingHistory(newHistory);
+            // Remove the last stroke from history
+            const newHistory = [...drawingHistory];
+            newHistory.pop();
+            setDrawingHistory(newHistory);
 
                 // Clear the canvas using the actual canvas dimensions (not CSS dimensions)
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                // Redraw all strokes except the last one
-                if (newHistory.length > 0) {
-                    ctx.putImageData(newHistory[newHistory.length - 1], 0, 0);
+            // Redraw all strokes except the last one
+            if (newHistory.length > 0) {
+                ctx.putImageData(newHistory[newHistory.length - 1], 0, 0);
                     console.log('Redrew canvas with', newHistory.length, 'strokes');
                 } else {
                     console.log('Canvas cleared - no strokes remaining');
@@ -373,8 +373,8 @@ export const Game: React.FC = () => {
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            setDrawingHistory([]);
-            setCurrentStroke(null);
+        setDrawingHistory([]);
+        setCurrentStroke(null);
             setCompressionStatus(''); // Clear any compression status
             
             console.log('Canvas cleared successfully');
@@ -518,12 +518,12 @@ export const Game: React.FC = () => {
                 }
                 
                 compressionUsed = { quality: isIPhoneDevice ? 0.15 : 0.3, maxSize };
-            }
-            
+                }
+                
             // Submit the compressed image
             setCompressionStatus('Sending drawing...');
             console.log(`Submitting drawing: ${Math.round(base64Image.length / 1024)}KB with quality ${compressionUsed.quality}`);
-            await submitAnswer(base64Image);
+                await submitAnswer(base64Image);
             
             setCompressionStatus('Drawing submitted successfully!');
             setTimeout(() => setCompressionStatus(''), 2000); // Clear status after 2 seconds
@@ -893,26 +893,26 @@ export const Game: React.FC = () => {
                                                 </div>
                                                 {/* Drawing Canvas */}
                                                 <div className="relative mb-2">
-                                                    <canvas
-                                                        ref={canvasRef}
+                                                        <canvas
+                                                            ref={canvasRef}
                                                         className="border rounded-lg bg-white shadow-sm w-full"
-                                                        onMouseDown={startDrawing}
-                                                        onMouseMove={draw}
-                                                        onMouseUp={stopDrawing}
-                                                        onMouseLeave={stopDrawing}
-                                                        onTouchStart={startDrawing}
-                                                        onTouchMove={draw}
-                                                        onTouchEnd={stopDrawing}
-                                                        style={{
-                                                            touchAction: 'none',
-                                                            WebkitTouchCallout: 'none',
-                                                            WebkitUserSelect: 'none',
-                                                            userSelect: 'none',
+                                                            onMouseDown={startDrawing}
+                                                            onMouseMove={draw}
+                                                            onMouseUp={stopDrawing}
+                                                            onMouseLeave={stopDrawing}
+                                                            onTouchStart={startDrawing}
+                                                            onTouchMove={draw}
+                                                            onTouchEnd={stopDrawing}
+                                                            style={{ 
+                                                                touchAction: 'none',
+                                                                WebkitTouchCallout: 'none',
+                                                                WebkitUserSelect: 'none',
+                                                                userSelect: 'none',
                                                             msTouchAction: 'none',
                                                             maxWidth: '100%',
                                                             height: 'auto',
-                                                        }}
-                                                    />
+                                                            }}
+                                                        />
                                                     {/* Compression Status */}
                                                     {compressionStatus && (
                                                         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg z-10">
@@ -944,12 +944,12 @@ export const Game: React.FC = () => {
                                                         </span>
                                                     </div>
                                                     {/* Submit Button */}
-                                                    <button
-                                                        onClick={handleSubmitAnswer}
+                                                        <button
+                                                            onClick={handleSubmitAnswer}
                                                         className="bg-purple-600 text-white px-8 py-3 rounded-lg hover:bg-purple-700 transition-colors text-base font-medium shadow-lg hover:shadow-xl transform hover:scale-105 w-full sm:w-auto"
-                                                    >
-                                                        Submit Drawing
-                                                    </button>
+                                                        >
+                                                            Submit Drawing
+                                                        </button>
                                                 </div>
                                             </>
                                         )}

@@ -148,7 +148,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 try {
                     // Only connect if we're not already connected or reconnecting
                     if (!signalRService.isConnected() && !signalRService.isReconnectingState() && !isReconnecting) {
-                        await signalRService.connect();
+                    await signalRService.connect();
                     } else {
                         console.log('SignalR already connected or reconnecting, skipping connection attempt');
                     }
@@ -169,11 +169,11 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     // Only retry if this is the initial connection and not a reconnection
                     if (!isReconnecting && isMounted) {
                         console.log('Will retry connection after delay...');
-                        setTimeout(() => {
+                    setTimeout(() => {
                             if (isMounted && game?.joinCode) {
-                                connectSignalR();
-                            }
-                        }, 5000);
+                            connectSignalR();
+                        }
+                    }, 5000);
                     }
                 }
             }
@@ -196,6 +196,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             // Clear any existing handlers first
             signalRService.onPlayerJoined(() => {});
             signalRService.onPlayerLeft(() => {});
+            signalRService.onPlayerReconnected(() => {});
             signalRService.onRoundStarted(() => {});
             signalRService.onRoundEnded(() => {});
             signalRService.onAnswerReceived(() => {});
@@ -250,21 +251,21 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     }
                     
                     console.log(`[${timestamp}] Adding player to state:`, { playerId: newPlayerId, playerName: cleanPlayerName });
-                    const newPlayer = {
+                            const newPlayer = {
                         playerId: newPlayerId,
                         name: cleanPlayerName,
-                        isReader: false, // Assume not reader unless we know otherwise
+                                isReader: false, // Assume not reader unless we know otherwise
                         gameId: prev.gameId
-                    };
+                            };
                     
                     const updatedPlayers = [...(prev.players || []), newPlayer];
                     console.log(`[${timestamp}] Updated players list:`, updatedPlayers.map(p => ({ id: p.playerId, name: p.name })));
                     
                     return {
-                        ...prev,
+                                    ...prev,
                         players: updatedPlayers
                     };
-                });
+                            });
             });
 
             // Handle player left event - Add delay to allow for reconnection
@@ -287,6 +288,49 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 }, 2000); // 2 second delay to allow for reconnection
             });
 
+            // Handle player reconnected event
+            signalRService.onPlayerReconnected(async (playerId, playerName) => {
+                const timestamp = new Date().toISOString();
+                console.log(`[${timestamp}] Player reconnected event received:`, { 
+                    playerId, 
+                    playerName, 
+                    currentPlayerId: player?.playerId, 
+                    isReader 
+                });
+                
+                if (!playerId || !playerName) {
+                    console.warn('Received player reconnected event with invalid playerId or playerName', { playerId, playerName });
+                    return;
+                }
+                
+                // Validate player name
+                const cleanPlayerName = playerName.trim();
+                if (!cleanPlayerName || cleanPlayerName.length < 1 || cleanPlayerName.length > 50) {
+                    console.warn('Invalid player name received:', playerName);
+                    return;
+                }
+
+                const reconnectedPlayerId = parseInt(playerId, 10);
+                if (isNaN(reconnectedPlayerId)) {
+                    console.warn(`[${timestamp}] Parsed playerId is NaN for value:`, playerId);
+                    return;
+                }
+                
+                // Update the player's connection status (they were already in the list, just reconnected)
+                setGame(prev => {
+                    if (!prev) {
+                        console.log(`[${timestamp}] No game state available, skipping player reconnection update`);
+                        return null;
+                    }
+                    
+                    console.log(`[${timestamp}] Player ${cleanPlayerName} (${reconnectedPlayerId}) reconnected`);
+                    
+                    // The player should already be in the list, so we don't need to add them
+                    // Just log the reconnection for debugging
+                    return prev;
+                });
+            });
+
             // Handle round started event
             signalRService.onRoundStarted((prompt) => {
                 console.log('RoundStarted event received in GameContext:', { 
@@ -303,13 +347,13 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 }
                 
                 try {
-                    setCurrentRound({ 
-                        prompt, 
-                        isCompleted: false, 
-                        roundId: Date.now(), // Temporary ID for round
-                        gameId: game?.gameId || 0 // Use the current game's ID
-                    });
-                    setAnswers([]); // Clear previous answers
+                setCurrentRound({ 
+                    prompt, 
+                    isCompleted: false, 
+                    roundId: Date.now(), // Temporary ID for round
+                    gameId: game?.gameId || 0 // Use the current game's ID
+                });
+                setAnswers([]); // Clear previous answers
                     console.log('Successfully set current round:', prompt);
                 } catch (error) {
                     console.error('Error setting current round:', error);
@@ -348,6 +392,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 // Clear all the callbacks
                 signalRService.onPlayerJoined(() => {});
                 signalRService.onPlayerLeft(() => {});
+                signalRService.onPlayerReconnected(() => {});
                 signalRService.onRoundStarted(() => {});
                 signalRService.onRoundEnded(() => {});
                 signalRService.onAnswerReceived(() => {});
@@ -569,11 +614,25 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 setGame(prevGame => {
                     if (!prevGame) return convertToExtendedGame(freshGameData);
 
-                    // Replace the players list with the authoritative list from the server
-                    return {
-                        ...prevGame,
-                        players: freshGameData.players
-                    };
+                    // Only update players if the server has more players than we currently have
+                    // This prevents polling from overriding SignalR updates
+                    const currentPlayerCount = prevGame.players?.length || 0;
+                    const serverPlayerCount = freshGameData.players?.length || 0;
+                    
+                    console.log(`Polling: Current players: ${currentPlayerCount}, Server players: ${serverPlayerCount}`);
+                    
+                    // Only update if server has more players (indicating we missed a SignalR update)
+                    // or if we have no players but server has some (recovery scenario)
+                    if (serverPlayerCount > currentPlayerCount || (currentPlayerCount === 0 && serverPlayerCount > 0)) {
+                        console.log('Updating players from polling - server has more players');
+                        return {
+                            ...prevGame,
+                            players: freshGameData.players
+                        };
+                    } else {
+                        console.log('Keeping current players - no update needed from polling');
+                        return prevGame;
+                    }
                 });
             } catch (error) {
                 console.error('Error during game state polling:', error);

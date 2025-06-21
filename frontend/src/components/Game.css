@@ -102,7 +102,7 @@ canvas {
     padding: 0.25rem 0.5rem;
     border-radius: 9999px;
     white-space: nowrap;
-}
+} 
 
 /* Drawing Interface Improvements */
 .canvas-container {
