@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// const API_URL = 'https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/api';
-const API_URL = 'http://localhost:5164/api';
+const API_URL = 'https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/api';
+// const API_URL = 'http://localhost:5164/api';
 
 export interface Game {
     gameId: number;
@@ -30,6 +30,14 @@ export interface Answer {
     playerId: number;
     playerName: string;
     roundId: number;
+}
+
+export interface Prompt {
+    promptId: number;
+    text: string;
+    category: string;
+    isActive: boolean;
+    createdAt: string;
 }
 
 export const createGame = async (): Promise<Game> => {
@@ -67,5 +75,10 @@ export const submitAnswer = async (answer: Omit<Answer, 'answerId'>): Promise<An
 
 export const getAnswersForRound = async (roundId: number): Promise<Answer[]> => {
     const response = await axios.get(`${API_URL}/answers/round/${roundId}`);
+    return response.data;
+};
+
+export const getPrompts = async (): Promise<Prompt[]> => {
+    const response = await axios.get(`${API_URL}/prompts/active`);
     return response.data;
 }; 

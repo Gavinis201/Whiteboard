@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Whiteboard.Hubs;
 using Whiteboard.Models;
+using Whiteboard.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,7 +19,11 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("CorsPolicy", builder =>
         builder
-            .SetIsOriginAllowed(_ => true) // Allow all origins for development
+            .WithOrigins(
+                "https://whiteboardv2-frontend.azurewebsites.net",
+                "http://localhost:5173",
+                "http://localhost:3000"
+            )
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials());
@@ -108,6 +113,9 @@ using (var scope = app.Services.CreateScope())
     {
         var context = services.GetRequiredService<GameDbContext>();
         context.Database.Migrate();
+        
+        // Seed prompts
+        await PromptSeeder.SeedPrompts(context);
     }
     catch (Exception ex)
     {

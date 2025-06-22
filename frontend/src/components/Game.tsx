@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useGame } from '../contexts/GameContext';
-import { Answer } from '../types/game';
+import { Answer, Prompt, getPrompts } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import './Game.css';
 
@@ -12,6 +12,9 @@ export const Game: React.FC = () => {
     const navigate = useNavigate();
 
     const [prompt, setPrompt] = useState('');
+    const [prompts, setPrompts] = useState<Prompt[]>([]);
+    const [showPromptsDropdown, setShowPromptsDropdown] = useState(false);
+    const [filteredPrompts, setFilteredPrompts] = useState<Prompt[]>([]);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [drawingHistory, setDrawingHistory] = useState<ImageData[]>([]);
@@ -22,6 +25,45 @@ export const Game: React.FC = () => {
     
     const isIPhone = () => /iPhone/i.test(navigator.userAgent);
     const colors = ['#000000', '#FF0000', '#FFA500', '#FFFF00', '#008000', '#0000FF', '#800080', '#895129', '#FFFFFF'];
+
+    // Fetch prompts from database
+    useEffect(() => {
+        const fetchPrompts = async () => {
+            try {
+                const promptsData = await getPrompts();
+                setPrompts(promptsData);
+            } catch (error) {
+                console.error('Error fetching prompts:', error);
+            }
+        };
+        fetchPrompts();
+    }, []);
+
+    // Filter prompts based on input
+    useEffect(() => {
+        if (prompt.trim() === '') {
+            setFilteredPrompts(prompts);
+        } else {
+            const filtered = prompts.filter(p => 
+                p.text.toLowerCase().includes(prompt.toLowerCase())
+            );
+            setFilteredPrompts(filtered);
+        }
+    }, [prompt, prompts]);
+
+    const handlePromptSelect = (selectedPrompt: string) => {
+        setPrompt(selectedPrompt);
+        setShowPromptsDropdown(false);
+    };
+
+    const handlePromptInputFocus = () => {
+        setShowPromptsDropdown(true);
+    };
+
+    const handlePromptInputBlur = () => {
+        // Delay hiding dropdown to allow for clicks
+        setTimeout(() => setShowPromptsDropdown(false), 200);
+    };
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -196,9 +238,35 @@ export const Game: React.FC = () => {
                     <div>
                         <div className="mb-6">
                             <h3 className="text-xl font-semibold text-purple-600 mb-2">Start a New Round</h3>
-                            <div className="flex gap-3">
-                                <input type="text" value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Enter the prompt" className="input flex-1" />
-                                <button onClick={handleStartRound} className="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700">Start</button>
+                            <div className="relative">
+                                <div className="flex gap-3">
+                                    <div className="flex-1 relative">
+                                        <input 
+                                            type="text" 
+                                            value={prompt} 
+                                            onChange={e => setPrompt(e.target.value)} 
+                                            onFocus={handlePromptInputFocus}
+                                            onBlur={handlePromptInputBlur}
+                                            placeholder="Enter the prompt or click to see suggestions" 
+                                            className="input w-full" 
+                                        />
+                                        {showPromptsDropdown && filteredPrompts.length > 0 && (
+                                            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                                {filteredPrompts.map((promptItem) => (
+                                                    <div
+                                                        key={promptItem.promptId}
+                                                        className="px-4 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                                                        onClick={() => handlePromptSelect(promptItem.text)}
+                                                    >
+                                                        <div className="font-medium text-gray-900">{promptItem.text}</div>
+                                                        <div className="text-sm text-gray-500">{promptItem.category}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button onClick={handleStartRound} className="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700">Start</button>
+                                </div>
                             </div>
                         </div>
                         
