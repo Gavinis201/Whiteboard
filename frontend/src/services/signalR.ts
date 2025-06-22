@@ -45,7 +45,7 @@ class SignalRService {
             if (this.connection) await this.connection.stop();
 
             this.connection = new HubConnectionBuilder()
-                .withUrl('https://bookrata-backend-aadygxdtgbanbefz.westus2-01.azurewebsites.net/gameHub', {
+                .withUrl('http://localhost:5164/gameHub', {
                     transport: HttpTransportType.WebSockets,
                 })
                 .configureLogging(LogLevel.Information)
