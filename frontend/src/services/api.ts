@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'https://bookrata-backend-aadygxdtgbanbefz.westus2-01.azurewebsites.net/api';
+const API_URL = 'https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/api';
 // const API_URL = 'http://localhost:5164/api';
 
 export interface Game {
