@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Whiteboard.Data;
 using Whiteboard.Models;
 
 namespace Whiteboard.Controllers;
@@ -39,6 +40,20 @@ public class PromptsController : ControllerBase
             .ToListAsync();
     }
 
+    [HttpGet("seed")]
+    public async Task<ActionResult<string>> SeedPrompts()
+    {
+        try
+        {
+            await PromptSeeder.SeedPrompts(_context);
+            return Ok("Prompts seeded successfully!");
+        }
+        catch (Exception ex)
+        {
+            return BadRequest($"Error seeding prompts: {ex.Message}");
+        }
+    }
+
     // POST: api/prompts
     [HttpPost]
     public async Task<ActionResult<Prompt>> CreatePrompt(Prompt prompt)
@@ -49,7 +64,7 @@ public class PromptsController : ControllerBase
         _context.Prompts.Add(prompt);
         await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetPrompts), new { id = prompt.PromptId }, prompt);
+        return CreatedAtAction(nameof(GetActivePrompts), new { id = prompt.PromptId }, prompt);
     }
 
     // PUT: api/prompts/{id}
@@ -77,7 +92,7 @@ public class PromptsController : ControllerBase
             return NotFound();
         }
 
-        prompt.IsActive = false;
+        _context.Prompts.Remove(prompt);
         await _context.SaveChangesAsync();
 
         return NoContent();

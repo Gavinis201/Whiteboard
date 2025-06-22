@@ -20,6 +20,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("CorsPolicy", builder =>
         builder
             .WithOrigins(
+                "https://blue-mud-0eac3971e.6.azurestaticapps.net",
                 "https://whiteboardv2-frontend.azurewebsites.net",
                 "http://localhost:5173",
                 "http://localhost:3000"
