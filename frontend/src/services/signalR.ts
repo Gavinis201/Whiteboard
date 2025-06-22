@@ -36,7 +36,7 @@ class SignalRService {
             this.connectionPromise = null;
         }
     }
-
+ 
     async connect() {
         if (this.isConnecting || this.connection?.state === HubConnectionState.Connected) return;
         this.isConnecting = true;
