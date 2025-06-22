@@ -34,10 +34,13 @@ public class PlayersController : ControllerBase
             return Ok(existingPlayer);
         }
 
+        // Check if this is the first player joining (they become the reader)
+        var isFirstPlayer = !game.Players.Any();
+
         var player = new Player
         {
             Name = request.PlayerName,
-            IsReader = !game.Players.Any(), // Set as reader if no players exist
+            IsReader = isFirstPlayer, // First player becomes the reader
             GameId = game.GameId
         };
 
