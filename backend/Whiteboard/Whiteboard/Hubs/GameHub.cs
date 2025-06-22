@@ -3,6 +3,10 @@ using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using Whiteboard.Models;
 using System.Collections.Concurrent;
+using System.Linq;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using System;
 
 namespace Whiteboard.Hubs;
 
@@ -11,9 +15,8 @@ public class GameHub : Hub
     private readonly ILogger<GameHub> _logger;
     private readonly GameDbContext _context;
     
-    // Track disconnected players with a grace period
     private static readonly ConcurrentDictionary<string, (string playerId, string playerName, string joinCode, DateTime disconnectTime)> _disconnectedPlayers = new();
-    private const int RECONNECTION_GRACE_PERIOD_MINUTES = 5; // 5 minutes to reconnect
+    private const int RECONNECTION_GRACE_PERIOD_MINUTES = 5;
 
     public GameHub(ILogger<GameHub> logger, GameDbContext context)
     {
@@ -35,92 +38,158 @@ public class GameHub : Hub
             .Include(g => g.Players)
             .FirstOrDefaultAsync(g => g.JoinCode == joinCode);
             
-        if (game == null)
-        {
-            _logger.LogError("Game not found: {JoinCode}", joinCode);
-            throw new HubException("Game not found");
-        }
+        if (game == null) throw new HubException("Game not found");
 
-        // Check if this is a reconnection attempt
-        var existingPlayer = game.Players.FirstOrDefault(p => p.Name == playerName);
-        if (existingPlayer != null)
+        var isReconnecting = game.Players.Any(p => p.Name == playerName);
+        Player currentPlayer;
+
+        if (isReconnecting)
         {
-            _logger.LogInformation("Player {PlayerName} reconnecting to game {JoinCode}", playerName, joinCode);
-            
-            // Remove from disconnected players list if they were there
-            var disconnectedKey = $"{joinCode}_{playerName}";
-            if (_disconnectedPlayers.TryRemove(disconnectedKey, out var disconnectedPlayer))
+            currentPlayer = game.Players.First(p => p.Name == playerName);
+            _logger.LogInformation("Player {PlayerName} reconnecting.", playerName);
+        }
+        else
+        {
+            currentPlayer = new Player
             {
-                _logger.LogInformation("Player {PlayerName} reconnected within grace period", playerName);
-            }
-            
-            // Add to group and store player info
-            await Groups.AddToGroupAsync(Context.ConnectionId, joinCode);
-            Context.Items["PlayerId"] = existingPlayer.PlayerId.ToString();
-            Context.Items["JoinCode"] = joinCode;
-            Context.Items["PlayerName"] = playerName;
-
-            // Notify others that player has reconnected
-            await Clients.Group(joinCode).SendAsync("PlayerReconnected", existingPlayer.PlayerId.ToString(), existingPlayer.Name);
-            _logger.LogInformation("Player {PlayerName} successfully reconnected to game {JoinCode}", playerName, joinCode);
-            return;
+                Name = playerName,
+                IsReader = !game.Players.Any(),
+                GameId = game.GameId
+            };
+            _context.Players.Add(currentPlayer);
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("New player {PlayerName} created.", playerName);
         }
-
-        // This is a new player joining
-        _logger.LogInformation("New player joining: {PlayerName}", playerName);
-        var newPlayer = new Player
-        {
-            Name = playerName,
-            IsReader = !game.Players.Any(),
-            GameId = game.GameId
-        };
-        _context.Players.Add(newPlayer);
-        await _context.SaveChangesAsync();
-
-        // Add to group and store player info
+        
         await Groups.AddToGroupAsync(Context.ConnectionId, joinCode);
-        Context.Items["PlayerId"] = newPlayer.PlayerId.ToString();
+        Context.Items["PlayerId"] = currentPlayer.PlayerId.ToString();
         Context.Items["JoinCode"] = joinCode;
         Context.Items["PlayerName"] = playerName;
 
-        // Send the actual database player ID, not the connection ID
-        await Clients.Group(joinCode).SendAsync("PlayerJoined", newPlayer.PlayerId.ToString(), newPlayer.Name);
-        _logger.LogInformation("New player {PlayerName} successfully joined game: {JoinCode} (PlayerId: {PlayerId})", playerName, joinCode, newPlayer.PlayerId);
+        // --- STATE SYNC LOGIC ---
+
+        // 1. Get the final, updated list of all players
+        var updatedPlayers = await _context.Players.Where(p => p.GameId == game.GameId).ToListAsync();
+
+        // 2. Find the current active round and its answers
+        var activeRound = await _context.Rounds
+            .OrderByDescending(r => r.RoundId)
+            .FirstOrDefaultAsync(r => r.GameId == game.GameId && !r.IsCompleted);
+            
+        List<Answer> currentAnswers = new List<Answer>();
+        if (activeRound != null)
+        {
+            currentAnswers = await _context.Answers
+                .Where(a => a.RoundId == activeRound.RoundId)
+                .ToListAsync();
+        }
+
+        // 3. Send the complete state to the client that just joined/reconnected
+        await Clients.Caller.SendAsync("GameStateSynced", new
+        {
+            Players = updatedPlayers,
+            ActiveRound = activeRound,
+            CurrentAnswers = currentAnswers
+        });
+        
+        // 4. Broadcast the updated player list to everyone else in the group
+        await Clients.GroupExcept(joinCode, Context.ConnectionId).SendAsync("PlayerListUpdated", updatedPlayers);
+        
+        _logger.LogInformation("Sent full game state to {PlayerName} and updated player list to the group.", playerName);
     }
 
     public async Task StartRound(string joinCode, string prompt)
     {
         _logger.LogInformation("Starting round in game {JoinCode} with prompt: {Prompt}", joinCode, prompt);
+        
+        var game = await _context.Games.FirstOrDefaultAsync(g => g.JoinCode == joinCode);
+        if (game == null) throw new HubException("Game not found.");
+
+        // Save the new round to the database
+        var newRound = new Round
+        {
+            Prompt = prompt,
+            IsCompleted = false,
+            GameId = game.GameId
+        };
+        _context.Rounds.Add(newRound);
+        await _context.SaveChangesAsync();
+
         await Clients.Group(joinCode).SendAsync("RoundStarted", prompt);
-        _logger.LogInformation("Round started successfully in game {JoinCode}", joinCode);
+        _logger.LogInformation("Round started and saved successfully in game {JoinCode}", joinCode);
     }
 
     public async Task SubmitAnswer(string joinCode, string answer)
     {
-        var playerId = Context.Items["PlayerId"]?.ToString();
-        
-        if (string.IsNullOrEmpty(playerId))
+        var playerIdStr = Context.Items["PlayerId"]?.ToString();
+        if (string.IsNullOrEmpty(playerIdStr) || !int.TryParse(playerIdStr, out var playerId))
         {
-            _logger.LogError("PlayerId not found for connection {ConnectionId}", Context.ConnectionId);
             throw new HubException("Player not identified");
         }
 
-        var player = await _context.Players.FindAsync(int.Parse(playerId));
-        if (player == null)
-        {
-            _logger.LogError("Player not found in database: {PlayerId}", playerId);
-            throw new HubException("Player not found");
-        }
+        var player = await _context.Players.FindAsync(playerId);
+        if (player == null) throw new HubException("Player not found");
+        
+        var activeRound = await _context.Rounds
+            .OrderByDescending(r => r.RoundId)
+            .FirstOrDefaultAsync(r => r.GameId == player.GameId && !r.IsCompleted);
+            
+        if (activeRound == null) throw new HubException("No active round to submit an answer to.");
 
-        await Clients.Group(joinCode).SendAsync("AnswerReceived", playerId, player.Name, answer);
-        _logger.LogInformation("Answer submitted by {PlayerName} in game {JoinCode}", player.Name, joinCode);
+        // Save the new answer to the database
+        var newAnswer = new Answer
+        {
+            Content = answer,
+            PlayerName = player.Name,
+            PlayerId = player.PlayerId,
+            RoundId = activeRound.RoundId
+        };
+        _context.Answers.Add(newAnswer);
+        await _context.SaveChangesAsync();
+
+        await Clients.Group(joinCode).SendAsync("AnswerReceived", playerId.ToString(), player.Name, answer);
+        _logger.LogInformation("Answer submitted and saved by {PlayerName} in game {JoinCode}", player.Name, joinCode);
     }
 
-    public async Task RevealAnswers(string joinCode)
+    public async Task LeaveGame(string joinCode)
     {
-        _logger.LogInformation("Revealing answers in game {JoinCode}", joinCode);
-        await Clients.Group(joinCode).SendAsync("AnswersRevealed");
-        _logger.LogInformation("Answers revealed successfully in game {JoinCode}", joinCode);
+        var playerIdStr = Context.Items["PlayerId"]?.ToString();
+        var playerName = Context.Items["PlayerName"]?.ToString();
+        
+        if (string.IsNullOrEmpty(playerIdStr) || string.IsNullOrEmpty(playerName))
+        {
+            throw new HubException("Player not identified");
+        }
+
+        _logger.LogInformation("Player {PlayerName} intentionally leaving game {JoinCode}", playerName, joinCode);
+        
+        // Remove from disconnected players list if they were there (for reconnection)
+        var disconnectedKey = $"{joinCode}_{playerName}";
+        _disconnectedPlayers.TryRemove(disconnectedKey, out _);
+        
+        // Remove from SignalR group
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, joinCode);
+        
+        // Remove player from database immediately
+        if (int.TryParse(playerIdStr, out var playerId))
+        {
+            var player = await _context.Players.FindAsync(playerId);
+            if (player != null)
+            {
+                var gameId = player.GameId;
+                _context.Players.Remove(player);
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Player {PlayerName} removed from database", playerName);
+                
+                // Update the player list for remaining players
+                var updatedPlayers = await _context.Players.Where(p => p.GameId == gameId).ToListAsync();
+                await Clients.Group(joinCode).SendAsync("PlayerListUpdated", updatedPlayers);
+                _logger.LogInformation("Sent updated player list to group {JoinCode} after player left", joinCode);
+            }
+        }
+        
+        // Clear context items
+        Context.Items.Clear();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
@@ -138,66 +207,50 @@ public class GameHub : Hub
         {
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, joinCode);
             
-            // Add to disconnected players list instead of immediately removing
             var disconnectedKey = $"{joinCode}_{playerName}";
             _disconnectedPlayers.TryAdd(disconnectedKey, (playerId, playerName, joinCode, DateTime.UtcNow));
             
             _logger.LogInformation("Player {PlayerName} disconnected from game {JoinCode}, added to reconnection list", playerName, joinCode);
             
-            // Schedule cleanup after grace period
             _ = Task.Run(async () =>
             {
                 await Task.Delay(TimeSpan.FromMinutes(RECONNECTION_GRACE_PERIOD_MINUTES));
-                await CleanupExpiredPlayer(disconnectedKey, playerId, playerName, joinCode);
+                await CleanupExpiredPlayer(disconnectedKey, playerId, joinCode);
             });
         }
         
         await base.OnDisconnectedAsync(exception);
     }
     
-    private async Task CleanupExpiredPlayer(string disconnectedKey, string playerId, string playerName, string joinCode)
+    private async Task CleanupExpiredPlayer(string disconnectedKey, string playerId, string joinCode)
     {
-        if (_disconnectedPlayers.TryRemove(disconnectedKey, out var disconnectedPlayer))
+        if (_disconnectedPlayers.TryRemove(disconnectedKey, out var disconnectedInfo))
         {
-            _logger.LogInformation("Player {PlayerName} did not reconnect within grace period, removing from game {JoinCode}", playerName, joinCode);
+            _logger.LogInformation("Player {PlayerName} did not reconnect, removing from game {JoinCode}", disconnectedInfo.playerName, joinCode);
             
-            // Remove player from database
+            int gameId = 0;
             try
             {
                 var player = await _context.Players.FindAsync(int.Parse(playerId));
                 if (player != null)
                 {
+                    gameId = player.GameId;
                     _context.Players.Remove(player);
                     await _context.SaveChangesAsync();
-                    _logger.LogInformation("Player {PlayerName} removed from database", playerName);
+                    _logger.LogInformation("Player {PlayerName} removed from database", disconnectedInfo.playerName);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error removing player {PlayerName} from database", playerName);
+                _logger.LogError(ex, "Error removing player {PlayerName} from database", disconnectedInfo.playerName);
             }
             
-            // Notify other players that this player has permanently left
-            await Clients.Group(joinCode).SendAsync("PlayerLeft", playerId);
-        }
-    }
-    
-    // Clean up expired disconnected players periodically
-    public static void CleanupExpiredDisconnections()
-    {
-        var now = DateTime.UtcNow;
-        var expiredKeys = _disconnectedPlayers
-            .Where(kvp => now - kvp.Value.disconnectTime > TimeSpan.FromMinutes(RECONNECTION_GRACE_PERIOD_MINUTES))
-            .Select(kvp => kvp.Key)
-            .ToList();
-            
-        foreach (var key in expiredKeys)
-        {
-            if (_disconnectedPlayers.TryRemove(key, out var player))
+            if (gameId > 0)
             {
-                // Note: We can't send SignalR messages from this static method
-                // The cleanup is handled in OnDisconnectedAsync with Task.Run
+                var updatedPlayers = await _context.Players.Where(p => p.GameId == gameId).ToListAsync();
+                await Clients.Group(joinCode).SendAsync("PlayerListUpdated", updatedPlayers);
+                _logger.LogInformation("Sent updated player list to group {JoinCode} after player removal", joinCode);
             }
         }
     }
-} 
+}
