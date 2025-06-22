@@ -133,13 +133,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         await leaveGame();
         const gameData = await createGameApi();
         const playerData = await joinGameApi(gameData.joinCode, playerName);
+        const fullGameData = await getGame(gameData.joinCode);
         
-        const newGame = {
-            ...gameData,
-            players: [playerData]
-        };
-
-        setGame(convertToExtendedGame(newGame));
+        setGame(convertToExtendedGame(fullGameData));
         setPlayer(playerData);
         setIsReader(true);
     };
