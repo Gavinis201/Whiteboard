@@ -114,15 +114,27 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<GameDbContext>();
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        
+        logger.LogInformation("Starting database initialization...");
+        
+        // Ensure database is created
+        context.Database.EnsureCreated();
+        logger.LogInformation("Database created successfully.");
+        
+        // Apply migrations
         context.Database.Migrate();
+        logger.LogInformation("Migrations applied successfully.");
         
         // Seed prompts
         await PromptSeeder.SeedPrompts(context);
+        logger.LogInformation("Database seeding completed successfully.");
     }
     catch (Exception ex)
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred while migrating the database.");
+        logger.LogError(ex, "An error occurred while initializing the database: {Message}", ex.Message);
+        logger.LogError("Stack trace: {StackTrace}", ex.StackTrace);
     }
 }
 
