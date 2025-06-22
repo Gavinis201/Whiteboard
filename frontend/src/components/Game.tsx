@@ -194,16 +194,44 @@ export const Game: React.FC = () => {
                 )}
                 {isReader ? (
                     <div>
-                        <div className="mb-6"><h3 className="text-xl font-semibold text-purple-600 mb-2">Start a New Round</h3><div className="flex gap-3"><input type="text" value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Enter the prompt" className="input flex-1" /><button onClick={handleStartRound} className="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700">Start</button></div></div>
-                        {answers.length > 0 && (<div><h3 className="text-xl font-semibold text-purple-600 mb-4">Answers</h3><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{answers.map(renderAnswerCard)}</div></div>)}
+                        <div className="mb-6">
+                            <h3 className="text-xl font-semibold text-purple-600 mb-2">Start a New Round</h3>
+                            <div className="flex gap-3">
+                                <input type="text" value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Enter the prompt" className="input flex-1" />
+                                <button onClick={handleStartRound} className="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700">Start</button>
+                            </div>
+                        </div>
+                        
+                        {currentRound && (
+                            <div className="mb-6">
+                                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                                    <h4 className="text-lg font-semibold text-purple-700 mb-2">Current Round Prompt:</h4>
+                                    <p className="text-lg text-gray-800">"{currentRound.prompt}"</p>
+                                </div>
+                            </div>
+                        )}
+                        
+                        {answers.length > 0 && (
+                            <div>
+                                <h3 className="text-xl font-semibold text-purple-600 mb-4">Answers</h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {answers.map(renderAnswerCard)}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div>
                         <h3 className="text-xl font-semibold text-purple-600 mb-2">Question:</h3>
                         {currentRound ? (
                             <div>
-                                <p className="text-lg text-gray-800 mb-4">"{currentRound.prompt}"</p>
-                                {playersWhoSubmitted.has(player.playerId) ? (<div className="bg-green-50 text-green-700 p-4 rounded-lg">Submitted! Waiting...</div>) : (
+                                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+                                    <h4 className="text-lg font-semibold text-purple-700 mb-2">Current Prompt:</h4>
+                                    <p className="text-lg text-gray-800">"{currentRound.prompt}"</p>
+                                </div>
+                                {playersWhoSubmitted.has(player.playerId) ? (
+                                    <div className="bg-green-50 text-green-700 p-4 rounded-lg">Submitted! Waiting...</div>
+                                ) : (
                                     <>
                                         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                                             <div className="flex flex-wrap gap-1">{colors.map(color => (<button key={color} onClick={() => setSelectedColor(color)} className={`w-7 h-7 rounded-full border-2 ${selectedColor === color ? 'border-purple-600 scale-110' : 'border-transparent'}`} style={{ backgroundColor: color }} />))}</div>
