@@ -19,7 +19,13 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("CorsPolicy", builder =>
         builder
-            .SetIsOriginAllowed(_ => true) // Allow all origins for development
+            .WithOrigins(
+                "https://blue-mud-0eac3971e.6.azurestaticapps.net",
+                "https://localhost:5173",
+                "https://localhost:3000",
+                "http://localhost:5173",
+                "http://localhost:3000"
+            )
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials());
