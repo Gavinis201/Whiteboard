@@ -243,7 +243,11 @@ export const Game: React.FC = () => {
     };
     
     const handleLeaveGame = async () => {
-        if (window.confirm('Are you sure?')) {
+        const message = isReader 
+            ? 'Are you sure you want to leave? This will end the game for all players.'
+            : 'Are you sure you want to leave the game?';
+            
+        if (window.confirm(message)) {
             await leaveGame();
             navigate('/');
         }

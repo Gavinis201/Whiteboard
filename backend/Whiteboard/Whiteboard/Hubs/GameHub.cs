@@ -167,9 +167,6 @@ public class GameHub : Hub
         var disconnectedKey = $"{joinCode}_{playerName}";
         _disconnectedPlayers.TryRemove(disconnectedKey, out _);
         
-        // Remove from SignalR group
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, joinCode);
-        
         // Remove player from database immediately
         if (int.TryParse(playerIdStr, out var playerId))
         {
@@ -209,21 +206,23 @@ public class GameHub : Hub
                         _context.Answers.RemoveRange(roundAnswers);
                     }
                     _context.Rounds.RemoveRange(activeRounds);
-                }
-                
-                // Remove the leaving player
-                _context.Players.Remove(player);
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("Player {PlayerName} removed from database", playerName);
-                
-                // If host left, send empty player list to remaining players
-                if (isHost)
-                {
+                    
+                    // Remove the host player
+                    _context.Players.Remove(player);
+                    await _context.SaveChangesAsync();
+                    _logger.LogInformation("Host {PlayerName} removed from database", playerName);
+                    
+                    // Send empty player list to remaining players (host is still in group at this point)
                     await Clients.Group(joinCode).SendAsync("PlayerListUpdated", new List<Player>());
                     _logger.LogInformation("Sent empty player list to group {JoinCode} after host left", joinCode);
                 }
                 else
                 {
+                    // Remove the leaving player
+                    _context.Players.Remove(player);
+                    await _context.SaveChangesAsync();
+                    _logger.LogInformation("Player {PlayerName} removed from database", playerName);
+                    
                     // Update the player list for remaining players
                     var updatedPlayers = await _context.Players.Where(p => p.GameId == gameId).ToListAsync();
                     await Clients.Group(joinCode).SendAsync("PlayerListUpdated", updatedPlayers);
@@ -231,6 +230,9 @@ public class GameHub : Hub
                 }
             }
         }
+        
+        // Remove from SignalR group AFTER sending all messages
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, joinCode);
         
         // Clear context items
         Context.Items.Clear();
