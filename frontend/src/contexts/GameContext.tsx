@@ -116,6 +116,22 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         signalRService.onPlayerListUpdated((updatedPlayers: Player[]) => {
             console.log("Received a player list update for the group.");
             setGame(prevGame => ({ ...(prevGame as ExtendedGame), players: updatedPlayers }));
+            
+            // Check if all players were removed (host left)
+            if (updatedPlayers.length === 0 && player && !isReader) {
+                console.log('Host left the game, all players have been kicked');
+                alert('The host has left the game. You have been returned to the home page.');
+                // Clear game state and navigate to home page
+                setGame(null);
+                setPlayer(null);
+                setCurrentRound(null);
+                setAnswers([]);
+                setPlayersWhoSubmitted(new Set());
+                handlersSetupRef.current = false;
+                removeCookie('currentGame');
+                removeCookie('currentPlayer');
+                // Navigation will be handled declaratively by App.tsx
+            }
         });
 
         signalRService.onRoundStarted((prompt) => {
