@@ -302,8 +302,37 @@ export const Game: React.FC = () => {
                                 ) : (
                                     <>
                                         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                                            <div className="flex flex-wrap gap-1">{colors.map(color => (<button key={color} onClick={() => setSelectedColor(color)} className={`w-7 h-7 rounded-full border-2 ${selectedColor === color ? 'border-purple-600 scale-110' : 'border-transparent'}`} style={{ backgroundColor: color }} />))}</div>
-                                            <div className="flex gap-2"><button onClick={undoLastStroke} disabled={drawingHistory.length === 0} className="p-2 rounded-full bg-gray-200 disabled:opacity-50"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg></button><button onClick={clearCanvas} className="p-2 rounded-full bg-gray-200"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button></div>
+                                            <div className="flex flex-wrap gap-1">
+                                                {colors.map(color => (
+                                                    <button 
+                                                        key={color} 
+                                                        onClick={() => setSelectedColor(color)} 
+                                                        className={`w-7 h-7 rounded-full border-2 ${selectedColor === color ? 'border-purple-600 scale-110' : 'border-transparent'}`} 
+                                                        style={{ backgroundColor: color }} 
+                                                    />
+                                                ))}
+                                                <div className="relative">
+                                                    <input
+                                                        type="color"
+                                                        value={selectedColor}
+                                                        onChange={(e) => setSelectedColor(e.target.value)}
+                                                        className="w-7 h-7 rounded-full border-2 border-gray-300 cursor-pointer"
+                                                        title="Choose custom color"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button onClick={undoLastStroke} disabled={drawingHistory.length === 0} className="p-2 rounded-full bg-gray-200 disabled:opacity-50">
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                                    </svg>
+                                                </button>
+                                                <button onClick={clearCanvas} className="p-2 rounded-full bg-gray-200">
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                </button>
+                                            </div>
                                         </div>
                                         <div className="canvas-container"><canvas ref={canvasRef} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} /></div>
                                         <div className="flex flex-col sm:flex-row items-center gap-4 mt-2">
