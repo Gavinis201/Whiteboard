@@ -107,6 +107,14 @@ export const Game: React.FC = () => {
         setIsDrawing(true);
         ctx.beginPath();
         ctx.moveTo(x, y);
+        
+        // Draw a dot immediately to handle single taps
+        ctx.arc(x, y, brushSize / 2, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Reset path for line drawing
+        ctx.beginPath();
+        ctx.moveTo(x, y);
     };
 
     const draw = (e: React.MouseEvent | React.TouchEvent) => {
