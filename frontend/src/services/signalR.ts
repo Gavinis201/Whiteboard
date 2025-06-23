@@ -17,6 +17,7 @@ class SignalRService {
     private playerListUpdatedCallback: ((players: Player[]) => void) | null = null;
     private answerReceivedCallback: ((playerId: string, playerName: string, answer: string) => void) | null = null;
     private roundStartedCallback: ((prompt: string) => void) | null = null;
+    private playerKickedCallback: ((playerId: string, playerName: string) => void) | null = null;
     
     // State
     private isConnecting = false;
@@ -95,6 +96,10 @@ class SignalRService {
         this.connection.on('RoundStarted', (prompt: string) => {
             this.roundStartedCallback?.(prompt);
         });
+
+        this.connection.on('PlayerKicked', (playerId: string, playerName: string) => {
+            this.playerKickedCallback?.(playerId, playerName);
+        });
     }
     
     async joinGame(joinCode: string, playerName: string) {
@@ -124,6 +129,12 @@ class SignalRService {
         if (!this.connection) throw new Error('No SignalR connection');
         await this.connection.invoke('SubmitAnswer', joinCode, answer);
     }
+
+    async kickPlayer(joinCode: string, playerId: number) {
+        await this.ensureConnection();
+        if (!this.connection) throw new Error('No SignalR connection');
+        await this.connection.invoke('KickPlayer', joinCode, playerId);
+    }
     
     async leaveGame(joinCode: string) {
         await this.ensureConnection();
@@ -131,6 +142,9 @@ class SignalRService {
         try {
             await this.connection.invoke('LeaveGame', joinCode);
             console.log('Successfully left game');
+            // Clear the current game state so we don't try to rejoin
+            this.currentJoinCode = null;
+            this.currentPlayerName = null;
         } catch (error) {
             console.error('Error leaving game:', error);
             throw error;
@@ -152,6 +166,23 @@ class SignalRService {
 
     onRoundStarted(callback: (prompt: string) => void) {
         this.roundStartedCallback = callback;
+    }
+
+    onPlayerKicked(callback: (playerId: string, playerName: string) => void) {
+        this.playerKickedCallback = callback;
+    }
+
+    // Utility method to check if we're currently in a game
+    isInGame(): boolean {
+        return this.currentJoinCode !== null && this.currentPlayerName !== null;
+    }
+
+    // Method to get current game info
+    getCurrentGameInfo(): { joinCode: string | null; playerName: string | null } {
+        return {
+            joinCode: this.currentJoinCode,
+            playerName: this.currentPlayerName
+        };
     }
 }
 

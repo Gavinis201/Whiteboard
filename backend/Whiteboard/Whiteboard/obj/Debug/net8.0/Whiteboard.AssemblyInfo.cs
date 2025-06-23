@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Whiteboard")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1dace318987fa356c954dd7733802286e0d3043c")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4da0509d3cb2592b6f3d405548b25773ee25f47f")]
 [assembly: System.Reflection.AssemblyProductAttribute("Whiteboard")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Whiteboard")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

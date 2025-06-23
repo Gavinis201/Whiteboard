@@ -7,7 +7,7 @@ import './Game.css';
 export const Game: React.FC = () => {
     const {
         game, player, currentRound, answers, isReader,
-        playersWhoSubmitted, startNewRound, submitAnswer, players, leaveGame,
+        playersWhoSubmitted, startNewRound, submitAnswer, players, leaveGame, kickPlayer,
     } = useGame();
     const navigate = useNavigate();
 
@@ -246,7 +246,30 @@ export const Game: React.FC = () => {
                     <div className="mb-6">
                         <h3 className="text-xl font-semibold text-purple-600 mb-4">Active Players ({players.length})</h3>
                         <div className="bg-gray-50 rounded-lg p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {players.map(p => (<div key={p.playerId} className="flex items-center gap-2 p-2 rounded-md bg-white border"><div className={`w-3 h-3 rounded-full ${p.isReader ? 'bg-purple-500' : 'bg-green-500'}`}></div><span className="font-medium">{p.name}</span>{playersWhoSubmitted.has(p.playerId) && (<span className="ml-auto text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Submitted</span>)}</div>))}
+                            {players.map(p => (
+                                <div key={p.playerId} className="flex items-center gap-2 p-2 rounded-md bg-white border">
+                                    <div className={`w-3 h-3 rounded-full ${p.isReader ? 'bg-purple-500' : 'bg-green-500'}`}></div>
+                                    <span className="font-medium">{p.name}</span>
+                                    {playersWhoSubmitted.has(p.playerId) && (
+                                        <span className="ml-auto text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Submitted</span>
+                                    )}
+                                    {isReader && !p.isReader && (
+                                        <button 
+                                            onClick={() => {
+                                                if (window.confirm(`Are you sure you want to kick ${p.name} from the game?`)) {
+                                                    kickPlayer(p.playerId);
+                                                }
+                                            }}
+                                            className="ml-auto text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-50 transition-colors"
+                                            title={`Kick ${p.name} from the game`}
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}

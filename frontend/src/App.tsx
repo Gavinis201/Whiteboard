@@ -1,11 +1,23 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
-import { GameProvider } from './contexts/GameContext';
+import { GameProvider, useGame } from './contexts/GameContext';
 import { JoinGame } from './components/JoinGame';
 import { Game } from './components/Game';
 import { CreateGame } from './components/CreateGame';
 import './index.css';
 import Header from './components/Header';
 import Footer from './components/Footer';
+
+// Component to handle automatic redirection to game
+const AutoRedirect = () => {
+  const { game, player, isInitialized } = useGame();
+  
+  // If we have an active game and player, redirect to game page
+  if (isInitialized && game && player) {
+    return <Navigate to="/game" replace />;
+  }
+  
+  return null;
+};
 
 function App() {
   return (
@@ -15,6 +27,7 @@ function App() {
           <Header/>
           <div className="flex-grow">
             <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+              <AutoRedirect />
               <Routes>
                 <Route path="/" element={
                   <div className="text-center py-8 sm:py-12">

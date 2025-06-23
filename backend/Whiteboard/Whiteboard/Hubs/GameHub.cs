@@ -192,6 +192,62 @@ public class GameHub : Hub
         Context.Items.Clear();
     }
 
+    public async Task KickPlayer(string joinCode, int playerIdToKick)
+    {
+        var currentPlayerIdStr = Context.Items["PlayerId"]?.ToString();
+        var currentPlayerName = Context.Items["PlayerName"]?.ToString();
+        
+        if (string.IsNullOrEmpty(currentPlayerIdStr) || string.IsNullOrEmpty(currentPlayerName))
+        {
+            throw new HubException("Player not identified");
+        }
+
+        // Check if the current player is the reader (host)
+        var currentPlayer = await _context.Players.FindAsync(int.Parse(currentPlayerIdStr));
+        if (currentPlayer == null || !currentPlayer.IsReader)
+        {
+            throw new HubException("Only the host can kick players");
+        }
+
+        // Find the player to kick
+        var playerToKick = await _context.Players.FindAsync(playerIdToKick);
+        if (playerToKick == null)
+        {
+            throw new HubException("Player to kick not found");
+        }
+
+        // Ensure the player to kick is in the same game
+        if (playerToKick.GameId != currentPlayer.GameId)
+        {
+            throw new HubException("Player is not in the same game");
+        }
+
+        // Prevent kicking yourself
+        if (playerToKick.PlayerId == currentPlayer.PlayerId)
+        {
+            throw new HubException("Cannot kick yourself");
+        }
+
+        _logger.LogInformation("Host {HostName} kicking player {PlayerName} from game {JoinCode}", currentPlayerName, playerToKick.Name, joinCode);
+
+        // Remove from disconnected players list if they were there
+        var disconnectedKey = $"{joinCode}_{playerToKick.Name}";
+        _disconnectedPlayers.TryRemove(disconnectedKey, out _);
+
+        // Remove player from database
+        _context.Players.Remove(playerToKick);
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Player {PlayerName} kicked and removed from database", playerToKick.Name);
+
+        // Notify the kicked player
+        await Clients.Group(joinCode).SendAsync("PlayerKicked", playerToKick.PlayerId.ToString(), playerToKick.Name);
+
+        // Update the player list for remaining players
+        var updatedPlayers = await _context.Players.Where(p => p.GameId == currentPlayer.GameId).ToListAsync();
+        await Clients.Group(joinCode).SendAsync("PlayerListUpdated", updatedPlayers);
+        _logger.LogInformation("Sent updated player list to group {JoinCode} after player was kicked", joinCode);
+    }
+
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         if (exception != null)

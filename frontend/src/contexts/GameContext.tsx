@@ -20,10 +20,12 @@ interface GameContextType {
     players: Player[];
     isReader: boolean;
     playersWhoSubmitted: Set<number>;
+    isInitialized: boolean;
     createGame: (playerName: string) => Promise<void>;
     joinGame: (joinCode: string, playerName: string) => Promise<void>;
     startNewRound: (prompt: string) => Promise<void>;
     submitAnswer: (answer: string) => Promise<void>;
+    kickPlayer: (playerId: number) => Promise<void>;
     leaveGame: () => Promise<void>;
 }
 
@@ -45,9 +47,15 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         const connectAndJoin = async () => {
             if (game?.joinCode && player?.name) {
                 try {
+                    console.log('Attempting to reconnect to game:', game.joinCode, 'as player:', player.name);
                     await signalRService.joinGame(game.joinCode, player.name);
                 } catch (error) {
                     console.error('Error connecting to SignalR and joining game:', error);
+                    // If we can't reconnect, clear the invalid state
+                    setGame(null);
+                    setPlayer(null);
+                    removeCookie('currentGame');
+                    removeCookie('currentPlayer');
                 }
             }
         };
@@ -94,6 +102,16 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 setPlayersWhoSubmitted(prev => new Set(prev).add(numericPlayerId));
             });
 
+            signalRService.onPlayerKicked((kickedPlayerId, kickedPlayerName) => {
+                const numericKickedPlayerId = parseInt(kickedPlayerId, 10);
+                // If the current player is the one being kicked, redirect to home
+                if (player && player.playerId === numericKickedPlayerId) {
+                    console.log('You have been kicked from the game');
+                    leaveGame();
+                }
+                // The player list will be updated via PlayerListUpdated event
+            });
+
             return () => {
                 handlersSetupRef.current = false;
             };
@@ -108,11 +126,15 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             try {
                 const parsedGame = JSON.parse(savedGame);
                 const parsedPlayer = JSON.parse(savedPlayer);
+                console.log('Restoring game state from cookies:', parsedGame.joinCode, parsedPlayer.name);
                 setGame(convertToExtendedGame(parsedGame));
                 setPlayer(parsedPlayer);
                 setIsReader(parsedPlayer.isReader);
             } catch (error) {
-                leaveGame();
+                console.error('Error parsing saved game state:', error);
+                // Clear invalid cookies but don't call leaveGame to avoid redirect
+                removeCookie('currentGame');
+                removeCookie('currentPlayer');
             }
         }
         setIsInitialized(true);
@@ -160,6 +182,11 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         await signalRService.sendAnswer(game.joinCode, answer);
     };
 
+    const kickPlayer = async (playerId: number) => {
+        if (!game?.joinCode || !isReader) return;
+        await signalRService.kickPlayer(game.joinCode, playerId);
+    };
+
     const leaveGame = async () => {
         if (game?.joinCode) {
             try {
@@ -188,10 +215,12 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             players,
             isReader,
             playersWhoSubmitted,
+            isInitialized,
             createGame,
             joinGame,
             startNewRound,
             submitAnswer,
+            kickPlayer,
             leaveGame
         }}>
             {children}
