@@ -240,7 +240,7 @@ export const Game: React.FC = () => {
                 {/* Header and Player List JSX remains the same */}
                 <div className="mb-6 flex justify-between items-center">
                     <div><h2 className="text-xl sm:text-2xl font-bold text-purple-600">Game Code: <span className="text-2xl sm:text-3xl font-mono">{game.joinCode}</span></h2><p className="text-gray-600">Player: {player.name} {isReader && '(Reader)'}</p></div>
-                    {!isReader && <button onClick={handleLeaveGame} className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600">Leave</button>}
+                    <button onClick={handleLeaveGame} className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600">Leave</button>
                 </div>
                 {isReader && (
                     <div className="mb-6">
