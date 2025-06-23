@@ -124,7 +124,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log("Received a player list update for the group.");
             setGame(prevGame => ({ ...(prevGame as ExtendedGame), players: updatedPlayers }));
             
-            if (updatedPlayers.length === 0 && player && !isReader) {
+            // Only show alert if user is in this specific game and host left
+            const currentGameInfo = signalRService.getCurrentGameInfo();
+            if (updatedPlayers.length === 0 && player && !isReader && 
+                currentGameInfo.joinCode && game?.joinCode === currentGameInfo.joinCode) {
                 console.log('Host left the game, all players have been kicked');
                 alert('The host has left the game. You have been returned to the home page.');
                 setGame(null);
@@ -193,14 +196,19 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     }, [game, player, isInitialized]);
 
     const createGame = async (playerName: string) => {
+        console.log('Starting createGame, setting loading to true');
         setIsLoading(true);
         setLoadingMessage('Creating game...');
         try {
+            console.log('Calling leaveGame...');
             await leaveGame();
+            console.log('Setting loading message: Setting up game...');
             setLoadingMessage('Setting up game...');
             const gameData = await createGameApi();
+            console.log('Setting loading message: Joining game...');
             setLoadingMessage('Joining game...');
             const playerData = await joinGameApi(gameData.joinCode, playerName);
+            console.log('Setting loading message: Loading game data...');
             setLoadingMessage('Loading game data...');
             const fullGameData = await getGame(gameData.joinCode);
             
@@ -208,14 +216,17 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setPlayer(playerData);
             setIsReader(true);
             
+            console.log('Setting loading message: Connecting to game...');
             setLoadingMessage('Connecting to game...');
             await signalRService.joinGame(gameData.joinCode, playerName);
             
+            console.log('Game created successfully, keeping loading for 2 seconds...');
             // Keep loading state active for a moment to show the spinner
             setTimeout(() => {
+                console.log('Clearing loading state');
                 setIsLoading(false);
                 setLoadingMessage('');
-            }, 1500);
+            }, 2000);
         } catch (error) {
             console.error('Error creating game:', error);
             setIsLoading(false);
@@ -225,12 +236,16 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const joinGame = async (joinCode: string, playerName: string) => {
+        console.log('Starting joinGame, setting loading to true');
         setIsLoading(true);
         setLoadingMessage('Joining game...');
         try {
+            console.log('Calling leaveGame...');
             await leaveGame();
+            console.log('Setting loading message: Connecting to server...');
             setLoadingMessage('Connecting to server...');
             const playerData = await joinGameApi(joinCode, playerName);
+            console.log('Setting loading message: Loading game data...');
             setLoadingMessage('Loading game data...');
             const gameData = await getGame(joinCode);
             
@@ -238,14 +253,17 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setPlayer(playerData);
             setIsReader(playerData.isReader);
             
+            console.log('Setting loading message: Connecting to game...');
             setLoadingMessage('Connecting to game...');
             await signalRService.joinGame(joinCode, playerName);
             
+            console.log('Game joined successfully, keeping loading for 2 seconds...');
             // Keep loading state active for a moment to show the spinner
             setTimeout(() => {
+                console.log('Clearing loading state');
                 setIsLoading(false);
                 setLoadingMessage('');
-            }, 1500);
+            }, 2000);
         } catch (error) {
             console.error('Error joining game:', error);
             setIsLoading(false);
@@ -286,7 +304,6 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         handlersSetupRef.current = false;
         removeCookie('currentGame');
         removeCookie('currentPlayer');
-        setIsLoading(false);
     };
 
     return (

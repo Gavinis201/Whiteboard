@@ -123,16 +123,21 @@ const HomePage = () => {
 const AppRoutes = () => {
   const { game, player, isInitialized, isLoading, loadingMessage } = useGame();
 
+  console.log('AppRoutes render:', { isLoading, loadingMessage, isInitialized, hasGame: !!game, hasPlayer: !!player });
+
   // Show loading spinner if app is loading - this takes priority over everything else
   if (isLoading) {
+    console.log('Rendering LoadingSpinner with message:', loadingMessage);
     return <LoadingSpinner text={loadingMessage} />;
   }
 
   // If user is in a game, always show the game page regardless of URL
   if (isInitialized && game && player) {
+    console.log('Rendering Game component');
     return <Game />;
   }
 
+  console.log('Rendering normal routes');
   // Otherwise, show the normal routes
   return (
     <Routes>
