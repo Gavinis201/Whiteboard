@@ -107,6 +107,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 // If the current player is the one being kicked, redirect to home
                 if (player && player.playerId === numericKickedPlayerId) {
                     console.log('You have been kicked from the game');
+                    alert('You have been kicked from the game by the host.');
                     leaveGame();
                 }
                 // The player list will be updated via PlayerListUpdated event

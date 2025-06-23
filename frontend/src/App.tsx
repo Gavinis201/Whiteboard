@@ -16,6 +16,11 @@ const AutoRedirect = () => {
     return <Navigate to="/game" replace />;
   }
   
+  // If we're initialized but have no game/player, redirect to home page
+  if (isInitialized && (!game || !player)) {
+    return <Navigate to="/" replace />;
+  }
+  
   return null;
 };
 
