@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useRe
 import { Game, Player, Round, Answer, getGame, joinGame as joinGameApi, createGame as createGameApi } from '../services/api';
 import { signalRService, GameStatePayload } from '../services/signalR';
 import { setCookie, getCookie, removeCookie } from '../utils/cookieUtils';
+import { useNavigate } from 'react-router-dom';
 
 interface ExtendedGame extends Game {
     currentRound: Round | null;
@@ -40,6 +41,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const [playersWhoSubmitted, setPlayersWhoSubmitted] = useState<Set<number>>(new Set());
     const [isInitialized, setIsInitialized] = useState(false);
     const handlersSetupRef = useRef<boolean>(false);
+    const navigate = useNavigate();
 
     const players = game?.players || [];
 
@@ -107,8 +109,18 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 // If the current player is the one being kicked, redirect to home
                 if (player && player.playerId === numericKickedPlayerId) {
                     console.log('You have been kicked from the game');
+                    // Show user-friendly notification
                     alert('You have been kicked from the game by the host.');
-                    leaveGame();
+                    // Clear game state and navigate to home page
+                    setGame(null);
+                    setPlayer(null);
+                    setCurrentRound(null);
+                    setAnswers([]);
+                    setPlayersWhoSubmitted(new Set());
+                    handlersSetupRef.current = false;
+                    removeCookie('currentGame');
+                    removeCookie('currentPlayer');
+                    navigate('/');
                 }
                 // The player list will be updated via PlayerListUpdated event
             });
@@ -205,6 +217,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         handlersSetupRef.current = false;
         removeCookie('currentGame');
         removeCookie('currentPlayer');
+        navigate('/');
     };
 
     return (
