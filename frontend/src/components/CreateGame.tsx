@@ -5,27 +5,28 @@ import { LoadingSpinner } from './LoadingSpinner';
 export const CreateGame: React.FC = () => {
     const [playerName, setPlayerName] = useState('');
     const [error, setError] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const { createGame } = useGame();
+    const { createGame, isLoading, loadingMessage } = useGame();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!playerName.trim()) {
+            setError('Player name cannot be empty.');
+            return;
+        }
         setError(null);
-        setIsLoading(true);
 
         try {
             await createGame(playerName);
-            // Loading state will persist until AutoRedirect unmounts this component
+            // The context will handle loading state and redirection
         } catch (err) {
             setError('Failed to create game. Please try again.');
             console.error('Error creating game:', err);
-            setIsLoading(false);
         }
     };
 
     return (
         <>
-            {isLoading && <LoadingSpinner text="Creating game..." />}
+            {isLoading && <LoadingSpinner text={loadingMessage} />}
             <div className="flex-1 flex items-start pt-8 sm:items-center justify-center bg-gray-50 px-4 sm:px-6 lg:px-8">
                 <div className="max-w-md w-full space-y-8 p-6 sm:p-8 bg-white rounded-xl shadow-lg">
                     <div className="text-center">

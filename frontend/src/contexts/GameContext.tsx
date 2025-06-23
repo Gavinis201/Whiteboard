@@ -22,6 +22,8 @@ interface GameContextType {
     isReader: boolean;
     playersWhoSubmitted: Set<number>;
     isInitialized: boolean;
+    isLoading: boolean;
+    loadingMessage: string;
     createGame: (playerName: string) => Promise<void>;
     joinGame: (joinCode: string, playerName: string) => Promise<void>;
     startNewRound: (prompt: string) => Promise<void>;
@@ -40,6 +42,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const [isReader, setIsReader] = useState(false);
     const [playersWhoSubmitted, setPlayersWhoSubmitted] = useState<Set<number>>(new Set());
     const [isInitialized, setIsInitialized] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [loadingMessage, setLoadingMessage] = useState('');
     const handlersSetupRef = useRef<boolean>(false);
     const navigate = useNavigate();
 
@@ -140,12 +144,13 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 const parsedGame = JSON.parse(savedGame);
                 const parsedPlayer = JSON.parse(savedPlayer);
                 console.log('Restoring game state from cookies:', parsedGame.joinCode, parsedPlayer.name);
+                setLoadingMessage('Reconnecting to game...');
+                setIsLoading(true);
                 setGame(convertToExtendedGame(parsedGame));
                 setPlayer(parsedPlayer);
                 setIsReader(parsedPlayer.isReader);
             } catch (error) {
                 console.error('Error parsing saved game state:', error);
-                // Clear invalid cookies but don't call leaveGame to avoid redirect
                 removeCookie('currentGame');
                 removeCookie('currentPlayer');
             }
@@ -165,6 +170,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     }, [game, player, isInitialized]);
 
     const createGame = async (playerName: string) => {
+        setLoadingMessage('Creating game...');
+        setIsLoading(true);
         try {
             await leaveGame();
             const gameData = await createGameApi();
@@ -174,13 +181,17 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setGame(convertToExtendedGame(fullGameData));
             setPlayer(playerData);
             setIsReader(true);
+            setIsLoading(false);
         } catch (error) {
             console.error('Error creating game:', error);
+            setIsLoading(false);
             throw error; // Re-throw the error so the component can handle it
         }
     };
 
     const joinGame = async (joinCode: string, playerName: string) => {
+        setLoadingMessage('Joining game...');
+        setIsLoading(true);
         try {
             await leaveGame();
             const playerData = await joinGameApi(joinCode, playerName);
@@ -189,8 +200,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setGame(convertToExtendedGame(gameData));
             setPlayer(playerData);
             setIsReader(playerData.isReader);
+            setIsLoading(false);
         } catch (error) {
             console.error('Error joining game:', error);
+            setIsLoading(false);
             throw error; // Re-throw the error so the component can handle it
         }
     };
@@ -227,6 +240,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         handlersSetupRef.current = false;
         removeCookie('currentGame');
         removeCookie('currentPlayer');
+        setIsLoading(false);
         navigate('/');
     };
 
@@ -240,6 +254,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             isReader,
             playersWhoSubmitted,
             isInitialized,
+            isLoading,
+            loadingMessage,
             createGame,
             joinGame,
             startNewRound,
