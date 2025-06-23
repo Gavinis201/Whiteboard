@@ -261,7 +261,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 console.error('Error leaving game via SignalR:', error);
             }
         }
-        
+         
         setGame(null);
         setPlayer(null);
         setCurrentRound(null);
