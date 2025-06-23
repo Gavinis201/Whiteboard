@@ -1,14 +1,16 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import { GameProvider, useGame } from './contexts/GameContext';
 import { JoinGame } from './components/JoinGame';
 import { Game } from './components/Game';
 import { CreateGame } from './components/CreateGame';
+import { LoadingSpinner } from './components/LoadingSpinner';
 import './index.css';
 import Header from './components/Header';
 import Footer from './components/Footer';
 
 const HomePage = () => {
-  const { game, player, isInitialized, navigateToGame } = useGame();
+  const { game, player, isInitialized } = useGame();
+  const navigate = useNavigate();
 
   // If user is already in a game, show continue option
   if (isInitialized && game && player) {
@@ -28,7 +30,7 @@ const HomePage = () => {
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Continue Your Game</h2>
             <p className="text-gray-600 mb-6">You're already in a game as "{player.name}". Would you like to continue?</p>
             <button 
-              onClick={navigateToGame}
+              onClick={() => navigate('/game')}
               className="bg-purple-600 text-white px-8 py-3 rounded-md hover:bg-purple-700 transition-colors text-lg"
             >
               Continue Game
@@ -118,6 +120,30 @@ const HomePage = () => {
   );
 };
 
+const AppRoutes = () => {
+  const { game, player, isInitialized, isLoading, loadingMessage } = useGame();
+
+  // Show loading spinner if app is loading
+  if (isLoading) {
+    return <LoadingSpinner text={loadingMessage} />;
+  }
+
+  // If user is in a game, always show the game page regardless of URL
+  if (isInitialized && game && player) {
+    return <Game />;
+  }
+
+  // Otherwise, show the normal routes
+  return (
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/join" element={<JoinGame />} />
+      <Route path="/create" element={<CreateGame />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+};
+
 function App() {
   return (
     <Router>
@@ -126,13 +152,7 @@ function App() {
           <Header/>
           <div className="flex-grow">
             <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/join" element={<JoinGame />} />
-                <Route path="/create" element={<CreateGame />} />
-                <Route path="/game" element={<Game />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
+              <AppRoutes />
             </main>
           </div>
           <Footer />

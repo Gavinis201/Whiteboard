@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useRe
 import { Game, Player, Round, Answer, getGame, joinGame as joinGameApi, createGame as createGameApi } from '../services/api';
 import { signalRService, GameStatePayload } from '../services/signalR';
 import { setCookie, getCookie, removeCookie } from '../utils/cookieUtils';
-import { useNavigate } from 'react-router-dom';
 
 interface ExtendedGame extends Game {
     currentRound: Round | null;
@@ -30,8 +29,6 @@ interface GameContextType {
     submitAnswer: (answer: string) => Promise<void>;
     kickPlayer: (playerId: number) => Promise<void>;
     leaveGame: () => Promise<void>;
-    navigateToGame: () => void;
-    navigateToHome: () => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -47,7 +44,6 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState('');
     const handlersSetupRef = useRef<boolean>(false);
-    const navigate = useNavigate();
 
     const players = game?.players || [];
 
@@ -71,74 +67,6 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     }, [game?.joinCode, player?.name]);
 
     useEffect(() => {
-        if (game?.joinCode && !handlersSetupRef.current) {
-            handlersSetupRef.current = true;
-            
-            signalRService.onGameStateSynced((payload: GameStatePayload) => {
-                console.log("Syncing full game state:", payload);
-                setGame(prevGame => ({ ...(prevGame as ExtendedGame), players: payload.players }));
-                setCurrentRound(payload.activeRound);
-                setAnswers(payload.currentAnswers || []);
-                setPlayersWhoSubmitted(new Set(payload.currentAnswers?.map(a => a.playerId) || []));
-            });
-
-            signalRService.onPlayerListUpdated((updatedPlayers: Player[]) => {
-                console.log("Received a player list update for the group.");
-                setGame(prevGame => ({ ...(prevGame as ExtendedGame), players: updatedPlayers }));
-            });
-
-            signalRService.onRoundStarted((prompt) => {
-                setCurrentRound({ 
-                    prompt, 
-                    isCompleted: false, 
-                    roundId: Date.now(),
-                    gameId: game?.gameId || 0
-                });
-                setAnswers([]);
-                setPlayersWhoSubmitted(new Set());
-            });
-
-            signalRService.onAnswerReceived((playerId, playerName, answer) => {
-                const numericPlayerId = parseInt(playerId, 10);
-                setAnswers(prev => [...prev, { 
-                    answerId: Date.now(),
-                    playerId: numericPlayerId,
-                    playerName,
-                    content: answer,
-                    roundId: currentRound?.roundId || 0
-                }]);
-                setPlayersWhoSubmitted(prev => new Set(prev).add(numericPlayerId));
-            });
-
-            signalRService.onPlayerKicked((kickedPlayerId, kickedPlayerName) => {
-                const numericKickedPlayerId = parseInt(kickedPlayerId, 10);
-                // If the current player is the one being kicked, redirect to home
-                if (player && player.playerId === numericKickedPlayerId) {
-                    console.log('You have been kicked from the game');
-                    // Show user-friendly notification
-                    alert('You have been kicked from the game by the host.');
-                    // Clear game state and navigate to home page
-                    setGame(null);
-                    setPlayer(null);
-                    setCurrentRound(null);
-                    setAnswers([]);
-                    setPlayersWhoSubmitted(new Set());
-                    handlersSetupRef.current = false;
-                    removeCookie('currentGame');
-                    removeCookie('currentPlayer');
-                    navigate('/');
-                }
-                // The player list will be updated via PlayerListUpdated event
-            });
-
-            return () => {
-                handlersSetupRef.current = false;
-            };
-        }
-    }, [game?.joinCode, currentRound?.roundId]);
-
-
-    useEffect(() => {
         const savedGame = getCookie('currentGame');
         const savedPlayer = getCookie('currentPlayer');
         if (savedGame && savedPlayer) {
@@ -158,6 +86,75 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         }
         setIsInitialized(true);
     }, []);
+
+    // Set up SignalR handlers after initialization and when we have game state
+    useEffect(() => {
+        if (!isInitialized || !game?.joinCode || handlersSetupRef.current) return;
+        
+        handlersSetupRef.current = true;
+        console.log('Setting up SignalR handlers for game:', game.joinCode);
+        
+        signalRService.onGameStateSynced((payload: GameStatePayload) => {
+            console.log("Syncing full game state:", payload);
+            setGame(prevGame => ({ ...(prevGame as ExtendedGame), players: payload.players }));
+            setCurrentRound(payload.activeRound);
+            setAnswers(payload.currentAnswers || []);
+            setPlayersWhoSubmitted(new Set(payload.currentAnswers?.map(a => a.playerId) || []));
+        });
+
+        signalRService.onPlayerListUpdated((updatedPlayers: Player[]) => {
+            console.log("Received a player list update for the group.");
+            setGame(prevGame => ({ ...(prevGame as ExtendedGame), players: updatedPlayers }));
+        });
+
+        signalRService.onRoundStarted((prompt) => {
+            setCurrentRound({ 
+                prompt, 
+                isCompleted: false, 
+                roundId: Date.now(),
+                gameId: game?.gameId || 0
+            });
+            setAnswers([]);
+            setPlayersWhoSubmitted(new Set());
+        });
+
+        signalRService.onAnswerReceived((playerId, playerName, answer) => {
+            const numericPlayerId = parseInt(playerId, 10);
+            setAnswers(prev => [...prev, { 
+                answerId: Date.now(),
+                playerId: numericPlayerId,
+                playerName,
+                content: answer,
+                roundId: currentRound?.roundId || 0
+            }]);
+            setPlayersWhoSubmitted(prev => new Set(prev).add(numericPlayerId));
+        });
+
+        signalRService.onPlayerKicked((kickedPlayerId, kickedPlayerName) => {
+            const numericKickedPlayerId = parseInt(kickedPlayerId, 10);
+            // If the current player is the one being kicked, redirect to home
+            if (player && player.playerId === numericKickedPlayerId) {
+                console.log('You have been kicked from the game');
+                // Show user-friendly notification
+                alert('You have been kicked from the game by the host.');
+                // Clear game state and navigate to home page
+                setGame(null);
+                setPlayer(null);
+                setCurrentRound(null);
+                setAnswers([]);
+                setPlayersWhoSubmitted(new Set());
+                handlersSetupRef.current = false;
+                removeCookie('currentGame');
+                removeCookie('currentPlayer');
+                // Navigation will be handled declaratively by App.tsx
+            }
+            // The player list will be updated via PlayerListUpdated event
+        });
+
+        return () => {
+            handlersSetupRef.current = false;
+        };
+    }, [isInitialized, game?.joinCode, player?.playerId, currentRound?.roundId]);
 
     useEffect(() => {
         if (!isInitialized) return;
@@ -250,14 +247,6 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(false);
     };
 
-    const navigateToGame = () => {
-        navigate('/game');
-    };
-
-    const navigateToHome = () => {
-        navigate('/');
-    };
-
     return (
         <GameContext.Provider value={{
             game,
@@ -275,9 +264,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             startNewRound,
             submitAnswer,
             kickPlayer,
-            leaveGame,
-            navigateToGame,
-            navigateToHome
+            leaveGame
         }}>
             {children}
         </GameContext.Provider>
