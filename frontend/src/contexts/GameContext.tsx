@@ -152,7 +152,6 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             const numericKickedPlayerId = parseInt(kickedPlayerId, 10);
             if (player && player.playerId === numericKickedPlayerId) {
                 console.log('You have been kicked from the game');
-                alert('You have been kicked from the game by the host.');
                 setGame(null);
                 setPlayer(null);
                 setCurrentRound(null);

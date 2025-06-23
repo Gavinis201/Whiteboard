@@ -47,6 +47,13 @@ public class GameHub : Hub
         {
             currentPlayer = game.Players.First(p => p.Name == playerName);
             _logger.LogInformation("Player {PlayerName} reconnecting.", playerName);
+            
+            // Remove from disconnected players list if they were there
+            var reconnectingKey = $"{joinCode}_{playerName}";
+            if (_disconnectedPlayers.TryRemove(reconnectingKey, out var disconnectedInfo))
+            {
+                _logger.LogInformation("Player {PlayerName} successfully reconnected, removed from disconnected list", playerName);
+            }
         }
         else
         {
@@ -164,8 +171,8 @@ public class GameHub : Hub
         _logger.LogInformation("Player {PlayerName} intentionally leaving game {JoinCode}", playerName, joinCode);
         
         // Remove from disconnected players list if they were there (for reconnection)
-        var disconnectedKey = $"{joinCode}_{playerName}";
-        _disconnectedPlayers.TryRemove(disconnectedKey, out _);
+        var leaveDisconnectedKey = $"{joinCode}_{playerName}";
+        _disconnectedPlayers.TryRemove(leaveDisconnectedKey, out _);
         
         // Remove player from database immediately
         if (int.TryParse(playerIdStr, out var playerId))
@@ -277,8 +284,8 @@ public class GameHub : Hub
         _logger.LogInformation("Host {HostName} kicking player {PlayerName} from game {JoinCode}", currentPlayerName, playerToKick.Name, joinCode);
 
         // Remove from disconnected players list if they were there
-        var disconnectedKey = $"{joinCode}_{playerToKick.Name}";
-        _disconnectedPlayers.TryRemove(disconnectedKey, out _);
+        var kickDisconnectedKey = $"{joinCode}_{playerToKick.Name}";
+        _disconnectedPlayers.TryRemove(kickDisconnectedKey, out _);
 
         // Remove player from database
         _context.Players.Remove(playerToKick);
@@ -315,46 +322,33 @@ public class GameHub : Hub
                 var player = await _context.Players.FindAsync(playerIdInt);
                 if (player != null && player.IsReader)
                 {
-                    // Host disconnected - kick all other players immediately
-                    _logger.LogInformation("Host {PlayerName} disconnected unexpectedly, kicking all other players from game {JoinCode}", playerName, joinCode);
+                    // Host disconnected - add to reconnection list with shorter grace period
+                    var hostDisconnectedKey = $"{joinCode}_{playerName}";
+                    _disconnectedPlayers.TryAdd(hostDisconnectedKey, (playerId, playerName, joinCode, DateTime.UtcNow));
                     
-                    var gameId = player.GameId;
-                    var otherPlayers = await _context.Players.Where(p => p.GameId == gameId && p.PlayerId != playerIdInt).ToListAsync();
+                    _logger.LogInformation("Host {PlayerName} disconnected from game {JoinCode}, added to reconnection list with grace period", playerName, joinCode);
                     
-                    // Kick each player
-                    foreach (var otherPlayer in otherPlayers)
+                    // Give host a shorter grace period (2 minutes instead of 5)
+                    _ = Task.Run(async () =>
                     {
-                        var otherDisconnectedKey = $"{joinCode}_{otherPlayer.Name}";
-                        _disconnectedPlayers.TryRemove(otherDisconnectedKey, out _);
-                        
-                        // Notify the kicked player
-                        await Clients.Group(joinCode).SendAsync("PlayerKicked", otherPlayer.PlayerId.ToString(), otherPlayer.Name);
-                        _logger.LogInformation("Kicked player {PlayerName} because host disconnected", otherPlayer.Name);
-                    }
+                        await Task.Delay(TimeSpan.FromMinutes(2));
+                        await CleanupExpiredHost(hostDisconnectedKey, playerId, joinCode);
+                    });
                     
-                    // Remove all players from the game
-                    _context.Players.RemoveRange(otherPlayers);
-                    _context.Players.Remove(player);
-                    await _context.SaveChangesAsync();
-                    
-                    // Send empty player list to remaining players
-                    await Clients.Group(joinCode).SendAsync("PlayerListUpdated", new List<Player>());
-                    _logger.LogInformation("Sent empty player list to group {JoinCode} after host disconnected", joinCode);
-                    
-                    return; // Don't add host to reconnection list
+                    return; // Don't proceed with regular cleanup
                 }
             }
             
-            // For non-host players, add to reconnection list
-            var disconnectedKey = $"{joinCode}_{playerName}";
-            _disconnectedPlayers.TryAdd(disconnectedKey, (playerId, playerName, joinCode, DateTime.UtcNow));
+            // For non-host players, add to reconnection list with normal grace period
+            var playerDisconnectedKey = $"{joinCode}_{playerName}";
+            _disconnectedPlayers.TryAdd(playerDisconnectedKey, (playerId, playerName, joinCode, DateTime.UtcNow));
             
             _logger.LogInformation("Player {PlayerName} disconnected from game {JoinCode}, added to reconnection list", playerName, joinCode);
             
             _ = Task.Run(async () =>
             {
                 await Task.Delay(TimeSpan.FromMinutes(RECONNECTION_GRACE_PERIOD_MINUTES));
-                await CleanupExpiredPlayer(disconnectedKey, playerId, joinCode);
+                await CleanupExpiredPlayer(playerDisconnectedKey, playerId, joinCode);
             });
         }
         
@@ -389,6 +383,57 @@ public class GameHub : Hub
                 var updatedPlayers = await _context.Players.Where(p => p.GameId == gameId).ToListAsync();
                 await Clients.Group(joinCode).SendAsync("PlayerListUpdated", updatedPlayers);
                 _logger.LogInformation("Sent updated player list to group {JoinCode} after player removal", joinCode);
+            }
+        }
+    }
+    
+    private async Task CleanupExpiredHost(string disconnectedKey, string playerId, string joinCode)
+    {
+        if (_disconnectedPlayers.TryRemove(disconnectedKey, out var disconnectedInfo))
+        {
+            _logger.LogInformation("Host {PlayerName} did not reconnect within grace period, kicking all players from game {JoinCode}", disconnectedInfo.playerName, joinCode);
+            
+            try
+            {
+                var player = await _context.Players.FindAsync(int.Parse(playerId));
+                if (player != null && player.IsReader)
+                {
+                    var gameId = player.GameId;
+                    var allPlayers = await _context.Players.Where(p => p.GameId == gameId).ToListAsync();
+                    
+                    // Kick all players
+                    foreach (var otherPlayer in allPlayers)
+                    {
+                        var otherDisconnectedKey = $"{joinCode}_{otherPlayer.Name}";
+                        _disconnectedPlayers.TryRemove(otherDisconnectedKey, out _);
+                        
+                        // Notify the kicked player
+                        await Clients.Group(joinCode).SendAsync("PlayerKicked", otherPlayer.PlayerId.ToString(), otherPlayer.Name);
+                        _logger.LogInformation("Kicked player {PlayerName} because host did not reconnect", otherPlayer.Name);
+                    }
+                    
+                    // Remove all players from the game
+                    _context.Players.RemoveRange(allPlayers);
+                    
+                    // Also remove any active rounds and answers for this game
+                    var activeRounds = await _context.Rounds.Where(r => r.GameId == gameId && !r.IsCompleted).ToListAsync();
+                    foreach (var round in activeRounds)
+                    {
+                        var roundAnswers = await _context.Answers.Where(a => a.RoundId == round.RoundId).ToListAsync();
+                        _context.Answers.RemoveRange(roundAnswers);
+                    }
+                    _context.Rounds.RemoveRange(activeRounds);
+                    
+                    await _context.SaveChangesAsync();
+                    
+                    // Send empty player list to remaining players
+                    await Clients.Group(joinCode).SendAsync("PlayerListUpdated", new List<Player>());
+                    _logger.LogInformation("Sent empty player list to group {JoinCode} after host cleanup", joinCode);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error cleaning up host {PlayerName} from database", disconnectedInfo.playerName);
             }
         }
     }
