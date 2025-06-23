@@ -123,7 +123,7 @@ const HomePage = () => {
 const AppRoutes = () => {
   const { game, player, isInitialized, isLoading, loadingMessage } = useGame();
 
-  // Show loading spinner if app is loading
+  // Show loading spinner if app is loading - this takes priority over everything else
   if (isLoading) {
     return <LoadingSpinner text={loadingMessage} />;
   }

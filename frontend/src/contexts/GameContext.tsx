@@ -48,25 +48,6 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const players = game?.players || [];
 
     useEffect(() => {
-        const connectAndJoin = async () => {
-            if (game?.joinCode && player?.name) {
-                try {
-                    console.log('Attempting to reconnect to game:', game.joinCode, 'as player:', player.name);
-                    await signalRService.joinGame(game.joinCode, player.name);
-                } catch (error) {
-                    console.error('Error connecting to SignalR and joining game:', error);
-                    // If we can't reconnect, clear the invalid state
-                    setGame(null);
-                    setPlayer(null);
-                    removeCookie('currentGame');
-                    removeCookie('currentPlayer');
-                }
-            }
-        };
-        connectAndJoin();
-    }, [game?.joinCode, player?.name]);
-
-    useEffect(() => {
         const savedGame = getCookie('currentGame');
         const savedPlayer = getCookie('currentPlayer');
         if (savedGame && savedPlayer) {
@@ -86,6 +67,36 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         }
         setIsInitialized(true);
     }, []);
+
+    // Auto-reconnect only when restoring from cookies (not when explicitly creating/joining)
+    useEffect(() => {
+        const savedGame = getCookie('currentGame');
+        const savedPlayer = getCookie('currentPlayer');
+        
+        // Only auto-reconnect if we have saved state and this is a restoration (not a fresh create/join)
+        if (savedGame && savedPlayer && game?.joinCode && player?.name) {
+            const parsedSavedGame = JSON.parse(savedGame);
+            const parsedSavedPlayer = JSON.parse(savedPlayer);
+            
+            // Check if this is a restoration (same game and player as saved)
+            if (parsedSavedGame.joinCode === game.joinCode && parsedSavedPlayer.name === player.name) {
+                const connectAndJoin = async () => {
+                    try {
+                        console.log('Auto-reconnecting to restored game:', game.joinCode, 'as player:', player.name);
+                        await signalRService.joinGame(game.joinCode, player.name);
+                    } catch (error) {
+                        console.error('Error auto-reconnecting to SignalR:', error);
+                        // If we can't reconnect, clear the invalid state
+                        setGame(null);
+                        setPlayer(null);
+                        removeCookie('currentGame');
+                        removeCookie('currentPlayer');
+                    }
+                };
+                connectAndJoin();
+            }
+        }
+    }, [game?.joinCode, player?.name]);
 
     // Set up SignalR handlers after initialization and when we have game state
     useEffect(() => {
@@ -172,17 +183,25 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(true);
         try {
             await leaveGame();
+            setLoadingMessage('Setting up game...');
             const gameData = await createGameApi();
+            setLoadingMessage('Joining game...');
             const playerData = await joinGameApi(gameData.joinCode, playerName);
+            setLoadingMessage('Loading game data...');
             const fullGameData = await getGame(gameData.joinCode);
             
             setGame(convertToExtendedGame(fullGameData));
             setPlayer(playerData);
             setIsReader(true);
+            
+            setLoadingMessage('Connecting to game...');
+            // Wait for SignalR connection to be established
+            await signalRService.joinGame(gameData.joinCode, playerName);
+            
             // Keep loading state active for a moment to show the spinner
             setTimeout(() => {
                 setIsLoading(false);
-            }, 1000);
+            }, 1500);
         } catch (error) {
             console.error('Error creating game:', error);
             setIsLoading(false);
@@ -195,16 +214,23 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         setIsLoading(true);
         try {
             await leaveGame();
+            setLoadingMessage('Connecting to server...');
             const playerData = await joinGameApi(joinCode, playerName);
+            setLoadingMessage('Loading game data...');
             const gameData = await getGame(joinCode);
             
             setGame(convertToExtendedGame(gameData));
             setPlayer(playerData);
             setIsReader(playerData.isReader);
+            
+            setLoadingMessage('Connecting to game...');
+            // Wait for SignalR connection to be established
+            await signalRService.joinGame(joinCode, playerName);
+            
             // Keep loading state active for a moment to show the spinner
             setTimeout(() => {
                 setIsLoading(false);
-            }, 1000);
+            }, 1500);
         } catch (error) {
             console.error('Error joining game:', error);
             setIsLoading(false);
