@@ -105,6 +105,14 @@ export const Game: React.FC = () => {
         const ctx = canvasRef.current?.getContext('2d');
         if (!ctx) return;
         setIsDrawing(true);
+        
+        // Set the drawing styles
+        ctx.strokeStyle = selectedColor;
+        ctx.fillStyle = selectedColor;
+        ctx.lineWidth = brushSize;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        
         ctx.beginPath();
         ctx.moveTo(x, y);
         
