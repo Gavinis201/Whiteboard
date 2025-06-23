@@ -165,24 +165,34 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     }, [game, player, isInitialized]);
 
     const createGame = async (playerName: string) => {
-        await leaveGame();
-        const gameData = await createGameApi();
-        const playerData = await joinGameApi(gameData.joinCode, playerName);
-        const fullGameData = await getGame(gameData.joinCode);
-        
-        setGame(convertToExtendedGame(fullGameData));
-        setPlayer(playerData);
-        setIsReader(true);
+        try {
+            await leaveGame();
+            const gameData = await createGameApi();
+            const playerData = await joinGameApi(gameData.joinCode, playerName);
+            const fullGameData = await getGame(gameData.joinCode);
+            
+            setGame(convertToExtendedGame(fullGameData));
+            setPlayer(playerData);
+            setIsReader(true);
+        } catch (error) {
+            console.error('Error creating game:', error);
+            throw error; // Re-throw the error so the component can handle it
+        }
     };
 
     const joinGame = async (joinCode: string, playerName: string) => {
-        await leaveGame();
-        const playerData = await joinGameApi(joinCode, playerName);
-        const gameData = await getGame(joinCode);
-        
-        setGame(convertToExtendedGame(gameData));
-        setPlayer(playerData);
-        setIsReader(playerData.isReader);
+        try {
+            await leaveGame();
+            const playerData = await joinGameApi(joinCode, playerName);
+            const gameData = await getGame(joinCode);
+            
+            setGame(convertToExtendedGame(gameData));
+            setPlayer(playerData);
+            setIsReader(playerData.isReader);
+        } catch (error) {
+            console.error('Error joining game:', error);
+            throw error; // Re-throw the error so the component can handle it
+        }
     };
 
     const startNewRound = async (prompt: string) => {
