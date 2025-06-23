@@ -6,7 +6,7 @@ export const JoinGame: React.FC = () => {
     const [joinCode, setJoinCode] = useState('');
     const [playerName, setPlayerName] = useState('');
     const [error, setError] = useState('');
-    const { joinGame, isLoading, loadingMessage } = useGame();
+    const { joinGame, isLoading, loadingMessage, navigateToGame } = useGame();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -18,7 +18,8 @@ export const JoinGame: React.FC = () => {
 
         try {
             await joinGame(joinCode, playerName);
-            // The context will handle loading state and redirection
+            // Navigate to game page after successful joining
+            navigateToGame();
         } catch (err) {
             setError('Failed to join game. Please check the game code and try again.');
         }

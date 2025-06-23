@@ -5,7 +5,7 @@ import { LoadingSpinner } from './LoadingSpinner';
 export const CreateGame: React.FC = () => {
     const [playerName, setPlayerName] = useState('');
     const [error, setError] = useState<string | null>(null);
-    const { createGame, isLoading, loadingMessage } = useGame();
+    const { createGame, isLoading, loadingMessage, navigateToGame } = useGame();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -17,7 +17,8 @@ export const CreateGame: React.FC = () => {
 
         try {
             await createGame(playerName);
-            // The context will handle loading state and redirection
+            // Navigate to game page after successful creation
+            navigateToGame();
         } catch (err) {
             setError('Failed to create game. Please try again.');
             console.error('Error creating game:', err);

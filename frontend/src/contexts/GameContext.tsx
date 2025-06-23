@@ -30,6 +30,8 @@ interface GameContextType {
     submitAnswer: (answer: string) => Promise<void>;
     kickPlayer: (playerId: number) => Promise<void>;
     leaveGame: () => Promise<void>;
+    navigateToGame: () => void;
+    navigateToHome: () => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -144,11 +146,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 const parsedGame = JSON.parse(savedGame);
                 const parsedPlayer = JSON.parse(savedPlayer);
                 console.log('Restoring game state from cookies:', parsedGame.joinCode, parsedPlayer.name);
-                setLoadingMessage('Reconnecting to game...');
-                setIsLoading(true);
                 setGame(convertToExtendedGame(parsedGame));
                 setPlayer(parsedPlayer);
                 setIsReader(parsedPlayer.isReader);
+                // Don't set loading state here - let the user decide what to do
             } catch (error) {
                 console.error('Error parsing saved game state:', error);
                 removeCookie('currentGame');
@@ -241,6 +242,13 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         removeCookie('currentGame');
         removeCookie('currentPlayer');
         setIsLoading(false);
+    };
+
+    const navigateToGame = () => {
+        navigate('/game');
+    };
+
+    const navigateToHome = () => {
         navigate('/');
     };
 
@@ -261,7 +269,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             startNewRound,
             submitAnswer,
             kickPlayer,
-            leaveGame
+            leaveGame,
+            navigateToGame,
+            navigateToHome
         }}>
             {children}
         </GameContext.Provider>
