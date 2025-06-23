@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useGame } from '../contexts/GameContext';
 import { LoadingSpinner } from './LoadingSpinner';
 
@@ -7,7 +6,6 @@ export const CreateGame: React.FC = () => {
     const [playerName, setPlayerName] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const navigate = useNavigate();
     const { createGame } = useGame();
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -17,9 +15,10 @@ export const CreateGame: React.FC = () => {
 
         try {
             await createGame(playerName);
+            // Let AutoRedirect handle navigation - add small delay for smooth transition
             setTimeout(() => {
-                navigate('/game');
-            }, 100);
+                setIsLoading(false);
+            }, 500);
         } catch (err) {
             setError('Failed to create game. Please try again.');
             console.error('Error creating game:', err);

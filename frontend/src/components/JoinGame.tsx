@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useGame } from '../contexts/GameContext';
-import { useNavigate } from 'react-router-dom';
 import { LoadingSpinner } from './LoadingSpinner';
 
 export const JoinGame: React.FC = () => {
@@ -9,7 +8,6 @@ export const JoinGame: React.FC = () => {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const { joinGame } = useGame();
-    const navigate = useNavigate();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -18,7 +16,10 @@ export const JoinGame: React.FC = () => {
 
         try {
             await joinGame(joinCode, playerName);
-            navigate('/game');
+            // Let AutoRedirect handle navigation - add small delay for smooth transition
+            setTimeout(() => {
+                setIsLoading(false);
+            }, 500);
         } catch (err) {
             setError('Failed to join game. Please check the game code and try again.');
             setIsLoading(false);
