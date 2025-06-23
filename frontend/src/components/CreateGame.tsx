@@ -15,10 +15,7 @@ export const CreateGame: React.FC = () => {
 
         try {
             await createGame(playerName);
-            // Let AutoRedirect handle navigation - add small delay for smooth transition
-            setTimeout(() => {
-                setIsLoading(false);
-            }, 500);
+            // Loading state will persist until AutoRedirect unmounts this component
         } catch (err) {
             setError('Failed to create game. Please try again.');
             console.error('Error creating game:', err);

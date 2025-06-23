@@ -16,10 +16,7 @@ export const JoinGame: React.FC = () => {
 
         try {
             await joinGame(joinCode, playerName);
-            // Let AutoRedirect handle navigation - add small delay for smooth transition
-            setTimeout(() => {
-                setIsLoading(false);
-            }, 500);
+            // Loading state will persist until AutoRedirect unmounts this component
         } catch (err) {
             setError('Failed to join game. Please check the game code and try again.');
             setIsLoading(false);
