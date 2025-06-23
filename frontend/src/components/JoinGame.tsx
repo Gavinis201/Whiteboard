@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
 import { useGame } from '../contexts/GameContext';
+import { LoadingSpinner } from './LoadingSpinner';
 
 export const JoinGame: React.FC = () => {
     const [joinCode, setJoinCode] = useState('');
     const [playerName, setPlayerName] = useState('');
     const [error, setError] = useState('');
-    const { joinGame, isLoading } = useGame();
+    const { joinGame, isLoading, loadingMessage } = useGame();
+
+    // ✅ Show spinner if loading
+    if (isLoading) {
+        return <LoadingSpinner text={loadingMessage || 'Joining game...'} />;
+    }
+
+
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
