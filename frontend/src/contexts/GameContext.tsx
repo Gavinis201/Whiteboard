@@ -220,13 +220,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setLoadingMessage('Connecting to game...');
             await signalRService.joinGame(gameData.joinCode, playerName);
             
-            console.log('Game created successfully, keeping loading for 2 seconds...');
-            // Keep loading state active for a moment to show the spinner
-            setTimeout(() => {
-                console.log('Clearing loading state');
-                setIsLoading(false);
-                setLoadingMessage('');
-            }, 2000);
+            console.log('Game created successfully, clearing loading state');
+            setIsLoading(false);
+            setLoadingMessage('');
         } catch (error) {
             console.error('Error creating game:', error);
             setIsLoading(false);
@@ -255,13 +251,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setLoadingMessage('Connecting to game...');
             await signalRService.joinGame(joinCode, playerName);
             
-            console.log('Game joined successfully, keeping loading for 2 seconds...');
-            // Keep loading state active for a moment to show the spinner
-            setTimeout(() => {
-                console.log('Clearing loading state');
-                setIsLoading(false);
-                setLoadingMessage('');
-            }, 2000);
+            console.log('Game joined successfully, clearing loading state');
+            setIsLoading(false);
+            setLoadingMessage('');
         } catch (error) {
             console.error('Error joining game:', error);
             setIsLoading(false);
