@@ -5,7 +5,7 @@ export const JoinGame: React.FC = () => {
     const [joinCode, setJoinCode] = useState('');
     const [playerName, setPlayerName] = useState('');
     const [error, setError] = useState('');
-    const { joinGame } = useGame();
+    const { joinGame, isLoading } = useGame();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -50,6 +50,7 @@ export const JoinGame: React.FC = () => {
                                 value={joinCode}
                                 onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                                 maxLength={6}
+                                disabled={isLoading}
                             />
                         </div>
                         <div>
@@ -65,6 +66,7 @@ export const JoinGame: React.FC = () => {
                                 placeholder="Enter your name"
                                 value={playerName}
                                 onChange={(e) => setPlayerName(e.target.value)}
+                                disabled={isLoading}
                             />
                         </div>
                     </div>
@@ -78,13 +80,14 @@ export const JoinGame: React.FC = () => {
                     <div>
                         <button
                             type="submit"
+                            disabled={isLoading}
                             className="w-full bg-purple-600 text-white px-6 py-3 rounded-md hover:bg-purple-700 transition-colors text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            Join Game
+                            {isLoading ? 'Joining Game...' : 'Join Game'}
                         </button>
                     </div>
                 </form>
             </div>
         </div>
     );
-}; 
+};

@@ -10,7 +10,7 @@ public class GamesController : ControllerBase
 {
     private readonly GameDbContext _context;
     private static readonly Random _random = new Random();
-    private const string _chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    private const string _chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
     public GamesController(GameDbContext context)
     {

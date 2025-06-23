@@ -4,7 +4,7 @@ import { useGame } from '../contexts/GameContext';
 export const CreateGame: React.FC = () => {
     const [playerName, setPlayerName] = useState('');
     const [error, setError] = useState<string | null>(null);
-    const { createGame } = useGame();
+    const { createGame, isLoading } = useGame();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -48,6 +48,7 @@ export const CreateGame: React.FC = () => {
                             placeholder="Enter your name"
                             value={playerName}
                             onChange={(e) => setPlayerName(e.target.value)}
+                            disabled={isLoading}
                         />
                     </div>
 
@@ -60,13 +61,14 @@ export const CreateGame: React.FC = () => {
                     <div>
                         <button
                             type="submit"
+                            disabled={isLoading}
                             className="w-full bg-purple-600 text-white px-6 py-3 rounded-md hover:bg-purple-700 transition-colors text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            Create Game
+                            {isLoading ? 'Creating Game...' : 'Create Game'}
                         </button>
                     </div>
                 </form>
             </div>
         </div>
     );
-}; 
+};
