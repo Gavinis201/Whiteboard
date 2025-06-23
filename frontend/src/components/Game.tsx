@@ -22,6 +22,8 @@ export const Game: React.FC = () => {
     const [selectedColor, setSelectedColor] = useState('#000000');
     const [brushSize, setBrushSize] = useState(5);
     const [compressionStatus, setCompressionStatus] = useState<string>('');
+    const [hasMoved, setHasMoved] = useState(false);
+    const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
     
     const isIPhone = () => /iPhone/i.test(navigator.userAgent);
     const colors = ['#000000', '#FF0000', '#FFA500', '#FFFF00', '#008000', '#0000FF', '#800080', '#895129', '#FFFFFF'];
@@ -82,9 +84,12 @@ export const Game: React.FC = () => {
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
+        // Restore drawing history or set white background
         if (drawingHistory.length > 0) {
+            // Restore the last saved state
             ctx.putImageData(drawingHistory[drawingHistory.length - 1], 0, 0);
         } else {
+            // Clear to white background
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
@@ -105,6 +110,8 @@ export const Game: React.FC = () => {
         const ctx = canvasRef.current?.getContext('2d');
         if (!ctx) return;
         setIsDrawing(true);
+        setHasMoved(false);
+        setStartPoint({ x, y });
         
         // Set the drawing styles
         ctx.strokeStyle = selectedColor;
@@ -113,14 +120,7 @@ export const Game: React.FC = () => {
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        
-        // Draw a dot immediately to handle single taps
-        ctx.arc(x, y, brushSize / 2, 0, 2 * Math.PI);
-        ctx.fill();
-        
-        // Reset path for line drawing
+        // Start a new path and move to the current position
         ctx.beginPath();
         ctx.moveTo(x, y);
     };
@@ -131,6 +131,14 @@ export const Game: React.FC = () => {
         const { x, y } = getCoordinates(e);
         const ctx = canvasRef.current?.getContext('2d');
         if (!ctx) return;
+        
+        // Check if user has moved (for single tap detection)
+        const distance = Math.sqrt((x - startPoint.x) ** 2 + (y - startPoint.y) ** 2);
+        if (distance > 2) { // Threshold for movement
+            setHasMoved(true);
+        }
+        
+        // Draw a line to the current position
         ctx.lineTo(x, y);
         ctx.stroke();
     };
@@ -141,25 +149,49 @@ export const Game: React.FC = () => {
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext('2d');
         if (ctx && canvas) {
+            // If the user didn't move much, draw a dot (single tap)
+            if (!hasMoved) {
+                ctx.beginPath();
+                ctx.arc(startPoint.x, startPoint.y, brushSize / 2, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            
             ctx.closePath();
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             setDrawingHistory(prev => [...prev, imageData]);
+            
+            // Reset movement tracking
+            setHasMoved(false);
         }
     };
 
     const undoLastStroke = () => {
         if (drawingHistory.length === 0) return;
+        
+        // Remove the last stroke from history
         setDrawingHistory(prev => prev.slice(0, -1));
+        
+        // Reset drawing state
+        setIsDrawing(false);
+        setHasMoved(false);
     };
 
     const clearCanvas = () => {
+        // Clear the drawing history
         setDrawingHistory([]);
+        
+        // Immediately clear the canvas
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext('2d');
         if (ctx && canvas) {
+            // Clear to white background
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
+        
+        // Reset drawing state
+        setIsDrawing(false);
+        setHasMoved(false);
     };
 
     const handleSubmitAnswer = async () => {
@@ -361,12 +393,21 @@ export const Game: React.FC = () => {
                                                 </div>
                                             </div>
                                             <div className="flex gap-2">
-                                                <button onClick={undoLastStroke} disabled={drawingHistory.length === 0} className="p-2 rounded-full bg-gray-200 disabled:opacity-50">
+                                                <button 
+                                                    onClick={undoLastStroke} 
+                                                    disabled={drawingHistory.length === 0} 
+                                                    className="p-2 rounded-full bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                    title="Undo last stroke"
+                                                >
                                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                                                     </svg>
                                                 </button>
-                                                <button onClick={clearCanvas} className="p-2 rounded-full bg-gray-200">
+                                                <button 
+                                                    onClick={clearCanvas} 
+                                                    className="p-2 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors"
+                                                    title="Clear canvas"
+                                                >
                                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                     </svg>
