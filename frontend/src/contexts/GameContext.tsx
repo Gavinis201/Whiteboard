@@ -205,8 +205,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log('Setting loading message: Setting up game...');
             setLoadingMessage('Setting up game...');
             const gameData = await createGameApi();
-            console.log('Setting loading message: Joining game...');
-            setLoadingMessage('Joining game...');
+            console.log('Setting loading message: Joining as host...');
+            setLoadingMessage('Joining as host...');
             const playerData = await joinGameApi(gameData.joinCode, playerName);
             console.log('Setting loading message: Loading game data...');
             setLoadingMessage('Loading game data...');
@@ -242,11 +242,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         try {
             console.log('Calling leaveGame...');
             await leaveGame();
-            console.log('Setting loading message: Connecting to server...');
-            setLoadingMessage('Connecting to server...');
-            const playerData = await joinGameApi(joinCode, playerName);
             console.log('Setting loading message: Loading game data...');
             setLoadingMessage('Loading game data...');
+            const playerData = await joinGameApi(joinCode, playerName);
             const gameData = await getGame(joinCode);
             
             setGame(convertToExtendedGame(gameData));
