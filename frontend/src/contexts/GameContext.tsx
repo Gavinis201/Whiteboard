@@ -41,30 +41,37 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const [isReader, setIsReader] = useState(false);
     const [playersWhoSubmitted, setPlayersWhoSubmitted] = useState<Set<number>>(new Set());
     const [isInitialized, setIsInitialized] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [loadingMessage, setLoadingMessage] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadingMessage, setLoadingMessage] = useState('Initializing...');
     const handlersSetupRef = useRef<boolean>(false);
 
     const players = game?.players || [];
 
     useEffect(() => {
-        const savedGame = getCookie('currentGame');
-        const savedPlayer = getCookie('currentPlayer');
-        if (savedGame && savedPlayer) {
-            try {
-                const parsedGame = JSON.parse(savedGame);
-                const parsedPlayer = JSON.parse(savedPlayer);
-                console.log('Restoring game state from cookies:', parsedGame.joinCode, parsedPlayer.name);
-                setGame(convertToExtendedGame(parsedGame));
-                setPlayer(parsedPlayer);
-                setIsReader(parsedPlayer.isReader);
-            } catch (error) {
-                console.error('Error parsing saved game state:', error);
-                removeCookie('currentGame');
-                removeCookie('currentPlayer');
+        const initializeApp = async () => {
+            setLoadingMessage('Loading saved game state...');
+            const savedGame = getCookie('currentGame');
+            const savedPlayer = getCookie('currentPlayer');
+            if (savedGame && savedPlayer) {
+                try {
+                    const parsedGame = JSON.parse(savedGame);
+                    const parsedPlayer = JSON.parse(savedPlayer);
+                    console.log('Restoring game state from cookies:', parsedGame.joinCode, parsedPlayer.name);
+                    setGame(convertToExtendedGame(parsedGame));
+                    setPlayer(parsedPlayer);
+                    setIsReader(parsedPlayer.isReader);
+                } catch (error) {
+                    console.error('Error parsing saved game state:', error);
+                    removeCookie('currentGame');
+                    removeCookie('currentPlayer');
+                }
             }
-        }
-        setIsInitialized(true);
+            setIsInitialized(true);
+            setIsLoading(false);
+            setLoadingMessage('');
+        };
+
+        initializeApp();
     }, []);
 
     useEffect(() => {
@@ -78,14 +85,20 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             if (parsedSavedGame.joinCode === game.joinCode && parsedSavedPlayer.name === player.name) {
                 const connectAndJoin = async () => {
                     try {
+                        setIsLoading(true);
+                        setLoadingMessage('Reconnecting to game...');
                         console.log('Auto-reconnecting to restored game:', game.joinCode, 'as player:', player.name);
                         await signalRService.joinGame(game.joinCode, player.name);
+                        setIsLoading(false);
+                        setLoadingMessage('');
                     } catch (error) {
                         console.error('Error auto-reconnecting to SignalR:', error);
                         setGame(null);
                         setPlayer(null);
                         removeCookie('currentGame');
                         removeCookie('currentPlayer');
+                        setIsLoading(false);
+                        setLoadingMessage('');
                     }
                 };
                 connectAndJoin();
@@ -180,10 +193,11 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     }, [game, player, isInitialized]);
 
     const createGame = async (playerName: string) => {
-        setIsLoading(true); // <-- START LOADING
+        setIsLoading(true);
         setLoadingMessage('Creating game...');
         try {
             await leaveGame();
+            setLoadingMessage('Setting up game...');
             const gameData = await createGameApi();
             setLoadingMessage('Joining game...');
             const playerData = await joinGameApi(gameData.joinCode, playerName);
@@ -196,21 +210,26 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             
             setLoadingMessage('Connecting to game...');
             await signalRService.joinGame(gameData.joinCode, playerName);
+            
+            // Keep loading state active for a moment to show the spinner
+            setTimeout(() => {
+                setIsLoading(false);
+                setLoadingMessage('');
+            }, 1500);
         } catch (error) {
             console.error('Error creating game:', error);
-            setIsLoading(false); // Make sure loading stops on error
-            throw error; // Re-throw the error so the component can handle it
-        } finally {
-            setIsLoading(false); // <-- ALWAYS STOP LOADING
+            setIsLoading(false);
             setLoadingMessage('');
+            throw error;
         }
     };
 
     const joinGame = async (joinCode: string, playerName: string) => {
-        setIsLoading(true); // <-- START LOADING
+        setIsLoading(true);
         setLoadingMessage('Joining game...');
         try {
             await leaveGame();
+            setLoadingMessage('Connecting to server...');
             const playerData = await joinGameApi(joinCode, playerName);
             setLoadingMessage('Loading game data...');
             const gameData = await getGame(joinCode);
@@ -221,13 +240,17 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             
             setLoadingMessage('Connecting to game...');
             await signalRService.joinGame(joinCode, playerName);
+            
+            // Keep loading state active for a moment to show the spinner
+            setTimeout(() => {
+                setIsLoading(false);
+                setLoadingMessage('');
+            }, 1500);
         } catch (error) {
             console.error('Error joining game:', error);
-            setIsLoading(false); // Make sure loading stops on error
-            throw error; // Re-throw the error so the component can handle it
-        } finally {
-            setIsLoading(false); // <-- ALWAYS STOP LOADING
+            setIsLoading(false);
             setLoadingMessage('');
+            throw error;
         }
     };
 
