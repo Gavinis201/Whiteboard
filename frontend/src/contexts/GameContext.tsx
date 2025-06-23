@@ -202,22 +202,14 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         try {
             console.log('Calling leaveGame...');
             await leaveGame();
-            console.log('Setting loading message: Setting up game...');
-            setLoadingMessage('Setting up game...');
             const gameData = await createGameApi();
-            console.log('Setting loading message: Joining as host...');
-            setLoadingMessage('Joining as host...');
             const playerData = await joinGameApi(gameData.joinCode, playerName);
-            console.log('Setting loading message: Loading game data...');
-            setLoadingMessage('Loading game data...');
             const fullGameData = await getGame(gameData.joinCode);
             
             setGame(convertToExtendedGame(fullGameData));
             setPlayer(playerData);
             setIsReader(true);
             
-            console.log('Setting loading message: Connecting to game...');
-            setLoadingMessage('Connecting to game...');
             await signalRService.joinGame(gameData.joinCode, playerName);
             
             console.log('Game created successfully, clearing loading state');
@@ -238,8 +230,6 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         try {
             console.log('Calling leaveGame...');
             await leaveGame();
-            console.log('Setting loading message: Loading game data...');
-            setLoadingMessage('Loading game data...');
             const playerData = await joinGameApi(joinCode, playerName);
             const gameData = await getGame(joinCode);
             
@@ -247,8 +237,6 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setPlayer(playerData);
             setIsReader(playerData.isReader);
             
-            console.log('Setting loading message: Connecting to game...');
-            setLoadingMessage('Connecting to game...');
             await signalRService.joinGame(joinCode, playerName);
             
             console.log('Game joined successfully, clearing loading state');
