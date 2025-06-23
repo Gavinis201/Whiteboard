@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { LoadingSpinner } from './LoadingSpinner';
 
@@ -6,7 +6,16 @@ export const JoinGame: React.FC = () => {
     const [joinCode, setJoinCode] = useState('');
     const [playerName, setPlayerName] = useState('');
     const [error, setError] = useState('');
+    const [shouldNavigate, setShouldNavigate] = useState(false);
     const { joinGame, isLoading, loadingMessage, navigateToGame } = useGame();
+
+    // Navigate to game when loading finishes and we have game state
+    useEffect(() => {
+        if (shouldNavigate && !isLoading) {
+            navigateToGame();
+            setShouldNavigate(false);
+        }
+    }, [isLoading, shouldNavigate, navigateToGame]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -18,8 +27,7 @@ export const JoinGame: React.FC = () => {
 
         try {
             await joinGame(joinCode, playerName);
-            // Navigate to game page after successful joining
-            navigateToGame();
+            setShouldNavigate(true);
         } catch (err) {
             setError('Failed to join game. Please check the game code and try again.');
         }

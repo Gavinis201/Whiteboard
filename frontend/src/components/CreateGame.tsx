@@ -1,11 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { LoadingSpinner } from './LoadingSpinner';
 
 export const CreateGame: React.FC = () => {
     const [playerName, setPlayerName] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [shouldNavigate, setShouldNavigate] = useState(false);
     const { createGame, isLoading, loadingMessage, navigateToGame } = useGame();
+
+    // Navigate to game when loading finishes and we have game state
+    useEffect(() => {
+        if (shouldNavigate && !isLoading) {
+            navigateToGame();
+            setShouldNavigate(false);
+        }
+    }, [isLoading, shouldNavigate, navigateToGame]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -17,8 +26,7 @@ export const CreateGame: React.FC = () => {
 
         try {
             await createGame(playerName);
-            // Navigate to game page after successful creation
-            navigateToGame();
+            setShouldNavigate(true);
         } catch (err) {
             setError('Failed to create game. Please try again.');
             console.error('Error creating game:', err);

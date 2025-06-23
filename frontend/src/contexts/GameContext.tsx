@@ -182,7 +182,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setGame(convertToExtendedGame(fullGameData));
             setPlayer(playerData);
             setIsReader(true);
-            setIsLoading(false);
+            // Keep loading state active for a moment to show the spinner
+            setTimeout(() => {
+                setIsLoading(false);
+            }, 1000);
         } catch (error) {
             console.error('Error creating game:', error);
             setIsLoading(false);
@@ -201,7 +204,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setGame(convertToExtendedGame(gameData));
             setPlayer(playerData);
             setIsReader(playerData.isReader);
-            setIsLoading(false);
+            // Keep loading state active for a moment to show the spinner
+            setTimeout(() => {
+                setIsLoading(false);
+            }, 1000);
         } catch (error) {
             console.error('Error joining game:', error);
             setIsLoading(false);

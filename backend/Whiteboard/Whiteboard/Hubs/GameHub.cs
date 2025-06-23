@@ -177,14 +177,49 @@ public class GameHub : Hub
             if (player != null)
             {
                 var gameId = player.GameId;
+                var isHost = player.IsReader;
+                
+                // If the host is leaving, kick all other players
+                if (isHost)
+                {
+                    _logger.LogInformation("Host {PlayerName} is leaving, kicking all other players from game {JoinCode}", playerName, joinCode);
+                    
+                    // Get all other players in the game
+                    var otherPlayers = await _context.Players.Where(p => p.GameId == gameId && p.PlayerId != playerId).ToListAsync();
+                    
+                    // Kick each player
+                    foreach (var otherPlayer in otherPlayers)
+                    {
+                        var otherDisconnectedKey = $"{joinCode}_{otherPlayer.Name}";
+                        _disconnectedPlayers.TryRemove(otherDisconnectedKey, out _);
+                        
+                        // Notify the kicked player
+                        await Clients.Group(joinCode).SendAsync("PlayerKicked", otherPlayer.PlayerId.ToString(), otherPlayer.Name);
+                        _logger.LogInformation("Kicked player {PlayerName} because host left", otherPlayer.Name);
+                    }
+                    
+                    // Remove all players from the game
+                    _context.Players.RemoveRange(otherPlayers);
+                }
+                
+                // Remove the leaving player
                 _context.Players.Remove(player);
                 await _context.SaveChangesAsync();
                 _logger.LogInformation("Player {PlayerName} removed from database", playerName);
                 
-                // Update the player list for remaining players
-                var updatedPlayers = await _context.Players.Where(p => p.GameId == gameId).ToListAsync();
-                await Clients.Group(joinCode).SendAsync("PlayerListUpdated", updatedPlayers);
-                _logger.LogInformation("Sent updated player list to group {JoinCode} after player left", joinCode);
+                // If host left, send empty player list to remaining players
+                if (isHost)
+                {
+                    await Clients.Group(joinCode).SendAsync("PlayerListUpdated", new List<Player>());
+                    _logger.LogInformation("Sent empty player list to group {JoinCode} after host left", joinCode);
+                }
+                else
+                {
+                    // Update the player list for remaining players
+                    var updatedPlayers = await _context.Players.Where(p => p.GameId == gameId).ToListAsync();
+                    await Clients.Group(joinCode).SendAsync("PlayerListUpdated", updatedPlayers);
+                    _logger.LogInformation("Sent updated player list to group {JoinCode} after player left", joinCode);
+                }
             }
         }
         
