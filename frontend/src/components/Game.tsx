@@ -2,14 +2,21 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { Answer, Prompt, getPrompts } from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { LoadingSpinner } from './LoadingSpinner';
 import './Game.css';
 
 export const Game: React.FC = () => {
     const {
         game, player, currentRound, answers, isReader,
         playersWhoSubmitted, startNewRound, submitAnswer, players, leaveGame, kickPlayer,
+        isLoading, loadingMessage
     } = useGame();
     const navigate = useNavigate();
+
+     // ✅ NEW: show loading spinner if game is loading
+    if (isLoading) {
+        return <LoadingSpinner text={loadingMessage || 'Loading game...'} />;
+    }
 
     const [prompt, setPrompt] = useState('');
     const [prompts, setPrompts] = useState<Prompt[]>([]);
