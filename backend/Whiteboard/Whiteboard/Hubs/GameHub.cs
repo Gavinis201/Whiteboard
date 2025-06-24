@@ -47,13 +47,17 @@ public class GameHub : Hub
         if (isReconnecting)
         {
             currentPlayer = game.Players.First(p => p.Name == playerName);
-            _logger.LogInformation("Player {PlayerName} reconnecting.", playerName);
+            _logger.LogInformation("Player {PlayerName} reconnecting with new connection ID {ConnectionId}.", playerName, Context.ConnectionId);
             
             // Remove from disconnected players list if they were there
             var reconnectingKey = $"{joinCode}_{playerName}";
             if (_disconnectedPlayers.TryRemove(reconnectingKey, out var disconnectedInfo))
             {
                 _logger.LogInformation("Player {PlayerName} successfully reconnected, removed from disconnected list", playerName);
+            }
+            else
+            {
+                _logger.LogInformation("Player {PlayerName} reconnecting but was not in disconnected list", playerName);
             }
         }
         else
@@ -66,17 +70,25 @@ public class GameHub : Hub
             };
             _context.Players.Add(currentPlayer);
             await _context.SaveChangesAsync();
-            _logger.LogInformation("New player {PlayerName} created.", playerName);
+            _logger.LogInformation("New player {PlayerName} created with connection ID {ConnectionId}.", playerName, Context.ConnectionId);
         }
         
         await Groups.AddToGroupAsync(Context.ConnectionId, joinCode);
+        _logger.LogInformation("Added player {PlayerName} to SignalR group {JoinCode} with connection ID {ConnectionId}", playerName, joinCode, Context.ConnectionId);
+        
         Context.Items["PlayerId"] = currentPlayer.PlayerId.ToString();
         Context.Items["JoinCode"] = joinCode;
         Context.Items["PlayerName"] = playerName;
 
         // Track the connection ID for this player
         var connectionKey = $"{joinCode}_{playerName}";
-        _playerConnectionIds.AddOrUpdate(connectionKey, Context.ConnectionId, (key, oldValue) => Context.ConnectionId);
+        string? oldConnectionId = null;
+        _playerConnectionIds.AddOrUpdate(connectionKey, Context.ConnectionId, (key, oldValue) => 
+        {
+            oldConnectionId = oldValue;
+            return Context.ConnectionId;
+        });
+        _logger.LogInformation("Updated connection tracking for {PlayerName}: {OldConnectionId} -> {NewConnectionId}", playerName, oldConnectionId ?? "none", Context.ConnectionId);
 
         // --- OPTIMIZED STATE SYNC LOGIC ---
         // Combine all queries into a single efficient query
@@ -345,18 +357,26 @@ public class GameHub : Hub
         {
             _logger.LogError(exception, "Client {ConnectionId} disconnected with error", Context.ConnectionId);
         }
+        else
+        {
+            _logger.LogInformation("Client {ConnectionId} disconnected normally", Context.ConnectionId);
+        }
         
         var playerId = Context.Items["PlayerId"]?.ToString();
         var joinCode = Context.Items["JoinCode"]?.ToString();
         var playerName = Context.Items["PlayerName"]?.ToString();
         
+        _logger.LogInformation("Disconnection details - PlayerId: {PlayerId}, JoinCode: {JoinCode}, PlayerName: {PlayerName}", playerId, joinCode, playerName);
+        
         if (!string.IsNullOrEmpty(playerId) && !string.IsNullOrEmpty(joinCode) && !string.IsNullOrEmpty(playerName))
         {
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, joinCode);
+            // Don't remove from SignalR group immediately - only remove if they don't reconnect
+            // This allows reconnecting players to still receive events
             
-            // Remove connection tracking
+            // Remove connection tracking for the old connection
             var disconnectConnectionKey = $"{joinCode}_{playerName}";
             _playerConnectionIds.TryRemove(disconnectConnectionKey, out _);
+            _logger.LogInformation("Removed connection tracking for {PlayerName} (connection {ConnectionId})", playerName, Context.ConnectionId);
             
             // Check if the disconnected player is the host
             if (int.TryParse(playerId, out var playerIdInt))
@@ -368,7 +388,7 @@ public class GameHub : Hub
                     var hostDisconnectedKey = $"{joinCode}_{playerName}";
                     _disconnectedPlayers.TryAdd(hostDisconnectedKey, (playerId, playerName, joinCode, DateTime.UtcNow));
                     
-                    _logger.LogInformation("Host {PlayerName} disconnected from game {JoinCode}, added to reconnection list with grace period", playerName, joinCode);
+                    _logger.LogInformation("Host {PlayerName} disconnected from game {JoinCode}, added to reconnection list with 2-minute grace period", playerName, joinCode);
                     
                     // Give host a shorter grace period (2 minutes instead of 5)
                     _ = Task.Run(async () =>
@@ -385,13 +405,17 @@ public class GameHub : Hub
             var playerDisconnectedKey = $"{joinCode}_{playerName}";
             _disconnectedPlayers.TryAdd(playerDisconnectedKey, (playerId, playerName, joinCode, DateTime.UtcNow));
             
-            _logger.LogInformation("Player {PlayerName} disconnected from game {JoinCode}, added to reconnection list", playerName, joinCode);
+            _logger.LogInformation("Player {PlayerName} disconnected from game {JoinCode}, added to reconnection list with {GracePeriod}-minute grace period", playerName, joinCode, RECONNECTION_GRACE_PERIOD_MINUTES);
             
             _ = Task.Run(async () =>
             {
                 await Task.Delay(TimeSpan.FromMinutes(RECONNECTION_GRACE_PERIOD_MINUTES));
                 await CleanupExpiredPlayer(playerDisconnectedKey, playerId, joinCode);
             });
+        }
+        else
+        {
+            _logger.LogWarning("Disconnected client {ConnectionId} had incomplete context information", Context.ConnectionId);
         }
         
         await base.OnDisconnectedAsync(exception);
@@ -423,6 +447,11 @@ public class GameHub : Hub
             // Clean up connection tracking
             var cleanupConnectionKey = $"{joinCode}_{disconnectedInfo.playerName}";
             _playerConnectionIds.TryRemove(cleanupConnectionKey, out _);
+            
+            // Remove from SignalR group if they haven't reconnected
+            // Note: We can't remove by connection ID since it's already disconnected
+            // But we can send a PlayerKicked event to notify them if they somehow reconnected
+            await Clients.Group(joinCode).SendAsync("PlayerKicked", playerId, disconnectedInfo.playerName);
             
             if (gameId > 0)
             {
