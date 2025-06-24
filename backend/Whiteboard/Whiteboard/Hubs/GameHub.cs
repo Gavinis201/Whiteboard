@@ -238,7 +238,12 @@ public class GameHub : Hub
                         
                         // Remove connection tracking for kicked players
                         var otherConnectionKey = $"{joinCode}_{otherPlayer.Name}";
-                        _playerConnectionIds.TryRemove(otherConnectionKey, out _);
+                        if (_playerConnectionIds.TryRemove(otherConnectionKey, out var otherConnectionId))
+                        {
+                            // Remove kicked player from SignalR group
+                            await Groups.RemoveFromGroupAsync(otherConnectionId, joinCode);
+                            _logger.LogInformation("Removed kicked player {PlayerName} from SignalR group", otherPlayer.Name);
+                        }
                         
                         // Notify the kicked player
                         await Clients.Group(joinCode).SendAsync("PlayerKicked", otherPlayer.PlayerId.ToString(), otherPlayer.Name);
@@ -283,6 +288,7 @@ public class GameHub : Hub
         
         // Remove from SignalR group AFTER sending all messages
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, joinCode);
+        _logger.LogInformation("Removed player {PlayerName} from SignalR group {JoinCode}", playerName, joinCode);
         
         // Clear context items
         Context.Items.Clear();
@@ -485,7 +491,12 @@ public class GameHub : Hub
                         
                         // Remove connection tracking for kicked players
                         var otherConnectionKey = $"{joinCode}_{otherPlayer.Name}";
-                        _playerConnectionIds.TryRemove(otherConnectionKey, out _);
+                        if (_playerConnectionIds.TryRemove(otherConnectionKey, out var otherConnectionId))
+                        {
+                            // Remove kicked player from SignalR group
+                            await Groups.RemoveFromGroupAsync(otherConnectionId, joinCode);
+                            _logger.LogInformation("Removed kicked player {PlayerName} from SignalR group during host cleanup", otherPlayer.Name);
+                        }
                         
                         // Notify the kicked player
                         await Clients.Group(joinCode).SendAsync("PlayerKicked", otherPlayer.PlayerId.ToString(), otherPlayer.Name);
