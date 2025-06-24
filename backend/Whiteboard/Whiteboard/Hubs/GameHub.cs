@@ -230,6 +230,10 @@ public class GameHub : Hub
                     // Get all other players in the game (only those still in the database)
                     var otherPlayers = await _context.Players.Where(p => p.GameId == gameId && p.PlayerId != playerId).ToListAsync();
                     
+                    // Send empty player list to all players BEFORE removing them from the group
+                    await Clients.Group(joinCode).SendAsync("PlayerListUpdated", new List<Player>());
+                    _logger.LogInformation("Sent empty player list to group {JoinCode} before kicking players", joinCode);
+                    
                     // Kick each player who is still in the database
                     foreach (var otherPlayer in otherPlayers)
                     {
@@ -266,10 +270,6 @@ public class GameHub : Hub
                     _context.Players.Remove(player);
                     await _context.SaveChangesAsync();
                     _logger.LogInformation("Host {PlayerName} removed from database", playerName);
-                    
-                    // Send empty player list to remaining players (host is still in group at this point)
-                    await Clients.Group(joinCode).SendAsync("PlayerListUpdated", new List<Player>());
-                    _logger.LogInformation("Sent empty player list to group {JoinCode} after host left", joinCode);
                 }
                 else
                 {
