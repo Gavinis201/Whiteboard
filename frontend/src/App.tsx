@@ -25,7 +25,7 @@ const HomePage = () => {
               You're currently in game: <span className="font-semibold">{game.joinCode}</span>
             </p>
           </div>
-          
+           
           <div className="bg-white p-8 rounded-xl shadow-lg mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Continue Your Game</h2>
             <p className="text-gray-600 mb-6">You're already in a game as "{player.name}". Would you like to continue?</p>
