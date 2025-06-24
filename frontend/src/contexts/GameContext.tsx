@@ -114,6 +114,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         
         signalRService.onGameStateSynced((payload: GameStatePayload) => {
             console.log("Syncing full game state:", payload);
+            console.log("Current answers:", payload.currentAnswers);
+            console.log("Setting playersWhoSubmitted to:", payload.currentAnswers?.map(a => a.playerId) || []);
             setGame(prevGame => ({ ...(prevGame as ExtendedGame), players: payload.players }));
             setCurrentRound(payload.activeRound);
             setAnswers(payload.currentAnswers || []);
@@ -142,6 +144,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         });
 
         signalRService.onRoundStarted((prompt) => {
+            console.log("Round started with prompt:", prompt);
+            console.log("Clearing answers and playersWhoSubmitted for new round");
             setCurrentRound({ 
                 prompt, 
                 isCompleted: false, 
@@ -154,6 +158,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
         signalRService.onAnswerReceived((playerId, playerName, answer) => {
             const numericPlayerId = parseInt(playerId, 10);
+            console.log("Answer received from player:", playerName, "ID:", numericPlayerId);
             setAnswers(prev => [...prev, { 
                 answerId: Date.now(),
                 playerId: numericPlayerId,
@@ -161,7 +166,11 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 content: answer,
                 roundId: currentRound?.roundId || 0
             }]);
-            setPlayersWhoSubmitted(prev => new Set(prev).add(numericPlayerId));
+            setPlayersWhoSubmitted(prev => {
+                const newSet = new Set(prev).add(numericPlayerId);
+                console.log("Updated playersWhoSubmitted:", Array.from(newSet));
+                return newSet;
+            });
         });
 
         signalRService.onPlayerKicked((kickedPlayerId, kickedPlayerName) => {

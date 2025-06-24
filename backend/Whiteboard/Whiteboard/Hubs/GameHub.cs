@@ -156,6 +156,15 @@ public class GameHub : Hub
             
         if (activeRound == null) throw new HubException("No active round to submit an answer to.");
 
+        // Check if player has already submitted an answer for this round
+        var existingAnswer = await _context.Answers
+            .FirstOrDefaultAsync(a => a.PlayerId == player.PlayerId && a.RoundId == activeRound.RoundId);
+            
+        if (existingAnswer != null)
+        {
+            throw new HubException("You have already submitted an answer for this round.");
+        }
+
         // Save the new answer to the database
         var newAnswer = new Answer
         {
