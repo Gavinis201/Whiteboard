@@ -16,6 +16,7 @@ public class GameHub : Hub
     private readonly GameDbContext _context;
     
     private static readonly ConcurrentDictionary<string, (string playerId, string playerName, string joinCode, DateTime disconnectTime)> _disconnectedPlayers = new();
+    private static readonly ConcurrentDictionary<string, string> _playerConnectionIds = new(); // joinCode_playerName -> connectionId
     private const int RECONNECTION_GRACE_PERIOD_MINUTES = 5;
 
     public GameHub(ILogger<GameHub> logger, GameDbContext context)
@@ -73,34 +74,46 @@ public class GameHub : Hub
         Context.Items["JoinCode"] = joinCode;
         Context.Items["PlayerName"] = playerName;
 
-        // --- STATE SYNC LOGIC ---
+        // Track the connection ID for this player
+        var connectionKey = $"{joinCode}_{playerName}";
+        _playerConnectionIds.AddOrUpdate(connectionKey, Context.ConnectionId, (key, oldValue) => Context.ConnectionId);
 
-        // 1. Get the final, updated list of all players
-        var updatedPlayers = await _context.Players.Where(p => p.GameId == game.GameId).ToListAsync();
+        // --- OPTIMIZED STATE SYNC LOGIC ---
+        // Combine all queries into a single efficient query
 
-        // 2. Find the current active round and its answers
-        var activeRound = await _context.Rounds
-            .OrderByDescending(r => r.RoundId)
-            .FirstOrDefaultAsync(r => r.GameId == game.GameId && !r.IsCompleted);
-            
-        List<Answer> currentAnswers = new List<Answer>();
-        if (activeRound != null)
+        // Get all players, active round, and answers in one go
+        var gameState = await _context.Games
+            .Where(g => g.GameId == game.GameId)
+            .Select(g => new
+            {
+                Players = g.Players.ToList(),
+                ActiveRound = g.Rounds
+                    .Where(r => !r.IsCompleted)
+                    .OrderByDescending(r => r.RoundId)
+                    .FirstOrDefault(),
+                CurrentAnswers = g.Rounds
+                    .Where(r => !r.IsCompleted)
+                    .OrderByDescending(r => r.RoundId)
+                    .SelectMany(r => r.Answers)
+                    .ToList()
+            })
+            .FirstOrDefaultAsync();
+
+        if (gameState == null)
         {
-            currentAnswers = await _context.Answers
-                .Where(a => a.RoundId == activeRound.RoundId)
-                .ToListAsync();
+            throw new HubException("Game state not found");
         }
 
-        // 3. Send the complete state to the client that just joined/reconnected
+        // Send the complete state to the client that just joined/reconnected
         await Clients.Caller.SendAsync("GameStateSynced", new
         {
-            Players = updatedPlayers,
-            ActiveRound = activeRound,
-            CurrentAnswers = currentAnswers
+            Players = gameState.Players,
+            ActiveRound = gameState.ActiveRound,
+            CurrentAnswers = gameState.CurrentAnswers
         });
         
-        // 4. Broadcast the updated player list to everyone else in the group
-        await Clients.GroupExcept(joinCode, Context.ConnectionId).SendAsync("PlayerListUpdated", updatedPlayers);
+        // Broadcast the updated player list to everyone else in the group
+        await Clients.GroupExcept(joinCode, Context.ConnectionId).SendAsync("PlayerListUpdated", gameState.Players);
         
         _logger.LogInformation("Sent full game state to {PlayerName} and updated player list to the group.", playerName);
     }
@@ -174,6 +187,10 @@ public class GameHub : Hub
         var leaveDisconnectedKey = $"{joinCode}_{playerName}";
         _disconnectedPlayers.TryRemove(leaveDisconnectedKey, out _);
         
+        // Remove connection tracking
+        var leaveConnectionKey = $"{joinCode}_{playerName}";
+        _playerConnectionIds.TryRemove(leaveConnectionKey, out _);
+        
         // Remove player from database immediately
         if (int.TryParse(playerIdStr, out var playerId))
         {
@@ -188,14 +205,18 @@ public class GameHub : Hub
                 {
                     _logger.LogInformation("Host {PlayerName} is leaving, kicking all other players from game {JoinCode}", playerName, joinCode);
                     
-                    // Get all other players in the game
+                    // Get all other players in the game (only those still in the database)
                     var otherPlayers = await _context.Players.Where(p => p.GameId == gameId && p.PlayerId != playerId).ToListAsync();
                     
-                    // Kick each player
+                    // Kick each player who is still in the database
                     foreach (var otherPlayer in otherPlayers)
                     {
                         var otherDisconnectedKey = $"{joinCode}_{otherPlayer.Name}";
                         _disconnectedPlayers.TryRemove(otherDisconnectedKey, out _);
+                        
+                        // Remove connection tracking for kicked players
+                        var otherConnectionKey = $"{joinCode}_{otherPlayer.Name}";
+                        _playerConnectionIds.TryRemove(otherConnectionKey, out _);
                         
                         // Notify the kicked player
                         await Clients.Group(joinCode).SendAsync("PlayerKicked", otherPlayer.PlayerId.ToString(), otherPlayer.Name);
@@ -292,8 +313,16 @@ public class GameHub : Hub
         await _context.SaveChangesAsync();
         _logger.LogInformation("Player {PlayerName} kicked and removed from database", playerToKick.Name);
 
-        // Notify the kicked player
+        // Notify the kicked player BEFORE removing them from the group
         await Clients.Group(joinCode).SendAsync("PlayerKicked", playerToKick.PlayerId.ToString(), playerToKick.Name);
+
+        // Remove the kicked player from the SignalR group AFTER sending the event
+        var kickedPlayerConnectionKey = $"{joinCode}_{playerToKick.Name}";
+        if (_playerConnectionIds.TryRemove(kickedPlayerConnectionKey, out var kickedPlayerConnectionId))
+        {
+            await Groups.RemoveFromGroupAsync(kickedPlayerConnectionId, joinCode);
+            _logger.LogInformation("Removed kicked player {PlayerName} from SignalR group", playerToKick.Name);
+        }
 
         // Update the player list for remaining players
         var updatedPlayers = await _context.Players.Where(p => p.GameId == currentPlayer.GameId).ToListAsync();
@@ -315,6 +344,10 @@ public class GameHub : Hub
         if (!string.IsNullOrEmpty(playerId) && !string.IsNullOrEmpty(joinCode) && !string.IsNullOrEmpty(playerName))
         {
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, joinCode);
+            
+            // Remove connection tracking
+            var disconnectConnectionKey = $"{joinCode}_{playerName}";
+            _playerConnectionIds.TryRemove(disconnectConnectionKey, out _);
             
             // Check if the disconnected player is the host
             if (int.TryParse(playerId, out var playerIdInt))
@@ -378,6 +411,10 @@ public class GameHub : Hub
                 _logger.LogError(ex, "Error removing player {PlayerName} from database", disconnectedInfo.playerName);
             }
             
+            // Clean up connection tracking
+            var cleanupConnectionKey = $"{joinCode}_{disconnectedInfo.playerName}";
+            _playerConnectionIds.TryRemove(cleanupConnectionKey, out _);
+            
             if (gameId > 0)
             {
                 var updatedPlayers = await _context.Players.Where(p => p.GameId == gameId).ToListAsync();
@@ -406,6 +443,10 @@ public class GameHub : Hub
                     {
                         var otherDisconnectedKey = $"{joinCode}_{otherPlayer.Name}";
                         _disconnectedPlayers.TryRemove(otherDisconnectedKey, out _);
+                        
+                        // Remove connection tracking for kicked players
+                        var otherConnectionKey = $"{joinCode}_{otherPlayer.Name}";
+                        _playerConnectionIds.TryRemove(otherConnectionKey, out _);
                         
                         // Notify the kicked player
                         await Clients.Group(joinCode).SendAsync("PlayerKicked", otherPlayer.PlayerId.ToString(), otherPlayer.Name);
