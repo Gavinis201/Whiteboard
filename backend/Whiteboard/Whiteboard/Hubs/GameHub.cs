@@ -147,8 +147,9 @@ public class GameHub : Hub
         _context.Rounds.Add(newRound);
         await _context.SaveChangesAsync();
 
-        await Clients.Group(joinCode).SendAsync("RoundStarted", prompt);
-        _logger.LogInformation("Round started and saved successfully in game {JoinCode}", joinCode);
+        // Send the roundId along with the prompt so frontend can properly track submissions
+        await Clients.Group(joinCode).SendAsync("RoundStarted", prompt, newRound.RoundId);
+        _logger.LogInformation("Round started and saved successfully in game {JoinCode} with roundId {RoundId}", joinCode, newRound.RoundId);
     }
 
     public async Task SubmitAnswer(string joinCode, string answer)

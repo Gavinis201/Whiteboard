@@ -117,7 +117,18 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log("Current answers:", payload.currentAnswers);
             console.log("Setting playersWhoSubmitted to:", payload.currentAnswers?.map(a => a.playerId) || []);
             setGame(prevGame => ({ ...(prevGame as ExtendedGame), players: payload.players }));
-            setCurrentRound(payload.activeRound);
+            
+            if (payload.activeRound) {
+                setCurrentRound({
+                    prompt: payload.activeRound.prompt,
+                    isCompleted: payload.activeRound.isCompleted,
+                    roundId: payload.activeRound.roundId,
+                    gameId: payload.activeRound.gameId
+                });
+            } else {
+                setCurrentRound(null);
+            }
+            
             setAnswers(payload.currentAnswers || []);
             setPlayersWhoSubmitted(new Set(payload.currentAnswers?.map(a => a.playerId) || []));
         });
@@ -143,13 +154,13 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             }
         });
 
-        signalRService.onRoundStarted((prompt) => {
-            console.log("Round started with prompt:", prompt);
+        signalRService.onRoundStarted((prompt, roundId) => {
+            console.log("Round started with prompt:", prompt, "roundId:", roundId);
             console.log("Clearing answers and playersWhoSubmitted for new round");
             setCurrentRound({ 
                 prompt, 
                 isCompleted: false, 
-                roundId: Date.now(),
+                roundId: roundId,
                 gameId: game?.gameId || 0
             });
             setAnswers([]);
