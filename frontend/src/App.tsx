@@ -46,7 +46,7 @@ const HomePage = () => {
       <div className="max-w-3xl mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">
-            Welcome to <span className="text-purple-600">Whiteboard Game</span>
+            Welcome to the <span className="text-purple-600">Whiteboard Game</span>
           </h1>
           <p className="text-xl text-gray-600 mb-8">
             Draw, guess, and have fun with friends!
@@ -63,7 +63,7 @@ const HomePage = () => {
               </div>
             </Link>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Create a Game</h3>
-            <p className="text-gray-600 mb-4">Start a new game as the reader and invite your friends to join</p>
+            <p className="text-gray-600 mb-4">Start a new game as the host and invite your friends to join</p>
             <Link to="/create">
               <button className="w-full bg-purple-600 text-white px-6 py-3 rounded-md hover:bg-purple-700 transition-colors">
                 Create Game
