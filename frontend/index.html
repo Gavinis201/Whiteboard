@@ -2,7 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- ✅ Viewport and PWA Fixes for iOS -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="mobile-web-app-capable" content="yes" />
 
     <!-- SEO Meta Tags -->
     <title>Whiteboard - A Drawing & Guessing Party Game</title>
@@ -12,7 +17,6 @@
 
     <!-- NEW: Author Profile Links -->
     <link rel="author" href="https://www.linkedin.com/in/gavinsmith2/" />
-
 
     <!-- Favicon -->
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
@@ -37,7 +41,6 @@
     <meta name="twitter:title" content="Whiteboard - Draw, Guess, and Laugh with Friends!">
     <meta name="twitter:description" content="The ultimate online drawing and guessing game. Create a room, invite your friends with a code, and see who's the best artist... or the best guesser!">
     <meta name="twitter:image" content="https://blue-mud-0eac3971e.6.azurestaticapps.net/social-share-image-game.png">
-
   </head>
   <body>
     <div id="root"></div>
