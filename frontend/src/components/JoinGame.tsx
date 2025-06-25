@@ -51,6 +51,7 @@ export const JoinGame: React.FC = () => {
                                 onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                                 maxLength={6}
                                 disabled={isLoading}
+                                autoFocus
                             />
                         </div>
                         <div>

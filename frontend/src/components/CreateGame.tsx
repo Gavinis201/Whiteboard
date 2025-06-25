@@ -31,7 +31,7 @@ export const CreateGame: React.FC = () => {
                         Create a New Game
                     </h2>
                     <p className="mt-2 text-sm sm:text-base text-gray-600">
-                        Enter your name to create a new game as the reader
+                        Enter your name to create a new game as the host.
                     </p>
                 </div>
                 <form className="mt-6 sm:mt-8 space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
@@ -49,6 +49,7 @@ export const CreateGame: React.FC = () => {
                             value={playerName}
                             onChange={(e) => setPlayerName(e.target.value)}
                             disabled={isLoading}
+                            autoFocus
                         />
                     </div>
 
