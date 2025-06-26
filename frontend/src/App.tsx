@@ -46,7 +46,7 @@ const HomePage = () => {
       <div className="max-w-3xl mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">
-            Welcome to the <span className="text-purple-600">Whiteboard Game</span>
+            Welcome to <span className="text-purple-600"> The Whiteboard Game</span>
           </h1>
           <p className="text-xl text-gray-600 mb-8">
             Draw, guess, and have fun with friends!
