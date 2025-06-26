@@ -25,7 +25,7 @@ builder.Services.AddCors(options =>
                 "https://localhost:3000",
                 "http://localhost:5173",
                 "http://localhost:3000",
-                "https://www.thewhiteboardgame.com"
+                "https://thewhiteboardgame.com"
                 
             )
             .AllowAnyMethod()
