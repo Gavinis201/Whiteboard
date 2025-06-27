@@ -240,7 +240,7 @@ export const Game: React.FC = () => {
             setCompressionStatus('');
         }
     }; 
-    
+     
     const handleStartRound = async () => {
         if (!prompt.trim() || !game) return;
         await startNewRound(prompt, selectedTimerDuration || undefined);
