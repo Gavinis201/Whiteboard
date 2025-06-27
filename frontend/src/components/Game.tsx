@@ -184,8 +184,12 @@ export const Game: React.FC = () => {
     };
 
     const clearCanvas = () => {
+        // Show confirmation dialog
+        if (!window.confirm('Are you sure you want to clear the canvas?')) {
+            return; // User clicked Cancel
+        }
+        
         // Clear the drawing history
-        alert('Are you sure you want to clear the canvas?');
         setDrawingHistory([]);
         
         // Immediately clear the canvas
