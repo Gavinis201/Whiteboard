@@ -202,10 +202,19 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log("Round started with prompt:", prompt, "roundId:", roundId, "timer:", timerDurationMinutes);
             console.log("Clearing answers and playersWhoSubmitted for new round");
             
-            // Update timer state based on backend response
-            setSelectedTimerDuration(timerDurationMinutes || null);
-            setRoundStartTime(new Date());
-            setIsTimerActive(true);
+            // Check if we're already in an active round with a timer
+            // If so, don't reset the timer state (this prevents timer restart on page refresh)
+            const isExistingRound = currentRound && currentRound.roundId === roundId && isTimerActive;
+            
+            if (!isExistingRound) {
+                // Only update timer state if this is a truly new round
+                console.log("Setting timer state for new round");
+                setSelectedTimerDuration(timerDurationMinutes || null);
+                setRoundStartTime(new Date());
+                setIsTimerActive(true);
+            } else {
+                console.log("Keeping existing timer state for existing round");
+            }
             
             setCurrentRound({ 
                 prompt, 
