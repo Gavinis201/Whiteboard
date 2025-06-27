@@ -18,7 +18,7 @@ export const Game: React.FC = () => {
     if (isLoading) {
         return <LoadingSpinner text={loadingMessage || 'Loading game...'} />;
     }
-
+ 
     const [prompt, setPrompt] = useState('');
     const [prompts, setPrompts] = useState<Prompt[]>([]);
     const [showPromptsDropdown, setShowPromptsDropdown] = useState(false);
