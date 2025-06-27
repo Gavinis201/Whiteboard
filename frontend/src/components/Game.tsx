@@ -43,7 +43,7 @@ export const Game: React.FC = () => {
         } else {
             setOnTimerExpire(null);
         }
-        
+         
         return () => setOnTimerExpire(null);
     }, [currentRound, isReader, playersWhoSubmitted, player?.playerId, setOnTimerExpire]);
 
