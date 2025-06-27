@@ -17,7 +17,7 @@ public class GameHub : Hub
     
     private static readonly ConcurrentDictionary<string, (string playerId, string playerName, string joinCode, DateTime disconnectTime)> _disconnectedPlayers = new();
     private static readonly ConcurrentDictionary<string, string> _playerConnectionIds = new(); // joinCode_playerName -> connectionId
-    private const int RECONNECTION_GRACE_PERIOD_MINUTES = 5;
+    private const int RECONNECTION_GRACE_PERIOD_MINUTES = 10;
 
     public GameHub(ILogger<GameHub> logger, GameDbContext context)
     {

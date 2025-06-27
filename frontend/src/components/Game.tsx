@@ -185,6 +185,7 @@ export const Game: React.FC = () => {
 
     const clearCanvas = () => {
         // Clear the drawing history
+        alert('Are you sure you want to clear the canvas?');
         setDrawingHistory([]);
         
         // Immediately clear the canvas
@@ -403,7 +404,7 @@ export const Game: React.FC = () => {
                                                     />
                                                 </div>
                                             </div>
-                                            <div className="flex gap-5">
+                                            <div className="flex gap-6">
                                                 <button 
                                                     onClick={undoLastStroke} 
                                                     disabled={drawingHistory.length === 0} 
