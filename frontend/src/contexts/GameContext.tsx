@@ -370,10 +370,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
     // Reset timer when round changes
     useEffect(() => {
-        if (currentRound) {
-            setRoundStartTime(new Date());
-            setIsTimerActive(true);
-        } else {
+        if (!currentRound) {
             setIsTimerActive(false);
             setTimeRemaining(null);
         }
