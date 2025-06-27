@@ -239,7 +239,7 @@ export const Game: React.FC = () => {
         } finally {
             setCompressionStatus('');
         }
-    }; 
+    };  
      
     const handleStartRound = async () => {
         if (!prompt.trim() || !game) return;
