@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -16,12 +17,28 @@ namespace Whiteboard.Migrations
                 {
                     GameId = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    JoinCode = table.Column<string>(type: "TEXT", nullable: false),
+                    JoinCode = table.Column<string>(type: "TEXT", maxLength: 6, nullable: false),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Games", x => x.GameId);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Prompts",
+                columns: table => new
+                {
+                    PromptId = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    Text = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
+                    Category = table.Column<string>(type: "TEXT", nullable: false),
+                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Prompts", x => x.PromptId);
                 });
 
             migrationBuilder.CreateTable(
@@ -53,6 +70,8 @@ namespace Whiteboard.Migrations
                         .Annotation("Sqlite:Autoincrement", true),
                     Prompt = table.Column<string>(type: "TEXT", nullable: false),
                     IsCompleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    TimerDurationMinutes = table.Column<int>(type: "INTEGER", nullable: true),
+                    TimerStartTime = table.Column<DateTime>(type: "TEXT", nullable: true),
                     GameId = table.Column<int>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
@@ -73,6 +92,7 @@ namespace Whiteboard.Migrations
                     AnswerId = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     Content = table.Column<string>(type: "TEXT", nullable: false),
+                    PlayerName = table.Column<string>(type: "TEXT", nullable: false),
                     PlayerId = table.Column<int>(type: "INTEGER", nullable: false),
                     RoundId = table.Column<int>(type: "INTEGER", nullable: false)
                 },
@@ -119,6 +139,9 @@ namespace Whiteboard.Migrations
         {
             migrationBuilder.DropTable(
                 name: "Answers");
+
+            migrationBuilder.DropTable(
+                name: "Prompts");
 
             migrationBuilder.DropTable(
                 name: "Players");
