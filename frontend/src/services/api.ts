@@ -23,6 +23,7 @@ export interface Round {
     prompt: string;
     isCompleted: boolean;
     gameId: number;
+    timerDurationMinutes?: number;
 }
 
 export interface Answer {

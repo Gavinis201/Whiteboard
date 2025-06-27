@@ -9,7 +9,8 @@ export const Game: React.FC = () => {
     const {
         game, player, currentRound, answers, isReader,
         playersWhoSubmitted, startNewRound, submitAnswer, players, leaveGame, kickPlayer,
-        isLoading, loadingMessage
+        isLoading, loadingMessage, selectedTimerDuration, timeRemaining, roundStartTime, isTimerActive,
+        setSelectedTimerDuration, setTimeRemaining, setRoundStartTime, setIsTimerActive
     } = useGame();
     const navigate = useNavigate();
 
@@ -242,8 +243,9 @@ export const Game: React.FC = () => {
     
     const handleStartRound = async () => {
         if (!prompt.trim() || !game) return;
-        await startNewRound(prompt);
+        await startNewRound(prompt, selectedTimerDuration || undefined);
         setPrompt('');
+        setSelectedTimerDuration(null);
     };
     
     const handleCardClick = (answerId: number) => {
@@ -284,6 +286,26 @@ export const Game: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 p-4">
+            {/* Fixed Timer Display */}
+            {isTimerActive && selectedTimerDuration && timeRemaining !== null && (
+                <div className="fixed top-4 right-4 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-4">
+                    <div className="flex items-center gap-2">
+                        <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="text-center">
+                            <div className={`text-2xl font-bold ${timeRemaining <= 30 ? 'text-red-600' : 'text-purple-600'}`}>
+                                {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
+                            </div>
+                            <div className="text-sm text-gray-600">Time Remaining</div>
+                        </div>
+                        {timeRemaining <= 30 && (
+                            <div className="text-red-600 text-sm font-medium">⏰</div>
+                        )}
+                    </div>
+                </div>
+            )}
+            
             <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-lg p-4 sm:p-6">
                 {/* Header and Player List JSX remains the same */}
                 <div className="mb-6 flex justify-between items-center">
@@ -352,6 +374,16 @@ export const Game: React.FC = () => {
                                             </div>
                                         )}
                                     </div>
+                                    <select 
+                                        value={selectedTimerDuration || ''} 
+                                        onChange={e => setSelectedTimerDuration(e.target.value ? Number(e.target.value) : null)}
+                                        className="px-4 py-2 border border-gray-300 rounded-md bg-white"
+                                    >
+                                        <option value="">No Timer</option>
+                                        <option value="1">1 Minute</option>
+                                        <option value="2">2 Minutes</option>
+                                        <option value="3">3 Minutes</option>
+                                    </select>
                                     <button onClick={handleStartRound} className="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700">Start</button>
                                 </div>
                             </div>
@@ -408,7 +440,7 @@ export const Game: React.FC = () => {
                                                     />
                                                 </div>
                                             </div>
-                                            <div className="flex gap-6">
+                                            <div className="flex gap-5">
                                                 <button 
                                                     onClick={undoLastStroke} 
                                                     disabled={drawingHistory.length === 0} 

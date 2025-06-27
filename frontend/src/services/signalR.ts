@@ -16,7 +16,7 @@ class SignalRService {
     private gameStateSyncedCallback: ((payload: GameStatePayload) => void) | null = null;
     private playerListUpdatedCallback: ((players: Player[]) => void) | null = null;
     private answerReceivedCallback: ((playerId: string, playerName: string, answer: string) => void) | null = null;
-    private roundStartedCallback: ((prompt: string, roundId: number) => void) | null = null;
+    private roundStartedCallback: ((prompt: string, roundId: number, timerDurationMinutes?: number) => void) | null = null;
     private playerKickedCallback: ((playerId: string, playerName: string) => void) | null = null;
     
     // State
@@ -93,8 +93,8 @@ class SignalRService {
             this.answerReceivedCallback?.(playerId, playerName, answer);
         });
 
-        this.connection.on('RoundStarted', (prompt: string, roundId: number) => {
-            this.roundStartedCallback?.(prompt, roundId);
+        this.connection.on('RoundStarted', (prompt: string, roundId: number, timerDurationMinutes?: number) => {
+            this.roundStartedCallback?.(prompt, roundId, timerDurationMinutes);
         });
 
         this.connection.on('PlayerKicked', (playerId: string, playerName: string) => {
@@ -118,10 +118,10 @@ class SignalRService {
         }
     }
 
-    async startRound(joinCode: string, prompt: string) {
+    async startRound(joinCode: string, prompt: string, timerDuration?: number) {
         await this.ensureConnection();
         if (!this.connection) throw new Error('No SignalR connection');
-        await this.connection.invoke('StartRound', joinCode, prompt);
+        await this.connection.invoke('StartRound', joinCode, prompt, timerDuration);
     }
 
     async sendAnswer(joinCode: string, answer: string) {
@@ -164,7 +164,7 @@ class SignalRService {
         this.answerReceivedCallback = callback;
     }
 
-    onRoundStarted(callback: (prompt: string, roundId: number) => void) {
+    onRoundStarted(callback: (prompt: string, roundId: number, timerDurationMinutes?: number) => void) {
         this.roundStartedCallback = callback;
     }
 

@@ -7,6 +7,7 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System;
+using System.Threading;
 
 namespace Whiteboard.Hubs;
 
@@ -18,6 +19,9 @@ public class GameHub : Hub
     private static readonly ConcurrentDictionary<string, (string playerId, string playerName, string joinCode, DateTime disconnectTime)> _disconnectedPlayers = new();
     private static readonly ConcurrentDictionary<string, string> _playerConnectionIds = new(); // joinCode_playerName -> connectionId
     private const int RECONNECTION_GRACE_PERIOD_MINUTES = 10;
+    
+    // Timer tracking for backend auto-submission
+    private static readonly ConcurrentDictionary<string, (int roundId, DateTime startTime, int durationMinutes, Timer timer)> _activeTimers = new(); // joinCode -> timer info
 
     public GameHub(ILogger<GameHub> logger, GameDbContext context)
     {
@@ -130,9 +134,9 @@ public class GameHub : Hub
         _logger.LogInformation("Sent full game state to {PlayerName} and updated player list to the group.", playerName);
     }
 
-    public async Task StartRound(string joinCode, string prompt)
+    public async Task StartRound(string joinCode, string prompt, int? timerDurationMinutes = null)
     {
-        _logger.LogInformation("Starting round in game {JoinCode} with prompt: {Prompt}", joinCode, prompt);
+        _logger.LogInformation("Starting round in game {JoinCode} with prompt: {Prompt} and timer: {TimerDuration} minutes", joinCode, prompt, timerDurationMinutes);
         
         var game = await _context.Games.FirstOrDefaultAsync(g => g.JoinCode == joinCode);
         if (game == null) throw new HubException("Game not found.");
@@ -142,13 +146,35 @@ public class GameHub : Hub
         {
             Prompt = prompt,
             IsCompleted = false,
-            GameId = game.GameId
+            GameId = game.GameId,
+            TimerDurationMinutes = timerDurationMinutes,
+            TimerStartTime = timerDurationMinutes.HasValue ? DateTime.UtcNow : null
         };
         _context.Rounds.Add(newRound);
         await _context.SaveChangesAsync();
 
-        // Send the roundId along with the prompt so frontend can properly track submissions
-        await Clients.Group(joinCode).SendAsync("RoundStarted", prompt, newRound.RoundId);
+        // Set up backend timer if duration is specified
+        if (timerDurationMinutes.HasValue && timerDurationMinutes.Value > 0)
+        {
+            var timerKey = joinCode;
+            
+            // Dispose of any existing timer for this game
+            if (_activeTimers.TryRemove(timerKey, out var existingTimer))
+            {
+                existingTimer.timer?.Dispose();
+            }
+            
+            // Create new timer for auto-submission
+            var timer = new Timer(async _ => await AutoSubmitRemainingAnswers(joinCode, newRound.RoundId), null, 
+                TimeSpan.FromMinutes(timerDurationMinutes.Value), Timeout.InfiniteTimeSpan);
+            
+            _activeTimers.TryAdd(timerKey, (newRound.RoundId, DateTime.UtcNow, timerDurationMinutes.Value, timer));
+            
+            _logger.LogInformation("Backend timer started for game {JoinCode} with {Duration} minutes", joinCode, timerDurationMinutes.Value);
+        }
+
+        // Send the roundId along with the prompt and timer info so frontend can properly track submissions
+        await Clients.Group(joinCode).SendAsync("RoundStarted", prompt, newRound.RoundId, timerDurationMinutes);
         _logger.LogInformation("Round started and saved successfully in game {JoinCode} with roundId {RoundId}", joinCode, newRound.RoundId);
     }
 
@@ -526,6 +552,70 @@ public class GameHub : Hub
             {
                 _logger.LogError(ex, "Error cleaning up host {PlayerName} from database", disconnectedInfo.playerName);
             }
+        }
+    }
+
+    private async Task AutoSubmitRemainingAnswers(string joinCode, int roundId)
+    {
+        _logger.LogInformation("Backend timer expired - auto-submitting remaining answers for round {RoundId} in game {JoinCode}", roundId, joinCode);
+        
+        try
+        {
+            var game = await _context.Games
+                .Include(g => g.Players)
+                .FirstOrDefaultAsync(g => g.JoinCode == joinCode);
+            if (game == null) return;
+
+            var activeRound = await _context.Rounds
+                .FirstOrDefaultAsync(r => r.RoundId == roundId && r.GameId == game.GameId && !r.IsCompleted);
+                
+            if (activeRound == null) return;
+
+            // Get all players who haven't submitted answers yet
+            var submittedPlayerIds = await _context.Answers
+                .Where(a => a.RoundId == roundId)
+                .Select(a => a.PlayerId)
+                .ToListAsync();
+
+            var playersWhoHaventSubmitted = game.Players
+                .Where(p => !p.IsReader && !submittedPlayerIds.Contains(p.PlayerId))
+                .ToList();
+
+            // Auto-submit blank drawings for players who haven't submitted
+            foreach (var player in playersWhoHaventSubmitted)
+            {
+                // Create a blank white canvas as base64
+                var blankCanvas = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=";
+                
+                var newAnswer = new Answer
+                {
+                    Content = blankCanvas,
+                    PlayerName = player.Name,
+                    PlayerId = player.PlayerId,
+                    RoundId = roundId
+                };
+                _context.Answers.Add(newAnswer);
+                
+                _logger.LogInformation("Auto-submitted blank drawing for player {PlayerName} in round {RoundId}", player.Name, roundId);
+            }
+
+            await _context.SaveChangesAsync();
+
+            // Notify all clients about the auto-submissions
+            foreach (var player in playersWhoHaventSubmitted)
+            {
+                var blankCanvas = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=";
+                await Clients.Group(joinCode).SendAsync("AnswerReceived", player.PlayerId.ToString(), player.Name, blankCanvas);
+            }
+
+            // Clean up timer
+            _activeTimers.TryRemove(joinCode, out _);
+
+            _logger.LogInformation("Backend auto-submission completed for round {RoundId} in game {JoinCode}", roundId, joinCode);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during backend auto-submission for round {RoundId} in game {JoinCode}", roundId, joinCode);
         }
     }
 }

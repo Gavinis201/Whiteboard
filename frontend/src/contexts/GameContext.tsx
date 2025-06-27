@@ -23,9 +23,17 @@ interface GameContextType {
     isInitialized: boolean;
     isLoading: boolean;
     loadingMessage: string;
+    selectedTimerDuration: number | null;
+    timeRemaining: number | null;
+    roundStartTime: Date | null;
+    isTimerActive: boolean;
+    setSelectedTimerDuration: (duration: number | null) => void;
+    setTimeRemaining: (time: number | null) => void;
+    setRoundStartTime: (time: Date | null) => void;
+    setIsTimerActive: (active: boolean) => void;
     createGame: (playerName: string) => Promise<void>;
     joinGame: (joinCode: string, playerName: string) => Promise<void>;
-    startNewRound: (prompt: string) => Promise<void>;
+    startNewRound: (prompt: string, timerDuration?: number) => Promise<void>;
     submitAnswer: (answer: string) => Promise<void>;
     kickPlayer: (playerId: number) => Promise<void>;
     leaveGame: () => Promise<void>;
@@ -43,6 +51,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const [isInitialized, setIsInitialized] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [loadingMessage, setLoadingMessage] = useState('Initializing...');
+    const [selectedTimerDuration, setSelectedTimerDuration] = useState<number | null>(null);
+    const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+    const [roundStartTime, setRoundStartTime] = useState<Date | null>(null);
+    const [isTimerActive, setIsTimerActive] = useState(false);
     const handlersSetupRef = useRef<boolean>(false);
 
     const players = game?.players || [];
@@ -154,14 +166,21 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             }
         });
 
-        signalRService.onRoundStarted((prompt, roundId) => {
-            console.log("Round started with prompt:", prompt, "roundId:", roundId);
+        signalRService.onRoundStarted((prompt, roundId, timerDurationMinutes) => {
+            console.log("Round started with prompt:", prompt, "roundId:", roundId, "timer:", timerDurationMinutes);
             console.log("Clearing answers and playersWhoSubmitted for new round");
+            
+            // Update timer state based on backend response
+            setSelectedTimerDuration(timerDurationMinutes || null);
+            setRoundStartTime(new Date());
+            setIsTimerActive(true);
+            
             setCurrentRound({ 
                 prompt, 
                 isCompleted: false, 
                 roundId: roundId,
-                gameId: game?.gameId || 0
+                gameId: game?.gameId || 0,
+                timerDurationMinutes: timerDurationMinutes
             });
             setAnswers([]);
             setPlayersWhoSubmitted(new Set());
@@ -270,15 +289,50 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    const startNewRound = async (prompt: string) => {
+    const startNewRound = async (prompt: string, timerDuration?: number) => {
         if (!game?.joinCode || !isReader) return;
-        await signalRService.startRound(game.joinCode, prompt);
+        setSelectedTimerDuration(timerDuration || null);
+        await signalRService.startRound(game.joinCode, prompt, timerDuration);
     };
 
     const submitAnswer = async (answer: string) => {
         if (!game?.joinCode || !player?.playerId) return;
         await signalRService.sendAnswer(game.joinCode, answer);
     };
+
+    // Timer countdown effect for frontend display only (backend handles auto-submission)
+    useEffect(() => {
+        if (!isTimerActive || !selectedTimerDuration || !roundStartTime || !player || playersWhoSubmitted.has(player.playerId)) {
+            setTimeRemaining(null);
+            return;
+        }
+
+        const interval = setInterval(() => {
+            const now = new Date();
+            const elapsed = Math.floor((now.getTime() - roundStartTime.getTime()) / 1000);
+            const remaining = (selectedTimerDuration * 60) - elapsed;
+            
+            if (remaining <= 0) {
+                setTimeRemaining(0);
+                setIsTimerActive(false);
+            } else {
+                setTimeRemaining(remaining);
+            }
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [isTimerActive, selectedTimerDuration, roundStartTime, playersWhoSubmitted, player?.playerId]);
+
+    // Reset timer when round changes
+    useEffect(() => {
+        if (currentRound) {
+            setRoundStartTime(new Date());
+            setIsTimerActive(true);
+        } else {
+            setIsTimerActive(false);
+            setTimeRemaining(null);
+        }
+    }, [currentRound?.roundId]);
 
     const kickPlayer = async (playerId: number) => {
         if (!game?.joinCode || !isReader) return;
@@ -316,6 +370,14 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             isInitialized,
             isLoading,
             loadingMessage,
+            selectedTimerDuration,
+            timeRemaining,
+            roundStartTime,
+            isTimerActive,
+            setSelectedTimerDuration,
+            setTimeRemaining,
+            setRoundStartTime,
+            setIsTimerActive,
             createGame,
             joinGame,
             startNewRound,
