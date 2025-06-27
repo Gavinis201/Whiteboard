@@ -155,3 +155,4 @@
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/publish/publish/appsettings.json
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/publish/publish/Whiteboard.deps.json
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/publish/publish/Whiteboard.runtimeconfig.json
+/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/whiteboard.db
