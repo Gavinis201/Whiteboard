@@ -301,15 +301,18 @@ export const Game: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 p-4">
-            {/* Fixed Timer Display */}
+            {/* Fixed Timer Display for all users (host and players) */}
             {isTimerActive && selectedTimerDuration && timeRemaining !== null && (
                 <div className="fixed top-4 right-4 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-4">
+                    {isReader && (
+                        <div className="text-purple-700 font-semibold mb-1 text-center">Players are drawing...</div>
+                    )}
                     <div className="flex items-center gap-2">
                         <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <div className="text-center">
-                            <div className={`text-2xl font-bold ${timeRemaining <= 30 ? 'text-red-600' : 'text-purple-600'}`}>
+                            <div className={`text-2xl font-bold ${timeRemaining <= 30 ? 'text-red-600' : 'text-purple-600'}`}> 
                                 {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
                             </div>
                             <div className="text-sm text-gray-600">Time Remaining</div>
