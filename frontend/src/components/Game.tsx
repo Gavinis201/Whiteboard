@@ -190,6 +190,10 @@ export const Game: React.FC = () => {
             return; // User clicked Cancel
         }
         
+        clearCanvasWithoutConfirmation();
+    };
+
+    const clearCanvasWithoutConfirmation = () => {
         // Clear the drawing history
         setDrawingHistory([]);
         
@@ -233,7 +237,7 @@ export const Game: React.FC = () => {
             const base64Image = tempCanvas.toDataURL('image/jpeg', quality);
             if (base64Image.length > 1500000) { throw new Error('Drawing is too large.'); }
             await submitAnswer(base64Image);
-            clearCanvas();
+            clearCanvasWithoutConfirmation(); // Use the version without confirmation
         } catch (error: any) {
             alert(error.message);
         } finally {
