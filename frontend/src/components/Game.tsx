@@ -403,7 +403,7 @@ export const Game: React.FC = () => {
                                                     />
                                                 </div>
                                             </div>
-                                            <div className="flex gap-2">
+                                            <div className="flex gap-5">
                                                 <button 
                                                     onClick={undoLastStroke} 
                                                     disabled={drawingHistory.length === 0} 
