@@ -10,7 +10,7 @@ export const Game: React.FC = () => {
         game, player, currentRound, answers, isReader,
         playersWhoSubmitted, startNewRound, submitAnswer, players, leaveGame, kickPlayer,
         isLoading, loadingMessage, selectedTimerDuration, timeRemaining, roundStartTime, isTimerActive,
-        setSelectedTimerDuration, setTimeRemaining, setRoundStartTime, setIsTimerActive
+        setSelectedTimerDuration, setTimeRemaining, setRoundStartTime, setIsTimerActive, setOnTimerExpire
     } = useGame();
     const navigate = useNavigate();
 
@@ -35,6 +35,17 @@ export const Game: React.FC = () => {
     
     const isIPhone = () => /iPhone/i.test(navigator.userAgent);
     const colors = ['#000000', '#FF0000', '#FFA500', '#FFFF00', '#008000', '#0000FF', '#800080', '#895129', '#FFFFFF'];
+
+    // Set up timer expire callback for auto-submission
+    useEffect(() => {
+        if (currentRound && !isReader && !playersWhoSubmitted.has(player?.playerId || 0)) {
+            setOnTimerExpire(() => handleSubmitAnswer);
+        } else {
+            setOnTimerExpire(null);
+        }
+        
+        return () => setOnTimerExpire(null);
+    }, [currentRound, isReader, playersWhoSubmitted, player?.playerId, setOnTimerExpire]);
 
     // Fetch prompts from database
     useEffect(() => {

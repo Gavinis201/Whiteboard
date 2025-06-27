@@ -31,6 +31,7 @@ interface GameContextType {
     setTimeRemaining: (time: number | null) => void;
     setRoundStartTime: (time: Date | null) => void;
     setIsTimerActive: (active: boolean) => void;
+    setOnTimerExpire: (callback: (() => void) | null) => void;
     createGame: (playerName: string) => Promise<void>;
     joinGame: (joinCode: string, playerName: string) => Promise<void>;
     startNewRound: (prompt: string, timerDuration?: number) => Promise<void>;
@@ -55,6 +56,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [roundStartTime, setRoundStartTime] = useState<Date | null>(null);
     const [isTimerActive, setIsTimerActive] = useState(false);
+    const [onTimerExpire, setOnTimerExpire] = useState<(() => void) | null>(null);
     const handlersSetupRef = useRef<boolean>(false);
 
     const players = game?.players || [];
@@ -300,7 +302,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         await signalRService.sendAnswer(game.joinCode, answer);
     };
 
-    // Timer countdown effect for frontend display only (backend handles auto-submission)
+    // Timer countdown effect for frontend display and auto-submission
     useEffect(() => {
         if (!isTimerActive || !selectedTimerDuration || !roundStartTime || !player || playersWhoSubmitted.has(player.playerId)) {
             setTimeRemaining(null);
@@ -315,13 +317,17 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             if (remaining <= 0) {
                 setTimeRemaining(0);
                 setIsTimerActive(false);
+                // Call the timer expire callback for auto-submission
+                if (onTimerExpire) {
+                    onTimerExpire();
+                }
             } else {
                 setTimeRemaining(remaining);
             }
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [isTimerActive, selectedTimerDuration, roundStartTime, playersWhoSubmitted, player?.playerId]);
+    }, [isTimerActive, selectedTimerDuration, roundStartTime, playersWhoSubmitted, player?.playerId, onTimerExpire]);
 
     // Reset timer when round changes
     useEffect(() => {
@@ -378,6 +384,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setTimeRemaining,
             setRoundStartTime,
             setIsTimerActive,
+            setOnTimerExpire,
             createGame,
             joinGame,
             startNewRound,
