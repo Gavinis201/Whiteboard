@@ -206,12 +206,13 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             // If so, don't reset the timer state (this prevents timer restart on page refresh)
             const isExistingRound = currentRound && currentRound.roundId === roundId && isTimerActive;
             
-            if (!isExistingRound) {
-                // Only update timer state if this is a truly new round
-                console.log("Setting timer state for new round");
+            // Always set timer state for new rounds, or if this is the host starting a round
+            if (!isExistingRound || (isReader && timerDurationMinutes)) {
+                // Set timer state for new round or host starting a round
+                console.log("Setting timer state for new round or host starting round");
                 setSelectedTimerDuration(timerDurationMinutes || null);
                 setRoundStartTime(new Date());
-                setIsTimerActive(true);
+                setIsTimerActive(!!timerDurationMinutes);
             } else {
                 console.log("Keeping existing timer state for existing round");
             }
