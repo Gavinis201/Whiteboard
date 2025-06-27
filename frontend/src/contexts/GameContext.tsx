@@ -333,7 +333,18 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
     const startNewRound = async (prompt: string, timerDuration?: number) => {
         if (!game?.joinCode || !isReader) return;
-        setSelectedTimerDuration(timerDuration || null);
+        
+        // Immediately set timer state for the host so they can see the timer
+        if (timerDuration) {
+            setSelectedTimerDuration(timerDuration);
+            setRoundStartTime(new Date());
+            setIsTimerActive(true);
+        } else {
+            setSelectedTimerDuration(null);
+            setRoundStartTime(null);
+            setIsTimerActive(false);
+        }
+        
         await signalRService.startRound(game.joinCode, prompt, timerDuration);
     };
 
@@ -344,7 +355,25 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
     // Timer countdown effect for frontend display and auto-submission
     useEffect(() => {
-        if (!isTimerActive || !selectedTimerDuration || !roundStartTime || !player || playersWhoSubmitted.has(player.playerId)) {
+        if (!isTimerActive || !selectedTimerDuration || !roundStartTime || !player) {
+            setTimeRemaining(null);
+            return;
+        }
+
+        // Check if all non-host players have submitted
+        const nonHostPlayers = players.filter(p => !p.isReader);
+        const allNonHostPlayersSubmitted = nonHostPlayers.length > 0 && 
+            nonHostPlayers.every(p => playersWhoSubmitted.has(p.playerId));
+
+        // Stop timer if all non-host players have submitted
+        if (allNonHostPlayersSubmitted) {
+            setTimeRemaining(0);
+            setIsTimerActive(false);
+            return;
+        }
+
+        // Don't show timer for players who have already submitted
+        if (!isReader && playersWhoSubmitted.has(player.playerId)) {
             setTimeRemaining(null);
             return;
         }
@@ -367,7 +396,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [isTimerActive, selectedTimerDuration, roundStartTime, playersWhoSubmitted, player?.playerId, onTimerExpire]);
+    }, [isTimerActive, selectedTimerDuration, roundStartTime, playersWhoSubmitted, player?.playerId, onTimerExpire, players, isReader]);
 
     // Reset timer when round changes
     useEffect(() => {
