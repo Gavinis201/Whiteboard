@@ -139,8 +139,38 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     roundId: payload.activeRound.roundId,
                     gameId: payload.activeRound.gameId
                 });
+                
+                // Sync timer state from backend if available
+                if (payload.timerInfo && payload.timerInfo.remainingSeconds > 0) {
+                    console.log("Syncing timer from backend:", payload.timerInfo);
+                    setSelectedTimerDuration(payload.timerInfo.durationMinutes);
+                    setTimeRemaining(payload.timerInfo.remainingSeconds);
+                    setIsTimerActive(true);
+                    // Calculate the actual start time based on remaining time
+                    const now = new Date();
+                    const startTime = new Date(now.getTime() - (payload.timerInfo.durationMinutes * 60 - payload.timerInfo.remainingSeconds) * 1000);
+                    setRoundStartTime(startTime);
+                } else if (payload.timerInfo && payload.timerInfo.remainingSeconds <= 0) {
+                    // Timer has already expired, don't start it
+                    console.log("Timer has already expired, not starting frontend timer");
+                    setSelectedTimerDuration(payload.timerInfo.durationMinutes);
+                    setTimeRemaining(0);
+                    setIsTimerActive(false);
+                    setRoundStartTime(null);
+                } else {
+                    // No timer info, reset timer state
+                    setSelectedTimerDuration(null);
+                    setTimeRemaining(null);
+                    setIsTimerActive(false);
+                    setRoundStartTime(null);
+                }
             } else {
                 setCurrentRound(null);
+                // Reset timer state when no active round
+                setSelectedTimerDuration(null);
+                setTimeRemaining(null);
+                setIsTimerActive(false);
+                setRoundStartTime(null);
             }
             
             setAnswers(payload.currentAnswers || []);

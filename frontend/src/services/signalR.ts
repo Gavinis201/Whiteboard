@@ -6,6 +6,11 @@ export interface GameStatePayload {
     players: Player[];
     activeRound: Round | null;
     currentAnswers: Answer[];
+    timerInfo?: {
+        startTime: string;
+        durationMinutes: number;
+        remainingSeconds: number;
+    } | null;
 }
 
 class SignalRService {

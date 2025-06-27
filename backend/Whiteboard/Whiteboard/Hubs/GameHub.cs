@@ -125,7 +125,15 @@ public class GameHub : Hub
         {
             Players = gameState.Players,
             ActiveRound = gameState.ActiveRound,
-            CurrentAnswers = gameState.CurrentAnswers
+            CurrentAnswers = gameState.CurrentAnswers,
+            // Add timer information for reconnecting players
+            TimerInfo = gameState.ActiveRound != null && gameState.ActiveRound.TimerStartTime.HasValue ? new
+            {
+                StartTime = gameState.ActiveRound.TimerStartTime.Value,
+                DurationMinutes = gameState.ActiveRound.TimerDurationMinutes,
+                RemainingSeconds = gameState.ActiveRound.TimerDurationMinutes.HasValue ? 
+                    (int?)Math.Max(0, (int)(gameState.ActiveRound.TimerDurationMinutes.Value * 60 - (DateTime.UtcNow - gameState.ActiveRound.TimerStartTime.Value).TotalSeconds)) : null
+            } : null
         });
         
         // Broadcast the updated player list to everyone else in the group
