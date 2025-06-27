@@ -223,6 +223,7 @@ export const Game: React.FC = () => {
     };
 
     const handleSubmitAnswer = async () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         const canvas = canvasRef.current;
         if (!canvas) return;
         

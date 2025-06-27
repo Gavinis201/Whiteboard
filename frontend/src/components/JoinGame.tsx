@@ -9,6 +9,7 @@ export const JoinGame: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         if (!joinCode.trim() || !playerName.trim()) {
             setError('Game code and player name cannot be empty.');
             return;

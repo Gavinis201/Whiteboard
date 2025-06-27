@@ -8,6 +8,7 @@ export const CreateGame: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         if (!playerName.trim()) {
             setError('Player name cannot be empty.');
             return;
