@@ -56,15 +56,31 @@ class SignalRService {
                     skipNegotiation: false,
                 })
                 .configureLogging(LogLevel.Information)
-                .withAutomaticReconnect()
+                .withAutomaticReconnect([0, 2000, 5000, 10000, 30000]) // More aggressive reconnection strategy
                 .build();
 
-            this.connection.onclose(e => console.error('SignalR connection closed:', e));
-            this.connection.onreconnecting(e => console.log('SignalR reconnecting:', e));
+            this.connection.onclose(e => {
+                console.error('SignalR connection closed:', e);
+                // Clear current game state if connection is lost for too long
+                if (e) {
+                    console.log('Connection closed due to error, clearing game state');
+                    this.currentJoinCode = null;
+                    this.currentPlayerName = null;
+                }
+            });
+            
+            this.connection.onreconnecting(e => {
+                console.log('SignalR reconnecting:', e);
+            });
+            
             this.connection.onreconnected(id => {
                 console.log('SignalR reconnected:', id);
+                // Only try to rejoin if we have valid game info
                 if (this.currentJoinCode && this.currentPlayerName) {
-                    this.joinGame(this.currentJoinCode, this.currentPlayerName);
+                    console.log('Attempting to rejoin game after reconnection');
+                    this.joinGame(this.currentJoinCode, this.currentPlayerName).catch(error => {
+                        console.error('Failed to rejoin game after reconnection:', error);
+                    });
                 }
             });
 
@@ -73,6 +89,7 @@ class SignalRService {
             console.log('SignalR Connected');
         } catch (err) {
             console.error('SignalR connection error:', err);
+            this.isConnecting = false;
             throw err;
         } finally {
             this.isConnecting = false;
@@ -180,6 +197,17 @@ class SignalRService {
     // Utility method to check if we're currently in a game
     isInGame(): boolean {
         return this.currentJoinCode !== null && this.currentPlayerName !== null;
+    }
+
+    // Method to check if we have an active connection
+    isConnected(): boolean {
+        return this.connection?.state === HubConnectionState.Connected;
+    }
+
+    // Method to check if we're currently submitting
+    isSubmitting(): boolean {
+        // This could be enhanced to track actual submission state
+        return this.connection?.state === HubConnectionState.Connected;
     }
 
     // Method to get current game info

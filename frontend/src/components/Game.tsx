@@ -3,6 +3,7 @@ import { useGame } from '../contexts/GameContext';
 import { Answer, Prompt, getPrompts } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { LoadingSpinner } from './LoadingSpinner';
+import { signalRService } from '../services/signalR';
 import './Game.css';
 
 export const Game: React.FC = () => {
@@ -32,6 +33,7 @@ export const Game: React.FC = () => {
     const [compressionStatus, setCompressionStatus] = useState<string>('');
     const [hasMoved, setHasMoved] = useState(false);
     const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
+    const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'reconnecting'>('connected');
     
     const isIPhone = () => /iPhone/i.test(navigator.userAgent);
     const colors = ['#000000', '#FF0000', '#FFA500', '#FFFF00', '#008000', '#0000FF', '#800080', '#895129', '#FFFFFF'];
@@ -39,7 +41,21 @@ export const Game: React.FC = () => {
     // Set up timer expire callback for auto-submission
     useEffect(() => {
         if (currentRound && !isReader && !playersWhoSubmitted.has(player?.playerId || 0)) {
-            setOnTimerExpire(() => handleSubmitAnswer);
+            setOnTimerExpire(() => async () => {
+                try {
+                    console.log('Timer expired, attempting auto-submission');
+                    // Check if already submitted before attempting auto-submission
+                    if (!playersWhoSubmitted.has(player?.playerId || 0)) {
+                        await handleSubmitAnswer();
+                    } else {
+                        console.log('Player already submitted, skipping auto-submission');
+                    }
+                } catch (error) {
+                    console.error('Auto-submission failed:', error);
+                    // Show a user-friendly message
+                    alert('Timer expired but submission failed. Please try submitting manually.');
+                }
+            });
         } else {
             setOnTimerExpire(null);
         }
@@ -248,10 +264,17 @@ export const Game: React.FC = () => {
             const quality = isIPhone() ? 0.8 : 0.9;
             const base64Image = tempCanvas.toDataURL('image/jpeg', quality);
             if (base64Image.length > 1500000) { throw new Error('Drawing is too large.'); }
+            
+            // Check if we're still in the game before submitting
+            if (!game?.joinCode || !player?.playerId) {
+                throw new Error('No longer in game. Please refresh and try again.');
+            }
+            
             await submitAnswer(base64Image);
             clearCanvasWithoutConfirmation(); // Use the version without confirmation
         } catch (error: any) {
-            alert(error.message);
+            console.error('Error submitting answer:', error);
+            alert(error.message || 'Failed to submit drawing. Please try again.');
         } finally {
             setCompressionStatus('');
         }
@@ -298,6 +321,28 @@ export const Game: React.FC = () => {
         </div>
     );
     
+    // Monitor connection status
+    useEffect(() => {
+        const checkConnection = () => {
+            const isInGame = signalRService.isInGame();
+            const isConnected = signalRService.isConnected();
+            
+            if (!isInGame) {
+                setConnectionStatus('disconnected');
+            } else if (!isConnected) {
+                setConnectionStatus('reconnecting');
+            } else {
+                setConnectionStatus('connected');
+            }
+        };
+
+        // Check connection status periodically
+        const interval = setInterval(checkConnection, 3000);
+        checkConnection(); // Initial check
+
+        return () => clearInterval(interval);
+    }, []);
+
     if (!game || !player) return <div className="text-center p-8">Loading...</div>;
 
     return (
@@ -313,14 +358,30 @@ export const Game: React.FC = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <div className="text-center">
-                            <div className={`text-2xl font-bold ${timeRemaining <= 30 ? 'text-red-600' : 'text-purple-600'}`}> 
+                            <div className={`text-2xl font-bold ${timeRemaining <= 30 ? 'text-red-600 animate-pulse' : 'text-purple-600'}`}> 
                                 {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
                             </div>
                             <div className="text-sm text-gray-600">Time Remaining</div>
                         </div>
                         {timeRemaining <= 30 && (
-                            <div className="text-red-600 text-sm font-medium">⏰</div>
+                            <div className="text-red-600 text-sm font-medium animate-pulse">⏰</div>
                         )}
+                        {timeRemaining <= 10 && (
+                            <div className="text-red-600 text-sm font-medium animate-bounce">⚠️</div>
+                        )}
+                    </div>
+                </div>
+            )}
+            
+            {/* Connection warning when timer is active */}
+            {isTimerActive && connectionStatus === 'disconnected' && !isReader && (
+                <div className="fixed top-20 right-4 z-50 bg-red-50 border border-red-200 rounded-lg p-3 max-w-sm">
+                    <div className="flex items-center gap-2">
+                        <div className="text-red-600">⚠️</div>
+                        <div className="text-sm text-red-700">
+                            <div className="font-semibold">Connection Lost</div>
+                            <div>Your drawing will be submitted automatically when the timer expires.</div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -328,7 +389,16 @@ export const Game: React.FC = () => {
             <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-lg p-4 sm:p-6">
                 {/* Header and Player List JSX remains the same */}
                 <div className="mb-6 flex justify-between items-center">
-                    <div><h2 className="text-xl sm:text-2xl font-bold text-purple-600">Game Code: <span className="text-2xl sm:text-3xl font-mono">{game.joinCode}</span></h2><p className="text-gray-600">Player: {player.name} {isReader && '(Reader)'}</p></div>
+                    <div>
+                        <h2 className="text-xl sm:text-2xl font-bold text-purple-600">Game Code: <span className="text-2xl sm:text-3xl font-mono">{game.joinCode}</span></h2>
+                        <p className="text-gray-600">Player: {player.name} {isReader && '(Reader)'}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                            <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-green-500' : connectionStatus === 'reconnecting' ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
+                            <span className={`text-xs ${connectionStatus === 'connected' ? 'text-green-600' : connectionStatus === 'reconnecting' ? 'text-yellow-600' : 'text-red-600'}`}>
+                                {connectionStatus === 'connected' ? 'Connected' : connectionStatus === 'reconnecting' ? 'Reconnecting...' : 'Disconnected'}
+                            </span>
+                        </div>
+                    </div>
                     <button onClick={handleLeaveGame} className="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600">Leave</button>
                 </div>
                 {isReader && (
@@ -484,8 +554,19 @@ export const Game: React.FC = () => {
                                         <div className="canvas-container"><canvas ref={canvasRef} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} /></div>
                                         <div className="flex flex-col sm:flex-row items-center gap-4 mt-2">
                                             <input type="range" min="1" max="30" value={brushSize} onChange={e => setBrushSize(Number(e.target.value))} className="w-full" />
-                                            <button onClick={handleSubmitAnswer} disabled={!!compressionStatus} className="bg-purple-600 text-white px-8 py-3 rounded-lg hover:bg-purple-700 w-full sm:w-auto">{compressionStatus || 'Submit Drawing'}</button>
+                                            <button 
+                                                onClick={handleSubmitAnswer} 
+                                                disabled={!!compressionStatus} 
+                                                className="bg-purple-600 text-white px-8 py-3 rounded-lg hover:bg-purple-700 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {compressionStatus || 'Submit Drawing'}
+                                            </button>
                                         </div>
+                                        {compressionStatus && (
+                                            <div className="mt-2 text-center text-sm text-gray-600">
+                                                {compressionStatus}
+                                            </div>
+                                        )}
                                     </>
                                 )}
                             </div>

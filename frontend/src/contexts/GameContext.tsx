@@ -58,6 +58,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const [isTimerActive, setIsTimerActive] = useState(false);
     const [onTimerExpire, setOnTimerExpire] = useState<(() => void) | null>(null);
     const handlersSetupRef = useRef<boolean>(false);
+    const timerIntervalRef = useRef<number | null>(null);
+    const lastSyncedTimerRef = useRef<{ roundId: number; remainingSeconds: number } | null>(null);
+    const submissionInProgressRef = useRef<boolean>(false);
 
     const players = game?.players || [];
 
@@ -140,16 +143,24 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     gameId: payload.activeRound.gameId
                 });
                 
-                // Sync timer state from backend if available
+                // Improved timer sync logic - always sync from backend for consistency
                 if (payload.timerInfo && payload.timerInfo.remainingSeconds > 0) {
                     console.log("Syncing timer from backend:", payload.timerInfo);
+                    
+                    // Always update timer state from backend to ensure consistency
                     setSelectedTimerDuration(payload.timerInfo.durationMinutes);
                     setTimeRemaining(payload.timerInfo.remainingSeconds);
                     setIsTimerActive(true);
-                    // Calculate the actual start time based on remaining time
-                    const now = new Date();
-                    const startTime = new Date(now.getTime() - (payload.timerInfo.durationMinutes * 60 - payload.timerInfo.remainingSeconds) * 1000);
+                    
+                    // Calculate the actual start time based on remaining time from backend
+                    const startTime = new Date(Date.now() - (payload.timerInfo.durationMinutes * 60 - payload.timerInfo.remainingSeconds) * 1000);
                     setRoundStartTime(startTime);
+                    
+                    // Update last synced timer info
+                    lastSyncedTimerRef.current = {
+                        roundId: payload.activeRound.roundId,
+                        remainingSeconds: payload.timerInfo.remainingSeconds
+                    };
                 } else if (payload.timerInfo && payload.timerInfo.remainingSeconds <= 0) {
                     // Timer has already expired, don't start it
                     console.log("Timer has already expired, not starting frontend timer");
@@ -157,12 +168,14 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     setTimeRemaining(0);
                     setIsTimerActive(false);
                     setRoundStartTime(null);
+                    lastSyncedTimerRef.current = null;
                 } else {
                     // No timer info, reset timer state
                     setSelectedTimerDuration(null);
                     setTimeRemaining(null);
                     setIsTimerActive(false);
                     setRoundStartTime(null);
+                    lastSyncedTimerRef.current = null;
                 }
             } else {
                 setCurrentRound(null);
@@ -171,8 +184,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 setTimeRemaining(null);
                 setIsTimerActive(false);
                 setRoundStartTime(null);
+                lastSyncedTimerRef.current = null;
             }
             
+            // Always rehydrate answers and submission state from backend
             setAnswers(payload.currentAnswers || []);
             setPlayersWhoSubmitted(new Set(payload.currentAnswers?.map(a => a.playerId) || []));
         });
@@ -202,20 +217,11 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log("Round started with prompt:", prompt, "roundId:", roundId, "timer:", timerDurationMinutes);
             console.log("Clearing answers and playersWhoSubmitted for new round");
             
-            // Check if we're already in an active round with a timer
-            // If so, don't reset the timer state (this prevents timer restart on page refresh)
-            const isExistingRound = currentRound && currentRound.roundId === roundId && isTimerActive;
-            
-            // Always set timer state for new rounds, or if this is the host starting a round
-            if (!isExistingRound || (isReader && timerDurationMinutes)) {
-                // Set timer state for new round or host starting a round
-                console.log("Setting timer state for new round or host starting round");
-                setSelectedTimerDuration(timerDurationMinutes || null);
-                setRoundStartTime(new Date());
-                setIsTimerActive(!!timerDurationMinutes);
-            } else {
-                console.log("Keeping existing timer state for existing round");
-            }
+            // Always reset timer state for new rounds to ensure consistency
+            setSelectedTimerDuration(timerDurationMinutes || null);
+            setRoundStartTime(new Date());
+            setIsTimerActive(!!timerDurationMinutes);
+            lastSyncedTimerRef.current = null;
             
             setCurrentRound({ 
                 prompt, 
@@ -231,6 +237,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         signalRService.onAnswerReceived((playerId, playerName, answer) => {
             const numericPlayerId = parseInt(playerId, 10);
             console.log("Answer received from player:", playerName, "ID:", numericPlayerId);
+            console.log("Current playersWhoSubmitted before update:", Array.from(playersWhoSubmitted));
             setAnswers(prev => [...prev, { 
                 answerId: Date.now(),
                 playerId: numericPlayerId,
@@ -334,27 +341,69 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const startNewRound = async (prompt: string, timerDuration?: number) => {
         if (!game?.joinCode || !isReader) return;
         
-        // Immediately set timer state for the host so they can see the timer
-        if (timerDuration) {
-            setSelectedTimerDuration(timerDuration);
-            setRoundStartTime(new Date());
-            setIsTimerActive(true);
-        } else {
-            setSelectedTimerDuration(null);
-            setRoundStartTime(null);
-            setIsTimerActive(false);
-        }
+        // Reset timer state for host
+        setSelectedTimerDuration(timerDuration || null);
+        setRoundStartTime(new Date());
+        setIsTimerActive(!!timerDuration);
+        lastSyncedTimerRef.current = null;
         
         await signalRService.startRound(game.joinCode, prompt, timerDuration);
     };
 
     const submitAnswer = async (answer: string) => {
         if (!game?.joinCode || !player?.playerId) return;
-        await signalRService.sendAnswer(game.joinCode, answer);
+        
+        // Prevent double submissions
+        if (submissionInProgressRef.current) {
+            console.log('Submission already in progress, skipping');
+            return;
+        }
+        
+        // Check if already submitted
+        if (playersWhoSubmitted.has(player.playerId)) {
+            console.log('Player already submitted, skipping');
+            return;
+        }
+        
+        submissionInProgressRef.current = true;
+        
+        try {
+            await signalRService.sendAnswer(game.joinCode, answer);
+            console.log('Answer submitted successfully');
+        } catch (error) {
+            console.error('Error submitting answer:', error);
+            // If submission fails due to connection issues, try to reconnect and submit
+            if (signalRService.isInGame()) {
+                try {
+                    console.log('Attempting to reconnect and retry submission');
+                    await signalRService.joinGame(game.joinCode, player.name);
+                    await signalRService.sendAnswer(game.joinCode, answer);
+                    console.log('Answer submitted successfully after reconnection');
+                } catch (retryError) {
+                    console.error('Error retrying answer submission:', retryError);
+                    submissionInProgressRef.current = false;
+                    throw retryError;
+                }
+            } else {
+                submissionInProgressRef.current = false;
+                throw error;
+            }
+        } finally {
+            // Reset submission flag after a short delay to allow for state updates
+            setTimeout(() => {
+                submissionInProgressRef.current = false;
+            }, 1000);
+        }
     };
 
-    // Timer countdown effect for frontend display and auto-submission
+    // Improved timer countdown effect with better error handling and auto-submission
     useEffect(() => {
+        // Clear any existing timer
+        if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
+        }
+
         if (!isTimerActive || !selectedTimerDuration || !roundStartTime || !player) {
             setTimeRemaining(null);
             return;
@@ -367,6 +416,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
         // Stop timer if all non-host players have submitted
         if (allNonHostPlayersSubmitted) {
+            console.log('All non-host players have submitted, stopping timer');
             setTimeRemaining(0);
             setIsTimerActive(false);
             return;
@@ -374,6 +424,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
         // Don't show timer for players who have already submitted
         if (!isReader && playersWhoSubmitted.has(player.playerId)) {
+            console.log('Player already submitted, hiding timer');
             setTimeRemaining(null);
             return;
         }
@@ -384,18 +435,34 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             const remaining = (selectedTimerDuration * 60) - elapsed;
             
             if (remaining <= 0) {
+                console.log('Timer expired, calling auto-submission');
                 setTimeRemaining(0);
                 setIsTimerActive(false);
-                // Call the timer expire callback for auto-submission
-                if (onTimerExpire) {
-                    onTimerExpire();
+                
+                // Call the timer expire callback for auto-submission with error handling
+                if (onTimerExpire && !submissionInProgressRef.current) {
+                    try {
+                        console.log('Timer expired, calling auto-submission callback');
+                        onTimerExpire();
+                    } catch (error) {
+                        console.error('Error in timer expire callback:', error);
+                    }
+                } else if (submissionInProgressRef.current) {
+                    console.log('Submission already in progress, skipping auto-submission');
                 }
             } else {
                 setTimeRemaining(remaining);
             }
         }, 1000);
 
-        return () => clearInterval(interval);
+        timerIntervalRef.current = interval;
+
+        return () => {
+            if (timerIntervalRef.current) {
+                clearInterval(timerIntervalRef.current);
+                timerIntervalRef.current = null;
+            }
+        };
     }, [isTimerActive, selectedTimerDuration, roundStartTime, playersWhoSubmitted, player?.playerId, onTimerExpire, players, isReader]);
 
     // Reset timer when round changes
@@ -403,6 +470,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         if (!currentRound) {
             setIsTimerActive(false);
             setTimeRemaining(null);
+            if (timerIntervalRef.current) {
+                clearInterval(timerIntervalRef.current);
+                timerIntervalRef.current = null;
+            }
         }
     }, [currentRound?.roundId]);
 
@@ -426,6 +497,12 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         setAnswers([]);
         setPlayersWhoSubmitted(new Set());
         handlersSetupRef.current = false;
+        lastSyncedTimerRef.current = null;
+        submissionInProgressRef.current = false;
+        if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+            timerIntervalRef.current = null;
+        }
         removeCookie('currentGame');
         removeCookie('currentPlayer');
     };
