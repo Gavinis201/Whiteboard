@@ -61,6 +61,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const timerIntervalRef = useRef<number | null>(null);
     const lastSyncedTimerRef = useRef<{ roundId: number; remainingSeconds: number } | null>(null);
     const submissionInProgressRef = useRef<boolean>(false);
+    const isJoiningRef = useRef<boolean>(false);
 
     const players = game?.players || [];
 
@@ -69,6 +70,16 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setLoadingMessage('Loading saved game state...');
             const savedGame = getCookie('currentGame');
             const savedPlayer = getCookie('currentPlayer');
+            
+            // Check if we're in the process of joining (this might happen during page refresh)
+            if (isJoiningRef.current) {
+                console.log('Skipping initialization - currently joining a game');
+                setIsInitialized(true);
+                setIsLoading(false);
+                setLoadingMessage('');
+                return;
+            }
+            
             if (savedGame && savedPlayer) {
                 try {
                     const parsedGame = JSON.parse(savedGame);
@@ -95,11 +106,28 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         const savedGame = getCookie('currentGame');
         const savedPlayer = getCookie('currentPlayer');
         
+        // Don't auto-reconnect if we're in the process of joining a game
+        if (isJoiningRef.current) {
+            console.log('Auto-reconnection skipped - currently joining a game');
+            return;
+        }
+        
         if (savedGame && savedPlayer && game?.joinCode && player?.name) {
             const parsedSavedGame = JSON.parse(savedGame);
             const parsedSavedPlayer = JSON.parse(savedPlayer);
             
-            if (parsedSavedGame.joinCode === game.joinCode && parsedSavedPlayer.name === player.name) {
+            console.log('Checking auto-reconnection:');
+            console.log('Saved game join code:', parsedSavedGame.joinCode);
+            console.log('Current game join code:', game.joinCode);
+            console.log('Saved player name:', parsedSavedPlayer.name);
+            console.log('Current player name:', player.name);
+            console.log('Saved player isReader:', parsedSavedPlayer.isReader);
+            console.log('Current player isReader:', player.isReader);
+            
+            // Only auto-reconnect if the saved game matches AND the player details match exactly
+            if (parsedSavedGame.joinCode === game.joinCode && 
+                parsedSavedPlayer.name === player.name &&
+                parsedSavedPlayer.isReader === player.isReader) {
                 const connectAndJoin = async () => {
                     try {
                         setIsLoading(true);
@@ -119,9 +147,14 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     }
                 };
                 connectAndJoin();
+            } else {
+                console.log('Auto-reconnection skipped - player details do not match');
+                // Clear stale cookies if they don't match
+                removeCookie('currentGame');
+                removeCookie('currentPlayer');
             }
         }
-    }, [game?.joinCode, player?.name]);
+    }, [game?.joinCode, player?.name, player?.isReader]);
 
     useEffect(() => {
         if (!isInitialized || !game?.joinCode || handlersSetupRef.current) return;
@@ -313,12 +346,31 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         console.log('Starting createGame, setting loading to true');
         setIsLoading(true);
         setLoadingMessage('Creating game...');
+        isJoiningRef.current = true;
         try {
             console.log('Calling leaveGame...');
             await leaveGame();
+            
+            // Clear any existing cookies before creating to prevent session conflicts
+            console.log('Clearing existing cookies before creating new game');
+            removeCookie('currentGame');
+            removeCookie('currentPlayer');
+            
+            // Clear any existing state to ensure clean start
+            setGame(null);
+            setPlayer(null);
+            setCurrentRound(null);
+            setAnswers([]);
+            setPlayersWhoSubmitted(new Set());
+            setIsReader(false);
+            
             const gameData = await createGameApi();
             const playerData = await joinGameApi(gameData.joinCode, playerName);
             const fullGameData = await getGame(gameData.joinCode);
+            
+            console.log('Create game response - Player data:', playerData);
+            console.log('Create game response - Game data:', fullGameData);
+            console.log('Player isReader:', playerData.isReader);
             
             setGame(convertToExtendedGame(fullGameData));
             setPlayer(playerData);
@@ -334,6 +386,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setIsLoading(false);
             setLoadingMessage('');
             throw error;
+        } finally {
+            isJoiningRef.current = false;
         }
     };
 
@@ -341,11 +395,38 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         console.log('Starting joinGame, setting loading to true');
         setIsLoading(true);
         setLoadingMessage('Joining game...');
+        isJoiningRef.current = true;
         try {
             console.log('Calling leaveGame...');
             await leaveGame();
+            
+            // Clear any existing cookies before joining to prevent session conflicts
+            console.log('Clearing existing cookies before joining new game');
+            removeCookie('currentGame');
+            removeCookie('currentPlayer');
+            
+            // Clear any existing state to ensure clean start
+            setGame(null);
+            setPlayer(null);
+            setCurrentRound(null);
+            setAnswers([]);
+            setPlayersWhoSubmitted(new Set());
+            setIsReader(false);
+            
+            // Force a small delay to ensure state is cleared
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
             const playerData = await joinGameApi(joinCode, playerName);
             const gameData = await getGame(joinCode);
+            
+            console.log('Join game response - Player data:', playerData);
+            console.log('Join game response - Game data:', gameData);
+            console.log('Player isReader:', playerData.isReader);
+            
+            // Verify we're not getting host data when we shouldn't be
+            if (playerData.isReader) {
+                console.warn('WARNING: Joining player received isReader=true. This might indicate a backend issue.');
+            }
             
             setGame(convertToExtendedGame(gameData));
             setPlayer(playerData);
@@ -361,6 +442,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setIsLoading(false);
             setLoadingMessage('');
             throw error;
+        } finally {
+            isJoiningRef.current = false;
         }
     };
 
