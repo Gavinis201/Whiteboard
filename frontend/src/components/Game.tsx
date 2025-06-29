@@ -27,6 +27,7 @@ export const Game: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [drawingHistory, setDrawingHistory] = useState<ImageData[]>([]);
+    const [undoneStrokes, setUndoneStrokes] = useState<ImageData[]>([]);
     const [flippedCards, setFlippedCards] = useState<Set<number>>(new Set());
     const [selectedColor, setSelectedColor] = useState('#000000');
     const [brushSize, setBrushSize] = useState(5);
@@ -195,6 +196,9 @@ export const Game: React.FC = () => {
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             setDrawingHistory(prev => [...prev, imageData]);
             
+            // Clear undone strokes when a new stroke is drawn
+            setUndoneStrokes([]);
+            
             // Reset movement tracking
             setHasMoved(false);
         }
@@ -203,8 +207,27 @@ export const Game: React.FC = () => {
     const undoLastStroke = () => {
         if (drawingHistory.length === 0) return;
         
-        // Remove the last stroke from history
+        // Get the last stroke and remove it from history
+        const lastStroke = drawingHistory[drawingHistory.length - 1];
         setDrawingHistory(prev => prev.slice(0, -1));
+        
+        // Add the undone stroke to the undone strokes array
+        setUndoneStrokes(prev => [...prev, lastStroke]);
+        
+        // Reset drawing state
+        setIsDrawing(false);
+        setHasMoved(false);
+    };
+
+    const redoLastStroke = () => {
+        if (undoneStrokes.length === 0) return;
+        
+        // Get the last undone stroke and remove it from undone strokes
+        const strokeToRedo = undoneStrokes[undoneStrokes.length - 1];
+        setUndoneStrokes(prev => prev.slice(0, -1));
+        
+        // Add the stroke back to drawing history
+        setDrawingHistory(prev => [...prev, strokeToRedo]);
         
         // Reset drawing state
         setIsDrawing(false);
@@ -221,8 +244,9 @@ export const Game: React.FC = () => {
     };
 
     const clearCanvasWithoutConfirmation = () => {
-        // Clear the drawing history
+        // Clear the drawing history and undone strokes
         setDrawingHistory([]);
+        setUndoneStrokes([]);
         
         // Immediately clear the canvas
         const canvas = canvasRef.current;
@@ -538,6 +562,16 @@ export const Game: React.FC = () => {
                                                 >
                                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                                                    </svg>
+                                                </button>
+                                                <button 
+                                                    onClick={redoLastStroke} 
+                                                    disabled={undoneStrokes.length === 0} 
+                                                    className="p-2 rounded-full bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                                    title="Redo last stroke"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                                     </svg>
                                                 </button>
                                                 <button 
