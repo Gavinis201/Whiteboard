@@ -132,10 +132,15 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         signalRService.onGameStateSynced((payload: GameStatePayload) => {
             console.log("Syncing full game state:", payload);
             console.log("Current answers:", payload.currentAnswers);
-            console.log("Setting playersWhoSubmitted to:", payload.currentAnswers?.map(a => a.playerId) || []);
+            console.log("Current round ID:", payload.activeRound?.roundId);
+            console.log("Previous round ID:", currentRound?.roundId);
+            
             setGame(prevGame => ({ ...(prevGame as ExtendedGame), players: payload.players }));
             
             if (payload.activeRound) {
+                const isNewRound = currentRound?.roundId !== payload.activeRound.roundId;
+                console.log("Is new round:", isNewRound);
+                
                 setCurrentRound({
                     prompt: payload.activeRound.prompt,
                     isCompleted: payload.activeRound.isCompleted,
@@ -177,6 +182,20 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     setRoundStartTime(null);
                     lastSyncedTimerRef.current = null;
                 }
+                
+                // Handle answers and submission state
+                if (isNewRound) {
+                    // For new rounds, always start with empty state regardless of backend data
+                    console.log("New round detected, clearing answers and submission state");
+                    setAnswers([]);
+                    setPlayersWhoSubmitted(new Set());
+                } else {
+                    // For existing rounds, use backend data but filter by current round
+                    const currentRoundAnswers = payload.currentAnswers?.filter(a => a.roundId === payload.activeRound?.roundId) || [];
+                    console.log("Existing round, using filtered answers:", currentRoundAnswers);
+                    setAnswers(currentRoundAnswers);
+                    setPlayersWhoSubmitted(new Set(currentRoundAnswers.map(a => a.playerId)));
+                }
             } else {
                 setCurrentRound(null);
                 // Reset timer state when no active round
@@ -185,11 +204,11 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 setIsTimerActive(false);
                 setRoundStartTime(null);
                 lastSyncedTimerRef.current = null;
+                
+                // Clear answers when no active round
+                setAnswers([]);
+                setPlayersWhoSubmitted(new Set());
             }
-            
-            // Always rehydrate answers and submission state from backend
-            setAnswers(payload.currentAnswers || []);
-            setPlayersWhoSubmitted(new Set(payload.currentAnswers?.map(a => a.playerId) || []));
         });
 
         signalRService.onPlayerListUpdated((updatedPlayers: Player[]) => {
@@ -216,6 +235,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         signalRService.onRoundStarted((prompt, roundId, timerDurationMinutes) => {
             console.log("Round started with prompt:", prompt, "roundId:", roundId, "timer:", timerDurationMinutes);
             console.log("Clearing answers and playersWhoSubmitted for new round");
+            console.log("Previous round ID:", currentRound?.roundId, "New round ID:", roundId);
             
             // Always reset timer state for new rounds to ensure consistency
             setSelectedTimerDuration(timerDurationMinutes || null);
@@ -230,8 +250,14 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 gameId: game?.gameId || 0,
                 timerDurationMinutes: timerDurationMinutes
             });
+            
+            // Force clear answers and submission state for new round
+            console.log("Force clearing answers and playersWhoSubmitted");
             setAnswers([]);
             setPlayersWhoSubmitted(new Set());
+            
+            // Also reset submission flag
+            submissionInProgressRef.current = false;
         });
 
         signalRService.onAnswerReceived((playerId, playerName, answer) => {
