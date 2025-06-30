@@ -11,8 +11,7 @@ export const Game: React.FC = () => {
         game, player, currentRound, answers, isReader,
         playersWhoSubmitted, startNewRound, submitAnswer, players, leaveGame, kickPlayer,
         isLoading, loadingMessage, selectedTimerDuration, timeRemaining, roundStartTime, isTimerActive,
-        setSelectedTimerDuration, setTimeRemaining, setRoundStartTime, setIsTimerActive, setOnTimerExpire,
-        hasSyncedSubmissionStatus
+        setSelectedTimerDuration, setTimeRemaining, setRoundStartTime, setIsTimerActive, setOnTimerExpire
     } = useGame();
     const navigate = useNavigate();
 
@@ -530,15 +529,7 @@ export const Game: React.FC = () => {
                                     <h4 className="text-lg font-semibold text-purple-700 mb-2">Current Prompt:</h4>
                                     <p className="text-lg text-gray-800">"{currentRound.prompt}"</p>
                                 </div>
-                                {/* Show loading while syncing submission status */}
-                                {!hasSyncedSubmissionStatus ? (
-                                    <div className="bg-blue-50 text-blue-700 p-4 rounded-lg">
-                                        <div className="flex items-center gap-2">
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-700"></div>
-                                            Syncing submission status...
-                                        </div>
-                                    </div>
-                                ) : playersWhoSubmitted.has(player.playerId) ? (
+                                {playersWhoSubmitted.has(player.playerId) ? (
                                     <div className="bg-green-50 text-green-700 p-4 rounded-lg">Submitted! Waiting...</div>
                                 ) : (
                                     <>
