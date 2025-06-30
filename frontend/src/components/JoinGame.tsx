@@ -5,7 +5,7 @@ export const JoinGame: React.FC = () => {
     const [joinCode, setJoinCode] = useState('');
     const [playerName, setPlayerName] = useState('');
     const { joinGame, isLoading, error, clearError } = useGame();
-
+ 
     // Clear any existing error when component mounts
     useEffect(() => {
         clearError();
