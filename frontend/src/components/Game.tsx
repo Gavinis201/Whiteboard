@@ -539,7 +539,9 @@ export const Game: React.FC = () => {
                                                     <button 
                                                         key={color} 
                                                         onClick={() => setSelectedColor(color)} 
-                                                        className={`w-7 h-7 rounded-full border-2 ${selectedColor === color ? 'border-purple-600 scale-110' : 'border-transparent'}`} 
+                                                        className={`w-7 h-7 rounded-full border-2 ${selectedColor === color ? 'border-purple-600 scale-110' : 'border-transparent'} ${
+                                                            color === '#FFFFFF' ? 'shadow-[0_0_0_1px_rgba(0,0,0,0.3)]' : ''
+                                                        }`} 
                                                         style={{ backgroundColor: color }} 
                                                     />
                                                 ))}
@@ -587,7 +589,11 @@ export const Game: React.FC = () => {
                                         </div>
                                         <div className="canvas-container"><canvas ref={canvasRef} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} /></div>
                                         <div className="flex flex-col sm:flex-row items-center gap-4 mt-2">
-                                            <input type="range" min="1" max="30" value={brushSize} onChange={e => setBrushSize(Number(e.target.value))} className="w-full" />
+                                            <div className="flex flex-row gap-2">
+                                                🖌️
+                                                <input type="range" min="1" max="30" value={brushSize} onChange={e => setBrushSize(Number(e.target.value))} className="w-full" />
+
+                                            </div>
                                             <button 
                                                 onClick={handleSubmitAnswer} 
                                                 disabled={!!compressionStatus} 
