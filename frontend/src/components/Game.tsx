@@ -308,7 +308,7 @@ export const Game: React.FC = () => {
         if (!prompt.trim() || !game) return;
         await startNewRound(prompt, selectedTimerDuration || undefined);
         setPrompt('');
-        setSelectedTimerDuration(null);
+        // setSelectedTimerDuration(null);
     };
     
     const handleCardClick = (answerId: number) => {
