@@ -66,6 +66,13 @@ public class GameHub : Hub
         }
         else
         {
+            // Check if the name is already taken by another player or the host
+            var nameTaken = game.Players.Any(p => p.Name.Equals(playerName, StringComparison.OrdinalIgnoreCase));
+            if (nameTaken)
+            {
+                throw new HubException($"The name '{playerName}' is already taken. Please choose a different name.");
+            }
+
             currentPlayer = new Player
             {
                 Name = playerName,

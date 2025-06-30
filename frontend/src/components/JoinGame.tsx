@@ -19,8 +19,17 @@ export const JoinGame: React.FC = () => {
         try {
             await joinGame(joinCode, playerName);
             // Navigation is now handled declaratively in App.tsx
-        } catch (err) {
-            setError('Failed to join game. Please check the game code and try again.');
+        } catch (err: any) {
+            // Handle specific error messages from the backend
+            if (err?.response?.data) {
+                // This is an HTTP error response from the API
+                setError(err.response.data);
+            } else if (err?.message) {
+                // This is likely a SignalR hub exception
+                setError(err.message);
+            } else {
+                setError('Failed to join game. Please check the game code and try again.');
+            }
         }
     };
 

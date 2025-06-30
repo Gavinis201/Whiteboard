@@ -53,11 +53,20 @@ export const getGame = async (joinCode: string): Promise<Game> => {
 };
 
 export const joinGame = async (joinCode: string, playerName: string): Promise<Player> => {
-    const response = await axios.post(`${API_URL}/players/join`, {
-        joinCode,
-        playerName
-    });
-    return response.data;
+    try {
+        const response = await axios.post(`${API_URL}/players/join`, {
+            joinCode,
+            playerName
+        });
+        return response.data;
+    } catch (error: any) {
+        // If it's an axios error with a response, throw it with the error message
+        if (error.response?.data) {
+            throw new Error(error.response.data);
+        }
+        // Otherwise, re-throw the original error
+        throw error;
+    }
 };
 
 export const startRound = async (round: Omit<Round, 'roundId'>): Promise<Round> => {

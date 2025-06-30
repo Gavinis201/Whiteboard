@@ -22,8 +22,14 @@ const Home: React.FC = () => {
             if (joinCode && playerName) {
                 await joinGame(joinCode, playerName);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error joining game:', error);
+            // Display the error message to the user
+            if (error?.message) {
+                alert(`Error joining game: ${error.message}`);
+            } else {
+                alert('Failed to join game. Please check the game code and try again.');
+            }
         }
     };
 

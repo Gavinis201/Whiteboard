@@ -437,11 +437,17 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log('Game joined successfully, clearing loading state');
             setIsLoading(false);
             setLoadingMessage('');
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error joining game:', error);
             setIsLoading(false);
             setLoadingMessage('');
-            throw error;
+            
+            // Propagate the error with the specific message
+            if (error?.message) {
+                throw new Error(error.message);
+            } else {
+                throw new Error('Failed to join game. Please check the game code and try again.');
+            }
         } finally {
             isJoiningRef.current = false;
         }
