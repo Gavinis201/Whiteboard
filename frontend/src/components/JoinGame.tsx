@@ -1,27 +1,51 @@
 import React, { useState, useEffect } from 'react';
 import { useGame } from '../contexts/GameContext';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export const JoinGame: React.FC = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    // Read error from query string on mount
+    const params = new URLSearchParams(location.search);
+    const initialError = params.get('error') || '';
     const [joinCode, setJoinCode] = useState('');
     const [playerName, setPlayerName] = useState('');
-    const { joinGame, isLoading, error, clearError } = useGame();
- 
-    // Clear any existing error when component mounts
+    const [error, setError] = useState(initialError);
+    const { joinGame, isLoading } = useGame();
+
     useEffect(() => {
-        clearError();
-    }, [clearError]);
+        // Clear error from URL after displaying it
+        if (error && location.search.includes('error=')) {
+            const params = new URLSearchParams(location.search);
+            params.delete('error');
+            navigate({ pathname: '/join', search: params.toString() }, { replace: true });
+        }
+    }, [error, location.search, navigate]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         window.scrollTo({ top: 0, behavior: 'smooth' });
         if (!joinCode.trim() || !playerName.trim()) {
-            clearError();
+            setError('Game code and player name cannot be empty.');
             return;
         }
-        clearError();
+        setError('');
 
-        await joinGame(joinCode, playerName);
-        // Navigation is now handled declaratively in App.tsx
+        try {
+            await joinGame(joinCode, playerName);
+            // Navigation is now handled declaratively in App.tsx
+        } catch (err: any) {
+            let message = '';
+            if (err?.response?.data) {
+                message = err.response.data;
+            } else if (err?.message) {
+                message = err.message;
+            } else {
+                message = 'Failed to join game. Please check the game code and try again.';
+            }
+            // Redirect to /join with error in query string
+            navigate(`/join?error=${encodeURIComponent(message)}`);
+        }
     };
 
     return (
@@ -49,10 +73,7 @@ export const JoinGame: React.FC = () => {
                                 className="input uppercase text-sm sm:text-base"
                                 placeholder="Enter game code"
                                 value={joinCode}
-                                onChange={(e) => {
-                                    setJoinCode(e.target.value.toUpperCase());
-                                    if (error) clearError();
-                                }}
+                                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                                 maxLength={6}
                                 disabled={isLoading}
                                 autoFocus
@@ -70,10 +91,7 @@ export const JoinGame: React.FC = () => {
                                 className="input text-sm sm:text-base"
                                 placeholder="Enter your name"
                                 value={playerName}
-                                onChange={(e) => {
-                                    setPlayerName(e.target.value);
-                                    if (error) clearError();
-                                }}
+                                onChange={(e) => setPlayerName(e.target.value)}
                                 disabled={isLoading}
                             />
                         </div>
@@ -92,10 +110,7 @@ export const JoinGame: React.FC = () => {
                                 }
                             </div>
                             <div className="mt-1">
-                                {error.toLowerCase().includes('already taken') || error.toLowerCase().includes('already being used')
-                                    ? 'That name is already being used for this game. Please choose a different name.'
-                                    : error
-                                }
+                                {error}
                             </div>
                         </div>
                     )}
