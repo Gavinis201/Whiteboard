@@ -27,14 +27,7 @@ public class PlayersController : ControllerBase
             return NotFound("Game not found");
         }
 
-        // Check if player already exists in this game (for reconnection)
-        var existingPlayer = game.Players.FirstOrDefault(p => p.Name == request.PlayerName);
-        if (existingPlayer != null)
-        {
-            return Ok(existingPlayer);
-        }
-
-        // Check if the name is already taken by another player or the host
+        // Check if the name is already taken by any player in this game (case-insensitive)
         var nameTaken = game.Players.Any(p => p.Name.Equals(request.PlayerName, StringComparison.OrdinalIgnoreCase));
         if (nameTaken)
         {

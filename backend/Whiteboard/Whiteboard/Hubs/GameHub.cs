@@ -45,28 +45,41 @@ public class GameHub : Hub
             
         if (game == null) throw new HubException("Game not found");
 
-        var isReconnecting = game.Players.Any(p => p.Name == playerName);
-        Player currentPlayer;
+        // Check if this specific connection is trying to reconnect to an existing session
+        var connectionKey = $"{joinCode}_{playerName}";
+        var isReconnecting = _playerConnectionIds.TryGetValue(connectionKey, out var existingConnectionId) && 
+                            existingConnectionId != Context.ConnectionId;
+        
+        Player currentPlayer = null;
 
         if (isReconnecting)
         {
-            currentPlayer = game.Players.First(p => p.Name == playerName);
-            _logger.LogInformation("Player {PlayerName} reconnecting with new connection ID {ConnectionId}.", playerName, Context.ConnectionId);
-            
-            // Remove from disconnected players list if they were there
-            var reconnectingKey = $"{joinCode}_{playerName}";
-            if (_disconnectedPlayers.TryRemove(reconnectingKey, out var disconnectedInfo))
+            // This is a legitimate reconnection - find the existing player
+            currentPlayer = game.Players.FirstOrDefault(p => p.Name == playerName);
+            if (currentPlayer != null)
             {
-                _logger.LogInformation("Player {PlayerName} successfully reconnected, removed from disconnected list", playerName);
+                _logger.LogInformation("Player {PlayerName} reconnecting with new connection ID {ConnectionId}.", playerName, Context.ConnectionId);
+                // Remove from disconnected players list if they were there
+                var reconnectingKey = $"{joinCode}_{playerName}";
+                if (_disconnectedPlayers.TryRemove(reconnectingKey, out var disconnectedInfo))
+                {
+                    _logger.LogInformation("Player {PlayerName} successfully reconnected, removed from disconnected list", playerName);
+                }
+                else
+                {
+                    _logger.LogInformation("Player {PlayerName} reconnecting but was not in disconnected list", playerName);
+                }
             }
             else
             {
-                _logger.LogInformation("Player {PlayerName} reconnecting but was not in disconnected list", playerName);
+                // Player doesn't exist in database, treat as new player
+                isReconnecting = false;
             }
         }
-        else
+
+        if (!isReconnecting)
         {
-            // Check if the name is already taken by another player or the host
+            // Check if the name is already taken by any player in this game (case-insensitive)
             var nameTaken = game.Players.Any(p => p.Name.Equals(playerName, StringComparison.OrdinalIgnoreCase));
             if (nameTaken)
             {
@@ -92,7 +105,6 @@ public class GameHub : Hub
         Context.Items["PlayerName"] = playerName;
 
         // Track the connection ID for this player
-        var connectionKey = $"{joinCode}_{playerName}";
         string? oldConnectionId = null;
         _playerConnectionIds.AddOrUpdate(connectionKey, Context.ConnectionId, (key, oldValue) => 
         {
