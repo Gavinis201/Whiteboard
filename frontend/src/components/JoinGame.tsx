@@ -37,6 +37,7 @@ export const JoinGame: React.FC = () => {
             console.log('Final error message:', message);
             console.log('Message contains "already taken":', message.toLowerCase().includes('already taken'));
             
+            // Check for the exact backend error message format
             if (message.toLowerCase().includes('already taken')) {
                 setError('That name is already being used for this game. Please choose a different name.');
             } else {
@@ -95,8 +96,20 @@ export const JoinGame: React.FC = () => {
                     </div>
 
                     {error && (
-                        <div className="text-red-500 text-sm text-center bg-red-50 p-2 rounded-md">
-                            {error}
+                        <div className={`text-sm text-center p-3 rounded-md border ${
+                            error.toLowerCase().includes('already taken') || error.toLowerCase().includes('already being used')
+                                ? 'text-red-700 bg-red-100 border-red-300'
+                                : 'text-red-500 bg-red-50 border-red-200'
+                        }`}>
+                            <div className="font-medium">
+                                {error.toLowerCase().includes('already taken') || error.toLowerCase().includes('already being used')
+                                    ? '⚠️ Name Already Taken'
+                                    : 'Error'
+                                }
+                            </div>
+                            <div className="mt-1">
+                                {error}
+                            </div>
                         </div>
                     )}
 
