@@ -589,10 +589,16 @@ export const Game: React.FC = () => {
                                         </div>
                                         <div className="canvas-container"><canvas ref={canvasRef} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} /></div>
                                         <div className="flex flex-col sm:flex-row items-center gap-4 mt-2">
-                                            <div className="flex flex-row gap-2">
+                                            <div className="flex flex-row gap-2 items-center w-full">
                                                 🖌️
-                                                <input type="range" min="1" max="30" value={brushSize} onChange={e => setBrushSize(Number(e.target.value))} className="w-full" />
-
+                                                <input
+                                                    type="range"
+                                                    min="1"
+                                                    max="30"
+                                                    value={brushSize}
+                                                    onChange={e => setBrushSize(Number(e.target.value))}
+                                                    className="flex-grow"
+                                                />
                                             </div>
                                             <button 
                                                 onClick={handleSubmitAnswer} 
