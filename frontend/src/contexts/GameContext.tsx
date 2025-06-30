@@ -23,6 +23,8 @@ interface GameContextType {
     isInitialized: boolean;
     isLoading: boolean;
     loadingMessage: string;
+    error: string | null;
+    clearError: () => void;
     selectedTimerDuration: number | null;
     timeRemaining: number | null;
     roundStartTime: Date | null;
@@ -52,6 +54,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const [isInitialized, setIsInitialized] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [loadingMessage, setLoadingMessage] = useState('Initializing...');
+    const [error, setError] = useState<string | null>(null);
     const [selectedTimerDuration, setSelectedTimerDuration] = useState<number | null>(null);
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [roundStartTime, setRoundStartTime] = useState<Date | null>(null);
@@ -442,11 +445,11 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setIsLoading(false);
             setLoadingMessage('');
             
-            // Propagate the error with the specific message
+            // Set the error in the context instead of throwing
             if (error?.message) {
-                throw new Error(error.message);
+                setError(error.message);
             } else {
-                throw new Error('Failed to join game. Please check the game code and try again.');
+                setError('Failed to join game. Please check the game code and try again.');
             }
         } finally {
             isJoiningRef.current = false;
@@ -622,6 +625,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         removeCookie('currentPlayer');
     };
 
+    const clearError = () => {
+        setError(null);
+    };
+
     return (
         <GameContext.Provider value={{
             game,
@@ -634,6 +641,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             isInitialized,
             isLoading,
             loadingMessage,
+            error,
+            clearError,
             selectedTimerDuration,
             timeRemaining,
             roundStartTime,

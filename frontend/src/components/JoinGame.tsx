@@ -1,49 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGame } from '../contexts/GameContext';
 
 export const JoinGame: React.FC = () => {
     const [joinCode, setJoinCode] = useState('');
     const [playerName, setPlayerName] = useState('');
-    const [error, setError] = useState('');
-    const { joinGame, isLoading } = useGame();
+    const { joinGame, isLoading, error, clearError } = useGame();
+
+    // Clear any existing error when component mounts
+    useEffect(() => {
+        clearError();
+    }, [clearError]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         window.scrollTo({ top: 0, behavior: 'smooth' });
         if (!joinCode.trim() || !playerName.trim()) {
-            setError('Game code and player name cannot be empty.');
+            clearError();
             return;
         }
-        setError('');
+        clearError();
 
-        try {
-            await joinGame(joinCode, playerName);
-            // Navigation is now handled declaratively in App.tsx
-        } catch (err: any) {
-            console.log('JoinGame error caught:', err);
-            console.log('Error response data:', err?.response?.data);
-            console.log('Error message:', err?.message);
-            
-            // Handle specific error messages from the backend
-            let message = '';
-            if (err?.response?.data) {
-                message = err.response.data;
-            } else if (err?.message) {
-                message = err.message;
-            } else {
-                message = 'Failed to join game. Please check the game code and try again.';
-            }
-            
-            console.log('Final error message:', message);
-            console.log('Message contains "already taken":', message.toLowerCase().includes('already taken'));
-            
-            // Check for the exact backend error message format
-            if (message.toLowerCase().includes('already taken')) {
-                setError('That name is already being used for this game. Please choose a different name.');
-            } else {
-                setError(message);
-            }
-        }
+        await joinGame(joinCode, playerName);
+        // Navigation is now handled declaratively in App.tsx
     };
 
     return (
@@ -71,7 +49,10 @@ export const JoinGame: React.FC = () => {
                                 className="input uppercase text-sm sm:text-base"
                                 placeholder="Enter game code"
                                 value={joinCode}
-                                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                                onChange={(e) => {
+                                    setJoinCode(e.target.value.toUpperCase());
+                                    if (error) clearError();
+                                }}
                                 maxLength={6}
                                 disabled={isLoading}
                                 autoFocus
@@ -89,7 +70,10 @@ export const JoinGame: React.FC = () => {
                                 className="input text-sm sm:text-base"
                                 placeholder="Enter your name"
                                 value={playerName}
-                                onChange={(e) => setPlayerName(e.target.value)}
+                                onChange={(e) => {
+                                    setPlayerName(e.target.value);
+                                    if (error) clearError();
+                                }}
                                 disabled={isLoading}
                             />
                         </div>
@@ -108,7 +92,10 @@ export const JoinGame: React.FC = () => {
                                 }
                             </div>
                             <div className="mt-1">
-                                {error}
+                                {error.toLowerCase().includes('already taken') || error.toLowerCase().includes('already being used')
+                                    ? 'That name is already being used for this game. Please choose a different name.'
+                                    : error
+                                }
                             </div>
                         </div>
                     )}
