@@ -20,6 +20,10 @@ export const JoinGame: React.FC = () => {
             await joinGame(joinCode, playerName);
             // Navigation is now handled declaratively in App.tsx
         } catch (err: any) {
+            console.log('JoinGame error caught:', err);
+            console.log('Error response data:', err?.response?.data);
+            console.log('Error message:', err?.message);
+            
             // Handle specific error messages from the backend
             let message = '';
             if (err?.response?.data) {
@@ -29,6 +33,10 @@ export const JoinGame: React.FC = () => {
             } else {
                 message = 'Failed to join game. Please check the game code and try again.';
             }
+            
+            console.log('Final error message:', message);
+            console.log('Message contains "already taken":', message.toLowerCase().includes('already taken'));
+            
             if (message.toLowerCase().includes('already taken')) {
                 setError('That name is already being used for this game. Please choose a different name.');
             } else {
