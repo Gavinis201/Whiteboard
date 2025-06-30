@@ -21,14 +21,18 @@ export const JoinGame: React.FC = () => {
             // Navigation is now handled declaratively in App.tsx
         } catch (err: any) {
             // Handle specific error messages from the backend
+            let message = '';
             if (err?.response?.data) {
-                // This is an HTTP error response from the API
-                setError(err.response.data);
+                message = err.response.data;
             } else if (err?.message) {
-                // This is likely a SignalR hub exception
-                setError(err.message);
+                message = err.message;
             } else {
-                setError('Failed to join game. Please check the game code and try again.');
+                message = 'Failed to join game. Please check the game code and try again.';
+            }
+            if (message.toLowerCase().includes('already taken')) {
+                setError('That name is already being used for this game. Please choose a different name.');
+            } else {
+                setError(message);
             }
         }
     };

@@ -27,14 +27,13 @@ public class PlayersController : ControllerBase
             return NotFound("Game not found");
         }
 
-        // Check if the name is already taken by any player in this game (case-insensitive)
+        // Strict uniqueness check
         var nameTaken = game.Players.Any(p => p.Name.Equals(request.PlayerName, StringComparison.OrdinalIgnoreCase));
         if (nameTaken)
         {
             return BadRequest($"The name '{request.PlayerName}' is already taken. Please choose a different name.");
         }
 
-        // Check if this is the first player joining (they become the reader)
         var isFirstPlayer = !game.Players.Any();
 
         var player = new Player
