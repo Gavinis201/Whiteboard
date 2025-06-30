@@ -32,6 +32,7 @@ interface GameContextType {
     setRoundStartTime: (time: Date | null) => void;
     setIsTimerActive: (active: boolean) => void;
     setOnTimerExpire: (callback: (() => void) | null) => void;
+    hasSyncedSubmissionStatus: boolean;
     createGame: (playerName: string) => Promise<void>;
     joinGame: (joinCode: string, playerName: string) => Promise<void>;
     startNewRound: (prompt: string, timerDuration?: number) => Promise<void>;
@@ -57,6 +58,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const [roundStartTime, setRoundStartTime] = useState<Date | null>(null);
     const [isTimerActive, setIsTimerActive] = useState(false);
     const [onTimerExpire, setOnTimerExpire] = useState<(() => void) | null>(null);
+    const [hasSyncedSubmissionStatus, setHasSyncedSubmissionStatus] = useState(false);
     const handlersSetupRef = useRef<boolean>(false);
     const timerIntervalRef = useRef<number | null>(null);
     const lastSyncedTimerRef = useRef<{ roundId: number; remainingSeconds: number } | null>(null);
@@ -222,12 +224,14 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     console.log("New round detected, clearing answers and submission state");
                     setAnswers([]);
                     setPlayersWhoSubmitted(new Set());
+                    setHasSyncedSubmissionStatus(true);
                 } else {
                     // For existing rounds, use backend data but filter by current round
                     const currentRoundAnswers = payload.currentAnswers?.filter(a => a.roundId === payload.activeRound?.roundId) || [];
                     console.log("Existing round, using filtered answers:", currentRoundAnswers);
                     setAnswers(currentRoundAnswers);
                     setPlayersWhoSubmitted(new Set(currentRoundAnswers.map(a => a.playerId)));
+                    setHasSyncedSubmissionStatus(true);
                 }
             } else {
                 setCurrentRound(null);
@@ -241,6 +245,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 // Clear answers when no active round
                 setAnswers([]);
                 setPlayersWhoSubmitted(new Set());
+                setHasSyncedSubmissionStatus(true);
             }
         });
 
@@ -259,6 +264,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 setCurrentRound(null);
                 setAnswers([]);
                 setPlayersWhoSubmitted(new Set());
+                setHasSyncedSubmissionStatus(false);
                 handlersSetupRef.current = false;
                 removeCookie('currentGame');
                 removeCookie('currentPlayer');
@@ -288,6 +294,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log("Force clearing answers and playersWhoSubmitted");
             setAnswers([]);
             setPlayersWhoSubmitted(new Set());
+            setHasSyncedSubmissionStatus(false);
             
             // Also reset submission flag
             submissionInProgressRef.current = false;
@@ -320,6 +327,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 setCurrentRound(null);
                 setAnswers([]);
                 setPlayersWhoSubmitted(new Set());
+                setHasSyncedSubmissionStatus(false);
                 handlersSetupRef.current = false;
                 removeCookie('currentGame');
                 removeCookie('currentPlayer');
@@ -362,6 +370,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setCurrentRound(null);
             setAnswers([]);
             setPlayersWhoSubmitted(new Set());
+            setHasSyncedSubmissionStatus(false);
             setIsReader(false);
             
             const gameData = await createGameApi();
@@ -411,6 +420,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setCurrentRound(null);
             setAnswers([]);
             setPlayersWhoSubmitted(new Set());
+            setHasSyncedSubmissionStatus(false);
             setIsReader(false);
             
             // Force a small delay to ensure state is cleared
@@ -611,6 +621,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         setCurrentRound(null);
         setAnswers([]);
         setPlayersWhoSubmitted(new Set());
+        setHasSyncedSubmissionStatus(false);
         handlersSetupRef.current = false;
         lastSyncedTimerRef.current = null;
         submissionInProgressRef.current = false;
@@ -643,6 +654,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setRoundStartTime,
             setIsTimerActive,
             setOnTimerExpire,
+            hasSyncedSubmissionStatus,
             createGame,
             joinGame,
             startNewRound,
