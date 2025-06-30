@@ -37,7 +37,7 @@ public class GameHub : Hub
 
     public async Task JoinGame(string joinCode, string playerName)
     {
-        _logger.LogInformation("Client {ConnectionId} joining game: {JoinCode} as {PlayerName}", Context.ConnectionId, joinCode, playerName);
+        _logger.LogInformation("SignalR JoinGame called for joinCode: {JoinCode}, playerName: {PlayerName}, connectionId: {ConnectionId}", joinCode, playerName, Context.ConnectionId);
         
         var game = await _context.Games
             .Include(g => g.Players)
@@ -45,10 +45,20 @@ public class GameHub : Hub
             
         if (game == null) throw new HubException("Game not found");
 
+        _logger.LogInformation("Found game {GameId} with {PlayerCount} existing players", game.GameId, game.Players.Count);
+        
+        // Log all existing player names for debugging
+        foreach (var existingPlayer in game.Players)
+        {
+            _logger.LogInformation("Existing player: {PlayerName} (ID: {PlayerId})", existingPlayer.Name, existingPlayer.PlayerId);
+        }
+
         // Check if this specific connection is trying to reconnect to an existing session
         var connectionKey = $"{joinCode}_{playerName}";
         var isReconnecting = _playerConnectionIds.TryGetValue(connectionKey, out var existingConnectionId) && 
                             existingConnectionId != Context.ConnectionId;
+        
+        _logger.LogInformation("Connection key: {ConnectionKey}, isReconnecting: {IsReconnecting}, existingConnectionId: {ExistingConnectionId}", connectionKey, isReconnecting, existingConnectionId);
         
         Player currentPlayer = null;
 
@@ -73,28 +83,45 @@ public class GameHub : Hub
             else
             {
                 // Player doesn't exist in database, treat as new player
+                _logger.LogWarning("Player {PlayerName} marked as reconnecting but not found in database, treating as new player", playerName);
                 isReconnecting = false;
             }
         }
 
         if (!isReconnecting)
         {
-            // Check if the name is already taken by any player in this game (case-insensitive)
-            var nameTaken = game.Players.Any(p => p.Name.Equals(playerName, StringComparison.OrdinalIgnoreCase));
-            if (nameTaken)
+            // First, check if a player with this name already exists in the database (from REST API call)
+            var existingPlayer = game.Players.FirstOrDefault(p => p.Name.Equals(playerName, StringComparison.OrdinalIgnoreCase));
+            
+            if (existingPlayer != null)
             {
-                throw new HubException($"The name '{playerName}' is already taken. Please choose a different name.");
+                _logger.LogInformation("Found existing player '{PlayerName}' with ID {PlayerId} from REST API call", existingPlayer.Name, existingPlayer.PlayerId);
+                currentPlayer = existingPlayer;
             }
-
-            currentPlayer = new Player
+            else
             {
-                Name = playerName,
-                IsReader = !game.Players.Any(),
-                GameId = game.GameId
-            };
-            _context.Players.Add(currentPlayer);
-            await _context.SaveChangesAsync();
-            _logger.LogInformation("New player {PlayerName} created with connection ID {ConnectionId}.", playerName, Context.ConnectionId);
+                // Check if the name is already taken by any player in this game (case-insensitive)
+                var nameTaken = game.Players.Any(p => p.Name.Equals(playerName, StringComparison.OrdinalIgnoreCase));
+                _logger.LogInformation("Name '{RequestedName}' taken check result: {NameTaken}", playerName, nameTaken);
+                
+                if (nameTaken)
+                {
+                    _logger.LogWarning("Name '{RequestedName}' is already taken, throwing HubException", playerName);
+                    throw new HubException($"The name '{playerName}' is already taken. Please choose a different name.");
+                }
+
+                _logger.LogInformation("Creating new player '{PlayerName}', isFirstPlayer: {IsFirstPlayer}", playerName, !game.Players.Any());
+                
+                currentPlayer = new Player
+                {
+                    Name = playerName,
+                    IsReader = !game.Players.Any(),
+                    GameId = game.GameId
+                };
+                _context.Players.Add(currentPlayer);
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Successfully created player '{PlayerName}' with ID {PlayerId}", currentPlayer.Name, currentPlayer.PlayerId);
+            }
         }
         
         await Groups.AddToGroupAsync(Context.ConnectionId, joinCode);
