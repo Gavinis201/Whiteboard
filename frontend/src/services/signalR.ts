@@ -23,6 +23,8 @@ class SignalRService {
     private answerReceivedCallback: ((playerId: string, playerName: string, answer: string) => void) | null = null;
     private roundStartedCallback: ((prompt: string, roundId: number, timerDurationMinutes?: number) => void) | null = null;
     private playerKickedCallback: ((playerId: string, playerName: string) => void) | null = null;
+    private judgingModeToggledCallback: ((enabled: boolean) => void) | null = null;
+    private voteResultsUpdatedCallback: ((results: any[]) => void) | null = null;
     
     // State
     private isConnecting = false;
@@ -122,6 +124,14 @@ class SignalRService {
         this.connection.on('PlayerKicked', (playerId: string, playerName: string) => {
             this.playerKickedCallback?.(playerId, playerName);
         });
+
+        this.connection.on('JudgingModeToggled', (enabled: boolean) => {
+            this.judgingModeToggledCallback?.(enabled);
+        });
+
+        this.connection.on('VoteResultsUpdated', (results: any[]) => {
+            this.voteResultsUpdatedCallback?.(results);
+        });
     }
     
     async joinGame(joinCode: string, playerName: string) {
@@ -156,6 +166,18 @@ class SignalRService {
         await this.ensureConnection();
         if (!this.connection) throw new Error('No SignalR connection');
         await this.connection.invoke('KickPlayer', joinCode, playerId);
+    }
+
+    async toggleJudgingMode(joinCode: string, enabled: boolean) {
+        await this.ensureConnection();
+        if (!this.connection) throw new Error('No SignalR connection');
+        await this.connection.invoke('ToggleJudgingMode', joinCode, enabled);
+    }
+
+    async submitVote(joinCode: string, votedAnswerId: number, rank: number) {
+        await this.ensureConnection();
+        if (!this.connection) throw new Error('No SignalR connection');
+        await this.connection.invoke('SubmitVote', joinCode, votedAnswerId, rank);
     }
     
     async leaveGame(joinCode: string) {
@@ -192,6 +214,14 @@ class SignalRService {
 
     onPlayerKicked(callback: (playerId: string, playerName: string) => void) {
         this.playerKickedCallback = callback;
+    }
+
+    onJudgingModeToggled(callback: (enabled: boolean) => void) {
+        this.judgingModeToggledCallback = callback;
+    }
+
+    onVoteResultsUpdated(callback: (results: any[]) => void) {
+        this.voteResultsUpdatedCallback = callback;
     }
 
     // Utility method to check if we're currently in a game

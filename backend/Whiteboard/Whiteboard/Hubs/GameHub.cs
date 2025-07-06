@@ -438,6 +438,111 @@ public class GameHub : Hub
         _logger.LogInformation("Sent updated player list to group {JoinCode} after player was kicked", joinCode);
     }
 
+    public async Task ToggleJudgingMode(string joinCode, bool enabled)
+    {
+        var playerIdStr = Context.Items["PlayerId"]?.ToString();
+        if (string.IsNullOrEmpty(playerIdStr) || !int.TryParse(playerIdStr, out var playerId))
+        {
+            throw new HubException("Player not identified");
+        }
+
+        var player = await _context.Players.FindAsync(playerId);
+        if (player == null) throw new HubException("Player not found");
+        
+        if (!player.IsReader) throw new HubException("Only the host can toggle judging mode");
+
+        var game = await _context.Games.FirstOrDefaultAsync(g => g.JoinCode == joinCode);
+        if (game == null) throw new HubException("Game not found");
+
+        game.JudgingModeEnabled = enabled;
+        await _context.SaveChangesAsync();
+
+        await Clients.Group(joinCode).SendAsync("JudgingModeToggled", enabled);
+        
+        _logger.LogInformation("Judging mode {Enabled} for game {JoinCode} by host {HostName}", enabled ? "enabled" : "disabled", joinCode, player.Name);
+    }
+
+    public async Task SubmitVote(string joinCode, int votedAnswerId, int rank)
+    {
+        var playerIdStr = Context.Items["PlayerId"]?.ToString();
+        if (string.IsNullOrEmpty(playerIdStr) || !int.TryParse(playerIdStr, out var voterPlayerId))
+        {
+            throw new HubException("Player not identified");
+        }
+
+        var voter = await _context.Players.FindAsync(voterPlayerId);
+        if (voter == null) throw new HubException("Player not found");
+
+        var game = await _context.Games
+            .Include(g => g.Rounds)
+            .FirstOrDefaultAsync(g => g.JoinCode == joinCode);
+        if (game == null) throw new HubException("Game not found");
+
+        var activeRound = game.Rounds
+            .Where(r => !r.IsCompleted)
+            .OrderByDescending(r => r.RoundId)
+            .FirstOrDefault();
+        if (activeRound == null) throw new HubException("No active round found");
+
+        // Check if the answer exists and belongs to this round
+        var answer = await _context.Answers
+            .FirstOrDefaultAsync(a => a.AnswerId == votedAnswerId && a.RoundId == activeRound.RoundId);
+        if (answer == null) throw new HubException("Answer not found");
+
+        // Check if player has already voted for this rank in this round
+        var existingVote = await _context.Votes
+            .FirstOrDefaultAsync(v => v.VoterPlayerId == voterPlayerId && 
+                                     v.RoundId == activeRound.RoundId && 
+                                     v.Rank == rank);
+        
+        if (existingVote != null)
+        {
+            // Update existing vote
+            existingVote.VotedAnswerId = votedAnswerId;
+        }
+        else
+        {
+            // Add new vote
+            var vote = new Vote
+            {
+                VoterPlayerId = voterPlayerId,
+                VotedAnswerId = votedAnswerId,
+                Rank = rank,
+                RoundId = activeRound.RoundId
+            };
+            _context.Votes.Add(vote);
+        }
+        
+        await _context.SaveChangesAsync();
+
+        // Broadcast vote results to all players
+        await BroadcastVoteResults(joinCode, activeRound.RoundId);
+        
+        _logger.LogInformation("Vote submitted by {PlayerName} for answer {AnswerId} with rank {Rank}", voter.Name, votedAnswerId, rank);
+    }
+
+    private async Task BroadcastVoteResults(string joinCode, int roundId)
+    {
+        var voteResults = await _context.Votes
+            .Include(v => v.VotedAnswer)
+            .Where(v => v.RoundId == roundId)
+            .GroupBy(v => v.VotedAnswerId)
+            .Select(g => new
+            {
+                AnswerId = g.Key,
+                PlayerName = g.First().VotedAnswer.PlayerName,
+                FirstPlaceVotes = g.Count(v => v.Rank == 1),
+                SecondPlaceVotes = g.Count(v => v.Rank == 2),
+                ThirdPlaceVotes = g.Count(v => v.Rank == 3),
+                TotalPoints = g.Sum(v => v.Rank == 1 ? 3 : v.Rank == 2 ? 2 : 1)
+            })
+            .OrderByDescending(r => r.TotalPoints)
+            .ThenByDescending(r => r.FirstPlaceVotes)
+            .ToListAsync();
+
+        await Clients.Group(joinCode).SendAsync("VoteResultsUpdated", voteResults);
+    }
+
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         if (exception != null)

@@ -12,6 +12,8 @@ public class Game
     public string JoinCode { get; set; }
 
     public bool IsActive { get; set; }
+    
+    public bool JudgingModeEnabled { get; set; } = false;
 
     public ICollection<Player> Players { get; set; }
     [JsonIgnore]

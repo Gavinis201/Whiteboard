@@ -92,4 +92,25 @@ export const getAnswersForRound = async (roundId: number): Promise<Answer[]> => 
 export const getPrompts = async (): Promise<Prompt[]> => {
     const response = await axios.get(`${API_URL}/prompts/active`);
     return response.data;
+};
+
+// Vote-related API calls
+export const submitVote = async (vote: Omit<Vote, 'voteId'>): Promise<Vote> => {
+    const response = await axios.post(`${API_URL}/votes/submit`, vote);
+    return response.data;
+};
+
+export const getVotesForRound = async (roundId: number): Promise<Vote[]> => {
+    const response = await axios.get(`${API_URL}/votes/round/${roundId}`);
+    return response.data;
+};
+
+export const getVoteResults = async (roundId: number): Promise<VoteResult[]> => {
+    const response = await axios.get(`${API_URL}/votes/results/${roundId}`);
+    return response.data;
+};
+
+export const getPlayerVotes = async (playerId: number, roundId: number): Promise<Vote[]> => {
+    const response = await axios.get(`${API_URL}/votes/player/${playerId}/round/${roundId}`);
+    return response.data;
 }; 

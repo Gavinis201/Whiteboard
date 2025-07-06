@@ -11,6 +11,7 @@ export const Game: React.FC = () => {
         game, player, currentRound, answers, isReader,
         playersWhoSubmitted, startNewRound, submitAnswer, players, leaveGame, kickPlayer,
         isLoading, loadingMessage, selectedTimerDuration, timeRemaining, roundStartTime, isTimerActive,
+        judgingModeEnabled, toggleJudgingMode,
         setSelectedTimerDuration, setTimeRemaining, setRoundStartTime, setIsTimerActive, setOnTimerExpire
     } = useGame();
     const navigate = useNavigate();
@@ -35,6 +36,7 @@ export const Game: React.FC = () => {
     const [hasMoved, setHasMoved] = useState(false);
     const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
     const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'reconnecting'>('connected');
+    const [voteResults, setVoteResults] = useState<any[]>([]);
     
     const isIPhone = () => /iPhone/i.test(navigator.userAgent);
     const colors = ['#000000', '#FF0000', '#FFA500', '#FFFF00', '#008000', '#0000FF', '#800080', '#895129', '#FFFFFF'];
@@ -75,6 +77,17 @@ export const Game: React.FC = () => {
             }
         };
         fetchPrompts();
+    }, []);
+
+    // Set up vote results listener
+    useEffect(() => {
+        signalRService.onVoteResultsUpdated((results: any[]) => {
+            setVoteResults(results);
+        });
+
+        return () => {
+            signalRService.onVoteResultsUpdated(() => {});
+        };
     }, []);
 
     // Filter prompts based on input
@@ -331,19 +344,47 @@ export const Game: React.FC = () => {
     };
 
     // FIX: Simplified the JSX inside .card-back to remove the problematic nested div.
-    const renderAnswerCard = (answer: Answer) => (
-        <div key={answer.answerId} className="answer-card" onClick={() => handleCardClick(answer.answerId)}>
-            <div className={`card-inner ${flippedCards.has(answer.answerId) ? 'flipped' : ''}`}>
-                <div className="card-front">
-                    <p className="player-name">{answer.playerName || 'Unknown'}</p>
-                </div>
-                <div className="card-back">
-                    <h3 className="player-name-back">{answer.playerName || 'Unknown'}</h3>
-                    <img src={answer.content} alt={`Drawing by ${answer.playerName}`} />
+    const renderAnswerCard = (answer: Answer) => {
+        const voteResult = voteResults.find(r => r.answerId === answer.answerId);
+        
+        return (
+            <div key={answer.answerId} className="answer-card" onClick={() => handleCardClick(answer.answerId)}>
+                <div className={`card-inner ${flippedCards.has(answer.answerId) ? 'flipped' : ''}`}>
+                    <div className="card-front">
+                        <p className="player-name">{answer.playerName || 'Unknown'}</p>
+                        {judgingModeEnabled && voteResult && (
+                            <div className="vote-results">
+                                <div className="vote-badge">
+                                    <span className="vote-points">{voteResult.totalPoints} pts</span>
+                                </div>
+                                <div className="vote-breakdown">
+                                    <span className="vote-rank">🥇 {voteResult.firstPlaceVotes}</span>
+                                    <span className="vote-rank">🥈 {voteResult.secondPlaceVotes}</span>
+                                    <span className="vote-rank">🥉 {voteResult.thirdPlaceVotes}</span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <div className="card-back">
+                        <h3 className="player-name-back">{answer.playerName || 'Unknown'}</h3>
+                        <img src={answer.content} alt={`Drawing by ${answer.playerName}`} />
+                        {judgingModeEnabled && voteResult && (
+                            <div className="vote-results-back">
+                                <div className="vote-badge">
+                                    <span className="vote-points">{voteResult.totalPoints} pts</span>
+                                </div>
+                                <div className="vote-breakdown">
+                                    <span className="vote-rank">🥇 {voteResult.firstPlaceVotes}</span>
+                                    <span className="vote-rank">🥈 {voteResult.secondPlaceVotes}</span>
+                                    <span className="vote-rank">🥉 {voteResult.thirdPlaceVotes}</span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
-        </div>
-    );
+        );
+    };
     
     // Monitor connection status
     useEffect(() => {
@@ -499,6 +540,22 @@ export const Game: React.FC = () => {
                                     </select>
                                     <button onClick={handleStartRound} className="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700">Start</button>
                                 </div>
+                                <div className="mt-4 flex items-center gap-4">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={judgingModeEnabled}
+                                            onChange={(e) => toggleJudgingMode(e.target.checked)}
+                                            className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                                        />
+                                        <span className="text-sm font-medium text-gray-700">Enable Judging Mode</span>
+                                    </label>
+                                    {judgingModeEnabled && (
+                                        <span className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded">
+                                            Players will vote for their favorite drawings after submission
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         </div>
                         
@@ -530,7 +587,21 @@ export const Game: React.FC = () => {
                                     <p className="text-lg text-gray-800">"{currentRound.prompt}"</p>
                                 </div>
                                 {playersWhoSubmitted.has(player.playerId) ? (
-                                    <div className="bg-green-50 text-green-700 p-4 rounded-lg">Submitted! Waiting...</div>
+                                    <div className="bg-green-50 text-green-700 p-4 rounded-lg">
+                                        {judgingModeEnabled ? (
+                                            <div>
+                                                <p>Submitted! Redirecting to judging...</p>
+                                                <button 
+                                                    onClick={() => navigate('/judging')}
+                                                    className="mt-2 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700"
+                                                >
+                                                    Go to Judging
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <p>Submitted! Waiting...</p>
+                                        )}
+                                    </div>
                                 ) : (
                                     <>
                                         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">

@@ -60,6 +60,9 @@ namespace Whiteboard.Migrations
                         .HasMaxLength(6)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("JudgingModeEnabled")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("GameId");
 
                     b.ToTable("Games");
@@ -143,6 +146,35 @@ namespace Whiteboard.Migrations
                     b.ToTable("Rounds");
                 });
 
+            modelBuilder.Entity("Whiteboard.Models.Vote", b =>
+                {
+                    b.Property<int>("VoteId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Rank")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RoundId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("VotedAnswerId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("VoterPlayerId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("VoteId");
+
+                    b.HasIndex("RoundId");
+
+                    b.HasIndex("VotedAnswerId");
+
+                    b.HasIndex("VoterPlayerId");
+
+                    b.ToTable("Votes");
+                });
+
             modelBuilder.Entity("Whiteboard.Models.Answer", b =>
                 {
                     b.HasOne("Whiteboard.Models.Player", "Player")
@@ -182,6 +214,33 @@ namespace Whiteboard.Migrations
                         .IsRequired();
 
                     b.Navigation("Game");
+                });
+
+            modelBuilder.Entity("Whiteboard.Models.Vote", b =>
+                {
+                    b.HasOne("Whiteboard.Models.Round", "Round")
+                        .WithMany()
+                        .HasForeignKey("RoundId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Whiteboard.Models.Answer", "VotedAnswer")
+                        .WithMany()
+                        .HasForeignKey("VotedAnswerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Whiteboard.Models.Player", "VoterPlayer")
+                        .WithMany()
+                        .HasForeignKey("VoterPlayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Round");
+
+                    b.Navigation("VotedAnswer");
+
+                    b.Navigation("VoterPlayer");
                 });
 
             modelBuilder.Entity("Whiteboard.Models.Game", b =>

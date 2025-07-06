@@ -27,6 +27,7 @@ interface GameContextType {
     timeRemaining: number | null;
     roundStartTime: Date | null;
     isTimerActive: boolean;
+    judgingModeEnabled: boolean;
     setSelectedTimerDuration: (duration: number | null) => void;
     setTimeRemaining: (time: number | null) => void;
     setRoundStartTime: (time: Date | null) => void;
@@ -37,6 +38,7 @@ interface GameContextType {
     startNewRound: (prompt: string, timerDuration?: number) => Promise<void>;
     submitAnswer: (answer: string) => Promise<void>;
     kickPlayer: (playerId: number) => Promise<void>;
+    toggleJudgingMode: (enabled: boolean) => Promise<void>;
     leaveGame: () => Promise<void>;
 }
 
@@ -56,6 +58,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [roundStartTime, setRoundStartTime] = useState<Date | null>(null);
     const [isTimerActive, setIsTimerActive] = useState(false);
+    const [judgingModeEnabled, setJudgingModeEnabled] = useState(false);
     const [onTimerExpire, setOnTimerExpire] = useState<(() => void) | null>(null);
     const handlersSetupRef = useRef<boolean>(false);
     const timerIntervalRef = useRef<number | null>(null);
@@ -343,6 +346,11 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             }
         });
 
+        signalRService.onJudgingModeToggled((enabled: boolean) => {
+            console.log('Judging mode toggled:', enabled);
+            setJudgingModeEnabled(enabled);
+        });
+
         return () => {
             handlersSetupRef.current = false;
         };
@@ -621,6 +629,12 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         await signalRService.kickPlayer(game.joinCode, playerId);
     };
 
+    const toggleJudgingMode = async (enabled: boolean) => {
+        if (!game?.joinCode || !isReader) return;
+        await signalRService.toggleJudgingMode(game.joinCode, enabled);
+        setJudgingModeEnabled(enabled);
+    };
+
     const leaveGame = async () => {
         if (game?.joinCode) {
             try {
@@ -664,6 +678,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             timeRemaining,
             roundStartTime,
             isTimerActive,
+            judgingModeEnabled,
             setSelectedTimerDuration,
             setTimeRemaining,
             setRoundStartTime,
@@ -674,6 +689,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             startNewRound,
             submitAnswer,
             kickPlayer,
+            toggleJudgingMode,
             leaveGame
         }}>
             {children}

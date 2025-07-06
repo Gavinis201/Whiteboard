@@ -11,4 +11,5 @@ public class GameDbContext : DbContext
     public DbSet<Round> Rounds { get; set; }
     public DbSet<Answer> Answers { get; set; }
     public DbSet<Prompt> Prompts { get; set; }
+    public DbSet<Vote> Votes { get; set; }
 }

@@ -1,10 +1,5 @@
-/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/publish/web.config
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/appsettings.Development.json
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/appsettings.json
-/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/publish/appsettings.Development.json
-/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/publish/appsettings.json
-/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/publish/Whiteboard.deps.json
-/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/publish/Whiteboard.runtimeconfig.json
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Whiteboard
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Whiteboard.deps.json
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/Whiteboard.runtimeconfig.json

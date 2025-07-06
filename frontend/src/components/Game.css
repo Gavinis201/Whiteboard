@@ -100,3 +100,41 @@ canvas {
     font-weight: bold;
     color: black;
 }
+
+/* Vote Results Styles */
+.vote-results {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    text-align: right;
+}
+
+.vote-results-back {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    text-align: right;
+}
+
+.vote-badge {
+    background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.vote-breakdown {
+    font-size: 0.7rem;
+    color: #666;
+}
+
+.vote-rank {
+    margin-left: 4px;
+}
+
+.vote-points {
+    font-weight: bold;
+}

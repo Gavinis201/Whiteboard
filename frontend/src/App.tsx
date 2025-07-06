@@ -3,6 +3,7 @@ import { GameProvider, useGame } from './contexts/GameContext';
 import { JoinGame } from './components/JoinGame';
 import { Game } from './components/Game';
 import { CreateGame } from './components/CreateGame';
+import { JudgingPage } from './components/JudgingPage';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import './index.css';
 import Header from './components/Header';
@@ -131,10 +132,15 @@ const AppRoutes = () => {
     return <LoadingSpinner text={loadingMessage} />;
   }
 
-  // If user is in a game, always show the game page regardless of URL
+  // If user is in a game, show the appropriate page based on URL
   if (isInitialized && game && player) {
-    console.log('Rendering Game component');
-    return <Game />;
+    console.log('User is in game, checking for judging route');
+    return (
+      <Routes>
+        <Route path="/judging" element={<JudgingPage />} />
+        <Route path="*" element={<Game />} />
+      </Routes>
+    );
   }
 
   console.log('Rendering normal routes');
