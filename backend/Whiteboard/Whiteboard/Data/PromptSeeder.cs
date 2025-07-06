@@ -6,11 +6,10 @@ public static class PromptSeeder
 {
     public static async Task SeedPrompts(GameDbContext context)
     {
-        // Clear existing prompts to ensure fresh seeding
+        // Only seed if the database is empty
         if (context.Prompts.Any())
         {
-            context.Prompts.RemoveRange(context.Prompts);
-            await context.SaveChangesAsync();
+            return; // Database already has prompts, skip seeding
         }
 
         var prompts = new List<Prompt>

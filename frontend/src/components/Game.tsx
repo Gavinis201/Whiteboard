@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useGame } from '../contexts/GameContext';
-import { Answer, Prompt, getPrompts } from '../services/api';
+import { Answer, Prompt, getPrompts, getDetailedVoteResults } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { LoadingSpinner } from './LoadingSpinner';
 import { signalRService } from '../services/signalR';
@@ -37,6 +37,8 @@ export const Game: React.FC = () => {
     const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
     const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'reconnecting'>('connected');
     const [voteResults, setVoteResults] = useState<any[]>([]);
+    const [detailedVoteResults, setDetailedVoteResults] = useState<any[]>([]);
+    const [allPlayersSubmitted, setAllPlayersSubmitted] = useState(false);
     
     const isIPhone = () => /iPhone/i.test(navigator.userAgent);
     const colors = ['#000000', '#FF0000', '#FFA500', '#FFFF00', '#008000', '#0000FF', '#800080', '#895129', '#FFFFFF'];
@@ -81,14 +83,46 @@ export const Game: React.FC = () => {
 
     // Set up vote results listener
     useEffect(() => {
-        signalRService.onVoteResultsUpdated((results: any[]) => {
+        signalRService.onVoteResultsUpdated((results: any[], maxVotes: number) => {
             setVoteResults(results);
+            // Fetch detailed vote results when vote results are updated
+            if (currentRound && judgingModeEnabled) {
+                fetchDetailedVoteResults();
+            }
         });
 
         return () => {
             signalRService.onVoteResultsUpdated(() => {});
         };
-    }, []);
+    }, [currentRound, judgingModeEnabled]);
+
+    // Fetch detailed vote results
+    const fetchDetailedVoteResults = async () => {
+        if (!currentRound) return;
+        try {
+            const detailedResults = await getDetailedVoteResults(currentRound.roundId);
+            setDetailedVoteResults(detailedResults);
+        } catch (error) {
+            console.error('Error fetching detailed vote results:', error);
+        }
+    };
+
+    // Fetch detailed vote results when judging mode is enabled
+    useEffect(() => {
+        if (judgingModeEnabled && currentRound) {
+            fetchDetailedVoteResults();
+        }
+    }, [judgingModeEnabled, currentRound]);
+
+    // Check if all players have submitted
+    useEffect(() => {
+        if (currentRound && players.length > 0) {
+            const nonReaderPlayers = players.filter(p => !p.isReader);
+            const allSubmitted = nonReaderPlayers.length > 0 && 
+                nonReaderPlayers.every(p => playersWhoSubmitted.has(p.playerId));
+            setAllPlayersSubmitted(allSubmitted);
+        }
+    }, [currentRound, players, playersWhoSubmitted]);
 
     // Filter prompts based on input
     useEffect(() => {
@@ -346,6 +380,7 @@ export const Game: React.FC = () => {
     // FIX: Simplified the JSX inside .card-back to remove the problematic nested div.
     const renderAnswerCard = (answer: Answer) => {
         const voteResult = voteResults.find(r => r.answerId === answer.answerId);
+        const detailedVoteResult = detailedVoteResults.find(r => r.answerId === answer.answerId);
         
         return (
             <div key={answer.answerId} className="answer-card" onClick={() => handleCardClick(answer.answerId)}>
@@ -367,19 +402,23 @@ export const Game: React.FC = () => {
                     </div>
                     <div className="card-back">
                         <h3 className="player-name-back">{answer.playerName || 'Unknown'}</h3>
-                        <img src={answer.content} alt={`Drawing by ${answer.playerName}`} />
-                        {judgingModeEnabled && voteResult && (
-                            <div className="vote-results-back">
-                                <div className="vote-badge">
-                                    <span className="vote-points">{voteResult.totalPoints} pts</span>
+                        <div className="drawing-container">
+                            <img src={answer.content} alt={`Drawing by ${answer.playerName}`} />
+                            {judgingModeEnabled && detailedVoteResult && detailedVoteResult.voters && detailedVoteResult.voters.length > 0 && (
+                                <div className="voter-overlay">
+                                    <div className="voter-list">
+                                        {detailedVoteResult.voters.map((voter: any, index: number) => (
+                                            <div key={index} className="voter-item">
+                                                <span className="voter-rank">
+                                                    {voter.rank === 1 ? '🥇' : voter.rank === 2 ? '🥈' : '🥉'}
+                                                </span>
+                                                <span className="voter-name">{voter.voterName}</span>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                                <div className="vote-breakdown">
-                                    <span className="vote-rank">🥇 {voteResult.firstPlaceVotes}</span>
-                                    <span className="vote-rank">🥈 {voteResult.secondPlaceVotes}</span>
-                                    <span className="vote-rank">🥉 {voteResult.thirdPlaceVotes}</span>
-                                </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -500,7 +539,14 @@ export const Game: React.FC = () => {
                 {isReader ? (
                     <div>
                         <div className="mb-6">
-                            <h3 className="text-xl font-semibold text-purple-600 mb-2">Start a New Round</h3>
+                            <div className="flex items-center gap-3 mb-2">
+                                <h3 className="text-xl font-semibold text-purple-600">Start a New Round</h3>
+                                {allPlayersSubmitted && judgingModeEnabled && (
+                                    <div className="bg-green-100 border border-green-300 rounded-full px-3 py-1">
+                                        <span className="text-green-800 text-xs font-medium">Players Ready</span>
+                                    </div>
+                                )}
+                            </div>
                             <div className="relative">
                                 <div className="flex gap-3">
                                     <div className="flex-1 relative">
@@ -564,13 +610,52 @@ export const Game: React.FC = () => {
                                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                                     <h4 className="text-lg font-semibold text-purple-700 mb-2">Current Round Prompt:</h4>
                                     <p className="text-lg text-gray-800">"{currentRound.prompt}"</p>
+                                    
+                                    {/* Show submission progress for host */}
+                                    {judgingModeEnabled && (
+                                        <div className="mt-4 pt-4 border-t border-purple-200">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-sm font-medium text-purple-700">Player Submissions:</span>
+                                                <span className="text-sm text-purple-600">
+                                                    {playersWhoSubmitted.size} of {players.filter(p => !p.isReader).length} players
+                                                </span>
+                                            </div>
+                                            <div className="w-full bg-purple-200 rounded-full h-2">
+                                                <div 
+                                                    className={`h-2 rounded-full transition-all duration-300 ${allPlayersSubmitted ? 'bg-green-500' : 'bg-purple-500'}`}
+                                                    style={{ 
+                                                        width: `${(playersWhoSubmitted.size / players.filter(p => !p.isReader).length) * 100}%` 
+                                                    }}
+                                                ></div>
+                                            </div>
+                                                                                {allPlayersSubmitted && (
+                                        <div className="mt-2">
+                                            <p className="text-sm text-green-700 font-medium mb-2">
+                                                ✓ All players have submitted and been redirected to judging!
+                                            </p>
+                                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                                <p className="text-blue-800 text-sm">
+                                                    <strong>Ready for next round:</strong> Players are currently voting. You can start a new round when they're done.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
                         
                         {answers.length > 0 && (
                             <div>
-                                <h3 className="text-xl font-semibold text-purple-600 mb-4">Answers</h3>
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-xl font-semibold text-purple-600">Answers</h3>
+                                    {allPlayersSubmitted && judgingModeEnabled && (
+                                        <div className="bg-green-100 border border-green-300 rounded-lg px-3 py-1">
+                                            <span className="text-green-800 text-sm font-medium">All players submitted!</span>
+                                        </div>
+                                    )}
+                                </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {answers.map(renderAnswerCard)}
                                 </div>
@@ -587,20 +672,73 @@ export const Game: React.FC = () => {
                                     <p className="text-lg text-gray-800">"{currentRound.prompt}"</p>
                                 </div>
                                 {playersWhoSubmitted.has(player.playerId) ? (
-                                    <div className="bg-green-50 text-green-700 p-4 rounded-lg">
-                                        {judgingModeEnabled ? (
-                                            <div>
-                                                <p>Submitted! Redirecting to judging...</p>
-                                                <button 
-                                                    onClick={() => navigate('/judging')}
-                                                    className="mt-2 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700"
-                                                >
-                                                    Go to Judging
-                                                </button>
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                                        <div className="flex items-center gap-3 mb-4">
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${allPlayersSubmitted ? 'bg-green-600' : 'bg-green-500'}`}>
+                                                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
                                             </div>
-                                        ) : (
-                                            <p>Submitted! Waiting...</p>
+                                            <div>
+                                                <h3 className="text-lg font-semibold text-green-800">Drawing Submitted!</h3>
+                                                <p className="text-green-700">
+                                                    {allPlayersSubmitted ? 'All players have finished! Preparing for judging...' : 'Waiting for other players to finish...'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Show the submitted drawing */}
+                                        <div className="mb-4">
+                                            <h4 className="text-sm font-medium text-green-800 mb-2">Your Drawing:</h4>
+                                            <div className="bg-white border border-green-200 rounded-lg p-3">
+                                                <img 
+                                                    src={answers.find(a => a.playerId === player.playerId)?.content} 
+                                                    alt="Your submitted drawing"
+                                                    className="w-full h-48 object-contain bg-white rounded"
+                                                />
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Show submission progress */}
+                                        <div className="mb-4">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-sm font-medium text-green-800">Submission Progress:</span>
+                                                <span className={`text-sm ${allPlayersSubmitted ? 'text-green-800 font-medium' : 'text-green-700'}`}>
+                                                    {allPlayersSubmitted ? 'All players submitted!' : `${playersWhoSubmitted.size} of ${players.filter(p => !p.isReader).length} players`}
+                                                </span>
+                                            </div>
+                                            <div className="w-full bg-green-200 rounded-full h-2">
+                                                <div 
+                                                    className={`h-2 rounded-full transition-all duration-300 ${allPlayersSubmitted ? 'bg-green-600' : 'bg-green-500'}`}
+                                                    style={{ 
+                                                        width: `${(playersWhoSubmitted.size / players.filter(p => !p.isReader).length) * 100}%` 
+                                                    }}
+                                                ></div>
+                                            </div>
+                                        </div>
+                                        
+                                        {judgingModeEnabled && (
+                                            <div className={`border rounded-lg p-3 ${allPlayersSubmitted ? 'bg-purple-100 border-purple-300' : 'bg-purple-50 border-purple-200'}`}>
+                                                {allPlayersSubmitted ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-5 h-5 bg-purple-500 rounded-full flex items-center justify-center">
+                                                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                        </div>
+                                                        <p className="text-purple-800 text-sm font-medium">
+                                                            All players have submitted! Redirecting to judging...
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-purple-800 text-sm">
+                                                        <strong>Judging Mode Enabled:</strong> You'll be automatically redirected to vote for your favorite drawings once everyone has submitted.
+                                                    </p>
+                                                )}
+                                            </div>
                                         )}
+                                        
+
                                     </div>
                                 ) : (
                                     <>

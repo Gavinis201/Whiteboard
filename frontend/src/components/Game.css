@@ -138,3 +138,50 @@ canvas {
 .vote-points {
     font-weight: bold;
 }
+
+/* Voter Overlay Styles */
+.drawing-container {
+    position: relative;
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+}
+
+.voter-overlay {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    backdrop-filter: blur(4px);
+    z-index: 10;
+    max-width: 200px;
+}
+
+.voter-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.voter-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    line-height: 1.2;
+}
+
+.voter-rank {
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.voter-name {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

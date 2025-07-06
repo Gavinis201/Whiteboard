@@ -65,6 +65,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const lastSyncedTimerRef = useRef<{ roundId: number; remainingSeconds: number } | null>(null);
     const submissionInProgressRef = useRef<boolean>(false);
     const isJoiningRef = useRef<boolean>(false);
+    const hasNavigatedToJudgingRef = useRef<boolean>(false);
+    const previousRoundIdRef = useRef<number | null>(null);
 
     const players = game?.players || [];
 
@@ -187,8 +189,15 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log("Current answers:", payload.currentAnswers);
             console.log("Current round ID:", payload.activeRound?.roundId);
             console.log("Previous round ID:", currentRound?.roundId);
+            console.log("Judging mode enabled:", payload.judgingModeEnabled);
+            console.log("Full payload keys:", Object.keys(payload));
             
-            setGame(prevGame => ({ ...(prevGame as ExtendedGame), players: payload.players }));
+            setGame(prevGame => ({ 
+                ...(prevGame as ExtendedGame), 
+                players: payload.players,
+                judgingModeEnabled: payload.judgingModeEnabled
+            }));
+            setJudgingModeEnabled(payload.judgingModeEnabled);
             
             if (payload.activeRound) {
                 const isNewRound = currentRound?.roundId !== payload.activeRound.roundId;
@@ -313,12 +322,12 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             submissionInProgressRef.current = false;
         });
 
-        signalRService.onAnswerReceived((playerId, playerName, answer) => {
+        signalRService.onAnswerReceived((playerId, playerName, answer, answerId) => {
             const numericPlayerId = parseInt(playerId, 10);
-            console.log("Answer received from player:", playerName, "ID:", numericPlayerId);
+            console.log("Answer received from player:", playerName, "ID:", numericPlayerId, "AnswerID:", answerId);
             console.log("Current playersWhoSubmitted before update:", Array.from(playersWhoSubmitted));
             setAnswers(prev => [...prev, { 
-                answerId: Date.now(),
+                answerId: answerId,
                 playerId: numericPlayerId,
                 playerName,
                 content: answer,
@@ -373,6 +382,77 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             removeCookie('playersWhoSubmitted');
         }
     }, [game, player, isInitialized, currentRound, playersWhoSubmitted]);
+
+    // Auto-navigate to judging when everyone has submitted
+    useEffect(() => {
+        if (!isInitialized || !game || !player || !currentRound) {
+            return;
+        }
+
+        // Only auto-navigate for non-reader players (joined players, not the host)
+        if (player.isReader) {
+            return; // Host stays on the game page
+        }
+
+        // Check if we're already on the judging page
+        const isOnJudgingPage = window.location.pathname === '/judging';
+        if (isOnJudgingPage) {
+            return; // Already on judging page, don't navigate
+        }
+
+        // Only check for non-reader players
+        const nonReaderPlayers = players.filter(p => !p.isReader);
+        const allNonReadersSubmitted = nonReaderPlayers.length > 0 && 
+            nonReaderPlayers.every(p => playersWhoSubmitted.has(p.playerId));
+
+        if (allNonReadersSubmitted && !hasNavigatedToJudgingRef.current) {
+            console.log('All players have submitted, navigating to judging page');
+            hasNavigatedToJudgingRef.current = true;
+            
+            // Use setTimeout to ensure the state updates are processed first
+            setTimeout(() => {
+                window.location.href = '/judging';
+            }, 1000); // 1 second delay to show the completion state
+        }
+    }, [isInitialized, game, player, currentRound, players, playersWhoSubmitted]);
+
+    // Reset navigation flag when a new round starts
+    useEffect(() => {
+        if (currentRound) {
+            hasNavigatedToJudgingRef.current = false;
+            // Initialize previous round ID if not set
+            if (previousRoundIdRef.current === null) {
+                previousRoundIdRef.current = currentRound.roundId;
+            }
+        }
+    }, [currentRound?.roundId]);
+
+    // Auto-redirect players back to game page when a new round starts
+    useEffect(() => {
+        if (!isInitialized || !game || !player || !currentRound) {
+            return;
+        }
+
+        // Only redirect non-reader players (joined players, not the host)
+        if (player.isReader) {
+            return; // Host stays on the game page
+        }
+
+        // Check if we're currently on the judging page and a new round has started
+        const isOnJudgingPage = window.location.pathname === '/judging';
+        
+        // Only redirect if we're on the judging page AND this is actually a new round
+        // (not just the same round being updated)
+        if (isOnJudgingPage && currentRound.roundId !== previousRoundIdRef.current) {
+            console.log('New round started, redirecting player back to game page');
+            previousRoundIdRef.current = currentRound.roundId;
+            
+            // Use setTimeout to ensure the state updates are processed first
+            setTimeout(() => {
+                window.location.href = '/game';
+            }, 500); // 0.5 second delay
+        }
+    }, [isInitialized, game, player, currentRound?.roundId]);
 
     const createGame = async (playerName: string) => {
         console.log('Starting createGame, setting loading to true');
@@ -631,6 +711,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
     const toggleJudgingMode = async (enabled: boolean) => {
         if (!game?.joinCode || !isReader) return;
+        console.log('ToggleJudgingMode called with enabled:', enabled, 'for game:', game.joinCode);
         await signalRService.toggleJudgingMode(game.joinCode, enabled);
         setJudgingModeEnabled(enabled);
     };

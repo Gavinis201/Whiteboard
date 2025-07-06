@@ -6,6 +6,7 @@ export interface GameStatePayload {
     players: Player[];
     activeRound: Round | null;
     currentAnswers: Answer[];
+    judgingModeEnabled: boolean;
     timerInfo?: {
         startTime: string;
         durationMinutes: number;
@@ -20,11 +21,11 @@ class SignalRService {
     // Callbacks
     private gameStateSyncedCallback: ((payload: GameStatePayload) => void) | null = null;
     private playerListUpdatedCallback: ((players: Player[]) => void) | null = null;
-    private answerReceivedCallback: ((playerId: string, playerName: string, answer: string) => void) | null = null;
+    private answerReceivedCallback: ((playerId: string, playerName: string, answer: string, answerId: number) => void) | null = null;
     private roundStartedCallback: ((prompt: string, roundId: number, timerDurationMinutes?: number) => void) | null = null;
     private playerKickedCallback: ((playerId: string, playerName: string) => void) | null = null;
     private judgingModeToggledCallback: ((enabled: boolean) => void) | null = null;
-    private voteResultsUpdatedCallback: ((results: any[]) => void) | null = null;
+    private voteResultsUpdatedCallback: ((results: any[], maxVotes: number) => void) | null = null;
     
     // State
     private isConnecting = false;
@@ -53,7 +54,7 @@ class SignalRService {
             if (this.connection) await this.connection.stop();
 
             this.connection = new HubConnectionBuilder()
-                .withUrl('https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/gameHub', {
+                .withUrl('http://localhost:5164/gameHub', {
                     transport: HttpTransportType.WebSockets | HttpTransportType.LongPolling | HttpTransportType.ServerSentEvents,
                     skipNegotiation: false,
                 })
@@ -113,8 +114,8 @@ class SignalRService {
             this.playerListUpdatedCallback?.(players);
         });
 
-        this.connection.on('AnswerReceived', (playerId: string, playerName: string, answer: string) => {
-            this.answerReceivedCallback?.(playerId, playerName, answer);
+        this.connection.on('AnswerReceived', (playerId: string, playerName: string, answer: string, answerId: number) => {
+            this.answerReceivedCallback?.(playerId, playerName, answer, answerId);
         });
 
         this.connection.on('RoundStarted', (prompt: string, roundId: number, timerDurationMinutes?: number) => {
@@ -129,8 +130,8 @@ class SignalRService {
             this.judgingModeToggledCallback?.(enabled);
         });
 
-        this.connection.on('VoteResultsUpdated', (results: any[]) => {
-            this.voteResultsUpdatedCallback?.(results);
+        this.connection.on('VoteResultsUpdated', (results: any[], maxVotes: number) => {
+            this.voteResultsUpdatedCallback?.(results, maxVotes);
         });
     }
     
@@ -171,13 +172,21 @@ class SignalRService {
     async toggleJudgingMode(joinCode: string, enabled: boolean) {
         await this.ensureConnection();
         if (!this.connection) throw new Error('No SignalR connection');
+        console.log('SignalR toggleJudgingMode called with:', { joinCode, enabled });
         await this.connection.invoke('ToggleJudgingMode', joinCode, enabled);
     }
 
     async submitVote(joinCode: string, votedAnswerId: number, rank: number) {
         await this.ensureConnection();
         if (!this.connection) throw new Error('No SignalR connection');
+        console.log('SignalR submitVote called with:', { joinCode, votedAnswerId, rank });
         await this.connection.invoke('SubmitVote', joinCode, votedAnswerId, rank);
+    }
+
+    async getMaxVotesForGame(joinCode: string): Promise<number> {
+        await this.ensureConnection();
+        if (!this.connection) throw new Error('No SignalR connection');
+        return await this.connection.invoke('GetMaxVotesForGame', joinCode);
     }
     
     async leaveGame(joinCode: string) {
@@ -204,7 +213,7 @@ class SignalRService {
         this.playerListUpdatedCallback = callback;
     }
 
-    onAnswerReceived(callback: (playerId: string, playerName: string, answer: string) => void) {
+    onAnswerReceived(callback: (playerId: string, playerName: string, answer: string, answerId: number) => void) {
         this.answerReceivedCallback = callback;
     }
 
@@ -220,7 +229,7 @@ class SignalRService {
         this.judgingModeToggledCallback = callback;
     }
 
-    onVoteResultsUpdated(callback: (results: any[]) => void) {
+    onVoteResultsUpdated(callback: (results: any[], maxVotes: number) => void) {
         this.voteResultsUpdatedCallback = callback;
     }
 

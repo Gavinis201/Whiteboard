@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-// true backend URL Updated
-const API_URL = 'https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/api';
-// const API_URL = 'http://localhost:5164/api';
+// Local development URL
+const API_URL = 'http://localhost:5164/api';
+// const API_URL = 'https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/api';
 
 export interface Game {
     gameId: number;
@@ -112,5 +112,10 @@ export const getVoteResults = async (roundId: number): Promise<VoteResult[]> => 
 
 export const getPlayerVotes = async (playerId: number, roundId: number): Promise<Vote[]> => {
     const response = await axios.get(`${API_URL}/votes/player/${playerId}/round/${roundId}`);
+    return response.data;
+};
+
+export const getDetailedVoteResults = async (roundId: number): Promise<any[]> => {
+    const response = await axios.get(`${API_URL}/votes/detailed-results/${roundId}`);
     return response.data;
 }; 

@@ -85,4 +85,33 @@ public class VotesController : ControllerBase
 
         return Ok(votes);
     }
+
+    [HttpGet("detailed-results/{roundId}")]
+    public async Task<IActionResult> GetDetailedVoteResults(int roundId)
+    {
+        var detailedResults = await _context.Votes
+            .Include(v => v.VotedAnswer)
+            .Include(v => v.VoterPlayer)
+            .Where(v => v.RoundId == roundId)
+            .GroupBy(v => v.VotedAnswerId)
+            .Select(g => new
+            {
+                AnswerId = g.Key,
+                PlayerName = g.First().VotedAnswer.PlayerName,
+                FirstPlaceVotes = g.Count(v => v.Rank == 1),
+                SecondPlaceVotes = g.Count(v => v.Rank == 2),
+                ThirdPlaceVotes = g.Count(v => v.Rank == 3),
+                TotalPoints = g.Sum(v => v.Rank == 1 ? 3 : v.Rank == 2 ? 2 : 1),
+                Voters = g.Select(v => new
+                {
+                    VoterName = v.VoterPlayer.Name,
+                    Rank = v.Rank
+                }).OrderBy(v => v.Rank).ToList()
+            })
+            .OrderByDescending(r => r.TotalPoints)
+            .ThenByDescending(r => r.FirstPlaceVotes)
+            .ToListAsync();
+
+        return Ok(detailedResults);
+    }
 } 

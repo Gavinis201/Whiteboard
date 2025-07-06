@@ -157,7 +157,8 @@ public class GameHub : Hub
                     .Where(r => !r.IsCompleted)
                     .OrderByDescending(r => r.RoundId)
                     .SelectMany(r => r.Answers)
-                    .ToList()
+                    .ToList(),
+                JudgingModeEnabled = g.JudgingModeEnabled
             })
             .FirstOrDefaultAsync();
 
@@ -167,11 +168,13 @@ public class GameHub : Hub
         }
 
         // Send the complete state to the client that just joined/reconnected
+        _logger.LogInformation("Sending GameStateSynced with JudgingModeEnabled: {JudgingModeEnabled}", gameState.JudgingModeEnabled);
         await Clients.Caller.SendAsync("GameStateSynced", new
         {
             Players = gameState.Players,
             ActiveRound = gameState.ActiveRound,
             CurrentAnswers = gameState.CurrentAnswers,
+            JudgingModeEnabled = gameState.JudgingModeEnabled,
             // Add timer information for reconnecting players
             TimerInfo = gameState.ActiveRound != null && gameState.ActiveRound.TimerStartTime.HasValue ? new
             {
@@ -269,7 +272,7 @@ public class GameHub : Hub
         _context.Answers.Add(newAnswer);
         await _context.SaveChangesAsync();
 
-        await Clients.Group(joinCode).SendAsync("AnswerReceived", playerId.ToString(), player.Name, answer);
+        await Clients.Group(joinCode).SendAsync("AnswerReceived", playerId.ToString(), player.Name, answer, newAnswer.AnswerId);
         _logger.LogInformation("Answer submitted and saved by {PlayerName} in game {JoinCode}", player.Name, joinCode);
     }
 
@@ -474,6 +477,7 @@ public class GameHub : Hub
         if (voter == null) throw new HubException("Player not found");
 
         var game = await _context.Games
+            .Include(g => g.Players)
             .Include(g => g.Rounds)
             .FirstOrDefaultAsync(g => g.JoinCode == joinCode);
         if (game == null) throw new HubException("Game not found");
@@ -483,6 +487,15 @@ public class GameHub : Hub
             .OrderByDescending(r => r.RoundId)
             .FirstOrDefault();
         if (activeRound == null) throw new HubException("No active round found");
+
+        // Calculate max votes based on player count
+        var maxVotes = GetMaxVotesForPlayerCount(game.Players.Count);
+        
+        // Validate rank is within allowed range
+        if (rank < 1 || rank > maxVotes)
+        {
+            throw new HubException($"Invalid rank. With {game.Players.Count} players, you can only vote for ranks 1-{maxVotes}.");
+        }
 
         // Check if the answer exists and belongs to this round
         var answer = await _context.Answers
@@ -518,11 +531,38 @@ public class GameHub : Hub
         // Broadcast vote results to all players
         await BroadcastVoteResults(joinCode, activeRound.RoundId);
         
-        _logger.LogInformation("Vote submitted by {PlayerName} for answer {AnswerId} with rank {Rank}", voter.Name, votedAnswerId, rank);
+        _logger.LogInformation("Vote submitted by {PlayerName} for answer {AnswerId} with rank {Rank} (max votes: {MaxVotes})", voter.Name, votedAnswerId, rank, maxVotes);
+    }
+
+    private int GetMaxVotesForPlayerCount(int playerCount)
+    {
+        // 2 players: Top 1 drawing
+        // 3 players: Top 1 and 2nd place  
+        // 4+ players: Top 1, 2nd, and 3rd place
+        if (playerCount <= 2) return 1;
+        if (playerCount == 3) return 2;
+        return 3;
+    }
+
+    public async Task<int> GetMaxVotesForGame(string joinCode)
+    {
+        var game = await _context.Games
+            .Include(g => g.Players)
+            .FirstOrDefaultAsync(g => g.JoinCode == joinCode);
+        
+        if (game == null) throw new HubException("Game not found");
+        
+        return GetMaxVotesForPlayerCount(game.Players.Count);
     }
 
     private async Task BroadcastVoteResults(string joinCode, int roundId)
     {
+        var game = await _context.Games
+            .Include(g => g.Players)
+            .FirstOrDefaultAsync(g => g.JoinCode == joinCode);
+        
+        var maxVotes = game != null ? GetMaxVotesForPlayerCount(game.Players.Count) : 3;
+
         var voteResults = await _context.Votes
             .Include(v => v.VotedAnswer)
             .Where(v => v.RoundId == roundId)
@@ -540,7 +580,7 @@ public class GameHub : Hub
             .ThenByDescending(r => r.FirstPlaceVotes)
             .ToListAsync();
 
-        await Clients.Group(joinCode).SendAsync("VoteResultsUpdated", voteResults);
+        await Clients.Group(joinCode).SendAsync("VoteResultsUpdated", voteResults, maxVotes);
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
