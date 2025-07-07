@@ -41,15 +41,14 @@ canvas {
     perspective: 1000px;
     width: 300px;
     height: 400px;
-    margin: 10px auto;
-    cursor: pointer;
+    position: relative;
+    margin: 0 auto;
 }
 
 .card-inner {
     position: relative;
     width: 100%;
     height: 100%;
-    text-align: center;
     transition: transform 0.6s;
     transform-style: preserve-3d;
 }
@@ -63,30 +62,19 @@ canvas {
     width: 100%;
     height: 100%;
     backface-visibility: hidden;
+    top: 0;
+    left: 0;
+    background: #fff;
+    border-radius: 16px;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border-radius: 10px;
-    padding: 20px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    border: 1px solid #ddd;
-}
-
-.card-front {
-    background-color: #f8f9fa;
 }
 
 .card-back {
-    background-color: white;
     transform: rotateY(180deg);
-    padding: 10px;
-    /* FIX: These flexbox rules are now on .card-back */
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start; /* Align content to the top */
-    align-items: center;
-    gap: 10px; /* Space between title and image */
 }
 
 /* FIX: This new class styles the name on the back of the card */
@@ -156,47 +144,55 @@ canvas {
 
 /* Voter Overlay Styles */
 .drawing-container {
-    position: relative;
-    flex: 1;
     width: 100%;
-    min-height: 0;
+    height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.voter-overlay {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    background: rgba(0, 0, 0, 0.5);
-    color: white;
-    padding: 8px 12px;
+.drawing-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    background: #fff;
     border-radius: 8px;
-    backdrop-filter: blur(4px);
-    z-index: 10;
-    max-width: 200px;
+}
+
+/* Voter list below drawing */
+.voter-list-below {
+    margin-top: 12px;
+    text-align: center;
 }
 
 .voter-list {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
 }
 
 .voter-item {
+    background: #f3f4f6;
+    border-radius: 8px;
+    padding: 4px 8px;
+    font-size: 0.95em;
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 0.8rem;
-    line-height: 1.2;
+    gap: 4px;
 }
 
-.voter-rank {
-    font-size: 0.9rem;
-    flex-shrink: 0;
-}
-
-.voter-name {
-    font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+/* Responsive for smaller screens */
+@media (max-width: 500px) {
+    .answer-card {
+        width: 95vw;
+        height: 60vw;
+        min-height: 220px;
+        max-width: 98vw;
+    }
+    .drawing-container {
+        height: 40vw;
+        min-height: 120px;
+    }
 }

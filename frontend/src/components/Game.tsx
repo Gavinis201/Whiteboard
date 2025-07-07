@@ -387,18 +387,18 @@ export const Game: React.FC = () => {
                         <div className="drawing-container">
                             <img src={answer.content} alt={`Drawing by ${answer.playerName}`} />
                         </div>
-                            {judgingModeEnabled && detailedVoteResult && detailedVoteResult.voters && detailedVoteResult.voters.length > 0 && (
-                                <div className="voter-overlay">
-                                    <div className="voter-list">
-                                        {detailedVoteResult.voters.map((voter: any, index: number) => (
-                                            <div key={index} className="voter-item">
-                                                <span className="voter-rank">❤️</span>
-                                                <span className="voter-name">{voter.voterName}</span>
-                                            </div>
-                                        ))}
-                                    </div>
+                        {judgingModeEnabled && detailedVoteResult && detailedVoteResult.voters && detailedVoteResult.voters.length > 0 && (
+                            <div className="voter-list-below">
+                                <div className="voter-list">
+                                    {detailedVoteResult.voters.map((voter: any, index: number) => (
+                                        <div key={index} className="voter-item">
+                                            <span className="voter-rank">❤️</span>
+                                            <span className="voter-name">{voter.voterName}</span>
+                                        </div>
+                                    ))}
                                 </div>
-                            )}
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
