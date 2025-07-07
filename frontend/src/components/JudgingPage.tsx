@@ -115,11 +115,11 @@ export const JudgingPage: React.FC = () => {
                             <div className="prompt-card">
                                 <div className="prompt-header">
                                     <p className="prompt-text">"{currentRound.prompt}"</p>
-                                    <button className="leave-game-btn-integrated" onClick={handleLeaveGame}>
-                                        Leave Game
-                                    </button>
                                 </div>
                             </div>
+                            <button className="leave-game-btn-integrated" onClick={handleLeaveGame}>
+                                Leave Game
+                            </button>
                         </div>
                     </div>
                     
@@ -159,10 +159,10 @@ export const JudgingPage: React.FC = () => {
                             <div className="prompt-header">
                                 <p className="prompt-text">"{currentRound.prompt}"</p>
                             </div>
-                            <button className="leave-game-btn-integrated" onClick={handleLeaveGame}>
-                                Leave Game
-                            </button>
                         </div>
+                        <button className="leave-game-btn-integrated" onClick={handleLeaveGame}>
+                            Leave Game
+                        </button>
                     </div>
                 </div>
 
@@ -228,7 +228,6 @@ export const JudgingPage: React.FC = () => {
                                             alt={`Drawing by ${answer.playerName}`}
                                             className="drawing-image"
                                         />
-                                        {getVoteDisplayForAnswer(answer.answerId)}
                                     </div>
                                     
                                     <div className="drawing-info">
