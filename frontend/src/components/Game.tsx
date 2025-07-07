@@ -386,6 +386,7 @@ export const Game: React.FC = () => {
                         <h3 className="player-name-back">{answer.playerName || 'Unknown'}</h3>
                         <div className="drawing-container">
                             <img src={answer.content} alt={`Drawing by ${answer.playerName}`} />
+                        </div>
                             {judgingModeEnabled && detailedVoteResult && detailedVoteResult.voters && detailedVoteResult.voters.length > 0 && (
                                 <div className="voter-overlay">
                                     <div className="voter-list">
@@ -398,7 +399,6 @@ export const Game: React.FC = () => {
                                     </div>
                                 </div>
                             )}
-                        </div>
                     </div>
                 </div>
             </div>
