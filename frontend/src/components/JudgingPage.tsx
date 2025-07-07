@@ -3,6 +3,7 @@ import { useGame } from '../contexts/GameContext';
 import { Answer, VoteResult } from '../types/game';
 import { signalRService } from '../services/signalR';
 import './JudgingPage.css';
+import { useNavigate } from 'react-router-dom';
 
 export const JudgingPage: React.FC = () => {
     const { game, player, currentRound, answers, players, judgingModeEnabled } = useGame();
@@ -10,6 +11,7 @@ export const JudgingPage: React.FC = () => {
     const [voteResults, setVoteResults] = useState<VoteResult[]>([]);
     const [hasVoted, setHasVoted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const navigate = useNavigate();
 
     // Filter out the current player's own drawing
     const otherPlayersAnswers = answers.filter(answer => answer.playerId !== player?.playerId);
@@ -80,6 +82,13 @@ export const JudgingPage: React.FC = () => {
 
     const canSubmit = selectedVote !== null && otherPlayersAnswers.length > 0;
 
+    const handleLeaveGame = async () => {
+        if (game?.joinCode) {
+            await signalRService.leaveGame(game.joinCode);
+        }
+        navigate('/');
+    };
+
     if (!currentRound || !player) {
         return (
             <div className="judging-page">
@@ -129,6 +138,10 @@ export const JudgingPage: React.FC = () => {
 
     return (
         <div className="judging-page">
+            {/* Leave Game Button */}
+            <button className="leave-game-btn" onClick={handleLeaveGame}>
+                Leave Game
+            </button>
             {/* New Round Notification */}
            
             

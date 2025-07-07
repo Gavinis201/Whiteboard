@@ -694,4 +694,25 @@
         gap: 8px;
         text-align: center;
     }
+}
+
+.leave-game-btn {
+    position: absolute;
+    top: 24px;
+    right: 32px;
+    z-index: 100;
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.15);
+    transition: background 0.2s, box-shadow 0.2s;
+}
+.leave-game-btn:hover {
+    background: #dc2626;
+    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.25);
 } 
