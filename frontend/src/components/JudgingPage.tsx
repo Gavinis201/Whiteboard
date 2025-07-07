@@ -158,10 +158,10 @@ export const JudgingPage: React.FC = () => {
                         <div className="prompt-card">
                             <div className="prompt-header">
                                 <p className="prompt-text">"{currentRound.prompt}"</p>
-                                <button className="leave-game-btn-integrated" onClick={handleLeaveGame}>
-                                    Leave Game
-                                </button>
                             </div>
+                            <button className="leave-game-btn-integrated" onClick={handleLeaveGame}>
+                                Leave Game
+                            </button>
                         </div>
                     </div>
                 </div>
