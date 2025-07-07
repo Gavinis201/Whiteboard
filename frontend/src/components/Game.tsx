@@ -178,78 +178,65 @@ export const Game: React.FC = () => {
         }
     }, [drawingHistory, selectedColor, brushSize]);
 
-    const getCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
+            const getCoordinates = (e: React.PointerEvent) => {
         const canvas = canvasRef.current;
         if (!canvas) return { x: 0, y: 0 };
         const rect = canvas.getBoundingClientRect();
-        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-        return { x: clientX - rect.left, y: clientY - rect.top };
-    };
+        return {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+        };
 
-    const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
-        if ('touches' in e) e.preventDefault();
+        const startDrawing = (e: React.PointerEvent) => {
+        e.preventDefault();
         const { x, y } = getCoordinates(e);
         const ctx = canvasRef.current?.getContext('2d');
         if (!ctx) return;
         setIsDrawing(true);
         setHasMoved(false);
         setStartPoint({ x, y });
-        
-        // Set the drawing styles
+
         ctx.strokeStyle = selectedColor;
         ctx.fillStyle = selectedColor;
         ctx.lineWidth = brushSize;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        
-        // Start a new path and move to the current position
+
         ctx.beginPath();
         ctx.moveTo(x, y);
-    };
+        };
 
-    const draw = (e: React.MouseEvent | React.TouchEvent) => {
+        const draw = (e: React.PointerEvent) => {
         if (!isDrawing) return;
-        if ('touches' in e) e.preventDefault();
+        e.preventDefault();
         const { x, y } = getCoordinates(e);
         const ctx = canvasRef.current?.getContext('2d');
         if (!ctx) return;
-        
-        // Check if user has moved (for single tap detection)
+
         const distance = Math.sqrt((x - startPoint.x) ** 2 + (y - startPoint.y) ** 2);
-        if (distance > 2) { // Threshold for movement
-            setHasMoved(true);
-        }
-        
-        // Draw a line to the current position
+        if (distance > 2) setHasMoved(true);
+
         ctx.lineTo(x, y);
         ctx.stroke();
-    };
+        };
 
-    const stopDrawing = () => {
+        const stopDrawing = () => {
         if (!isDrawing) return;
         setIsDrawing(false);
+        
+        // Save the current canvas state to history
         const canvas = canvasRef.current;
-        const ctx = canvas?.getContext('2d');
-        if (ctx && canvas) {
-            // If the user didn't move much, draw a dot (single tap)
-            if (!hasMoved) {
-                ctx.beginPath();
-                ctx.arc(startPoint.x, startPoint.y, brushSize / 2, 0, 2 * Math.PI);
-                ctx.fill();
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                setDrawingHistory(prev => [...prev, imageData]);
+                setUndoneStrokes([]); // Clear undone strokes when new stroke is added
             }
-            
-            ctx.closePath();
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            setDrawingHistory(prev => [...prev, imageData]);
-            
-            // Clear undone strokes when a new stroke is drawn
-            setUndoneStrokes([]);
-            
-            // Reset movement tracking
-            setHasMoved(false);
         }
-    };
+        };
+
 
     const undoLastStroke = () => {
         if (drawingHistory.length === 0) return;
@@ -623,14 +610,29 @@ export const Game: React.FC = () => {
                                             </div>
                                                                                 {allPlayersSubmitted && (
                                         <div className="mt-2">
-                                            <p className="text-sm text-green-700 font-medium mb-2">
-                                                ✓ All players have submitted and been redirected to judging!
-                                            </p>
-                                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                                                <p className="text-blue-800 text-sm">
-                                                    <strong>Ready for next round:</strong> Players are currently voting. You can start a new round when they're done.
-                                                </p>
-                                            </div>
+                                            {judgingModeEnabled ? (
+                                                <>
+                                                    <p className="text-sm text-green-700 font-medium mb-2">
+                                                        ✓ All players have submitted and been redirected to judging!
+                                                    </p>
+                                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                                        <p className="text-blue-800 text-sm">
+                                                            <strong>Ready for next round:</strong> Players are currently voting. You can start a new round when they're done.
+                                                        </p>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <p className="text-sm text-green-700 font-medium mb-2">
+                                                        ✓ All players have submitted!
+                                                    </p>
+                                                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                                                        <p className="text-green-800 text-sm">
+                                                            <strong>Ready for next round:</strong> All players have finished drawing. You can start a new round whenever you're ready.
+                                                        </p>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     )}
                                         </div>
@@ -731,6 +733,21 @@ export const Game: React.FC = () => {
                                             </div>
                                         )}
                                         
+                                        {!judgingModeEnabled && allPlayersSubmitted && (
+                                            <div className="border rounded-lg p-3 bg-green-100 border-green-300">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+                                                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                    </div>
+                                                    <p className="text-green-800 text-sm font-medium">
+                                                        All players have submitted! Waiting for the host to start the next round.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        
 
                                     </div>
                                 ) : (
@@ -789,7 +806,15 @@ export const Game: React.FC = () => {
                                                 </button>
                                             </div>
                                         </div>
-                                        <div className="canvas-container"><canvas ref={canvasRef} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} /></div>
+                                        <div className="canvas-container">
+                                            <canvas
+                                                  ref={canvasRef}
+                                                  onPointerDown={startDrawing}
+                                                  onPointerMove={draw}
+                                                  onPointerUp={stopDrawing}
+                                                  onPointerLeave={stopDrawing}
+                                                />
+                                            </div>
                                         <div className="flex flex-col sm:flex-row items-center gap-4 mt-2">
                                             <div className="flex flex-row gap-2 items-center w-full">
                                                 🖌️

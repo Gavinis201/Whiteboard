@@ -383,7 +383,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [game, player, isInitialized, currentRound, playersWhoSubmitted]);
 
-    // Auto-navigate to judging when everyone has submitted
+    // Auto-navigate to judging when everyone has submitted (only if judging mode is enabled)
     useEffect(() => {
         if (!isInitialized || !game || !player || !currentRound) {
             return;
@@ -406,15 +406,20 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             nonReaderPlayers.every(p => playersWhoSubmitted.has(p.playerId));
 
         if (allNonReadersSubmitted && !hasNavigatedToJudgingRef.current) {
-            console.log('All players have submitted, navigating to judging page');
-            hasNavigatedToJudgingRef.current = true;
-            
-            // Use setTimeout to ensure the state updates are processed first
-            setTimeout(() => {
-                window.location.href = '/judging';
-            }, 1000); // 1 second delay to show the completion state
+            // Only navigate to judging page if judging mode is enabled
+            if (judgingModeEnabled) {
+                console.log('All players have submitted and judging mode is enabled, navigating to judging page');
+                hasNavigatedToJudgingRef.current = true;
+                
+                // Use setTimeout to ensure the state updates are processed first
+                setTimeout(() => {
+                    window.location.href = '/judging';
+                }, 1000); // 1 second delay to show the completion state
+            } else {
+                console.log('All players have submitted but judging mode is disabled, staying on game page');
+            }
         }
-    }, [isInitialized, game, player, currentRound, players, playersWhoSubmitted]);
+    }, [isInitialized, game, player, currentRound, players, playersWhoSubmitted, judgingModeEnabled]);
 
     // Reset navigation flag when a new round starts
     useEffect(() => {

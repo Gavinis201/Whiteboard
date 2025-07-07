@@ -1,8 +1,16 @@
+/* Disable selection on the entire page */
 body {
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
+  -webkit-touch-callout: none; /* iOS: prevent long-press menu */
+}
+
+/* Re-enable selection where needed (inputs, buttons, etc.) */
+input, textarea, button, select, label {
+  user-select: text;
+  -webkit-user-select: text;
 }
 .canvas-container {
     display: flex;
