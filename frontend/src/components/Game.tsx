@@ -574,7 +574,7 @@ export const Game: React.FC = () => {
                                             onChange={(e) => toggleJudgingMode(e.target.checked)}
                                             className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
                                         />
-                                        <span className="text-sm font-medium text-gray-700">Enable Judging Mode</span>
+                                        <span className="text-sm font-medium text-gray-700">Voting Mode</span>
                                     </label>
                                     {judgingModeEnabled && (
                                         <span className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded">
