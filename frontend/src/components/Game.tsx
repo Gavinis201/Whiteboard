@@ -608,33 +608,6 @@ export const Game: React.FC = () => {
                                                     }}
                                                 ></div>
                                             </div>
-                                                                                {allPlayersSubmitted && (
-                                        <div className="mt-2">
-                                            {judgingModeEnabled ? (
-                                                <>
-                                                    <p className="text-sm text-green-700 font-medium mb-2">
-                                                        ✓ All players have submitted and been redirected to judging!
-                                                    </p>
-                                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                                                        <p className="text-blue-800 text-sm">
-                                                            <strong>Ready for next round:</strong> Players are currently voting. You can start a new round when they're done.
-                                                        </p>
-                                                    </div>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <p className="text-sm text-green-700 font-medium mb-2">
-                                                        ✓ All players have submitted!
-                                                    </p>
-                                                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                                                        <p className="text-green-800 text-sm">
-                                                            <strong>Ready for next round:</strong> All players have finished drawing. You can start a new round whenever you're ready.
-                                                        </p>
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-                                    )}
                                         </div>
                                     )}
                                 </div>

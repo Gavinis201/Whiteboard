@@ -7,11 +7,12 @@ body {
   -webkit-touch-callout: none; /* iOS: prevent long-press menu */
 }
 
-/* Re-enable selection where needed (inputs, buttons, etc.) */
+/* Re-enable selection where needed (inputs, buttons, etc.)
 input, textarea, button, select, label {
   user-select: text;
   -webkit-user-select: text;
-}
+} */
+
 .canvas-container {
     display: flex;
     justify-content: center;
