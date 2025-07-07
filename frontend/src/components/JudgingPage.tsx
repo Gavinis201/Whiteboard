@@ -6,7 +6,7 @@ import './JudgingPage.css';
 import { useNavigate } from 'react-router-dom';
 
 export const JudgingPage: React.FC = () => {
-    const { game, player, currentRound, answers, players, judgingModeEnabled } = useGame();
+    const { game, player, currentRound, answers, players, judgingModeEnabled, isReader, leaveGame } = useGame();
     const [selectedVote, setSelectedVote] = useState<number | null>(null);
     const [voteResults, setVoteResults] = useState<VoteResult[]>([]);
     const [hasVoted, setHasVoted] = useState(false);
@@ -83,10 +83,14 @@ export const JudgingPage: React.FC = () => {
     const canSubmit = selectedVote !== null && otherPlayersAnswers.length > 0;
 
     const handleLeaveGame = async () => {
-        if (game?.joinCode) {
-            await signalRService.leaveGame(game.joinCode);
+        const message = isReader 
+            ? 'Are you sure you want to leave? This will end the game for all players.'
+            : 'Are you sure you want to leave the game?';
+            
+        if (window.confirm(message)) {
+            await leaveGame();
+            navigate('/');
         }
-        navigate('/');
     };
 
     if (!currentRound || !player) {
@@ -109,7 +113,12 @@ export const JudgingPage: React.FC = () => {
                         <div className="header-content">
                             <h1 className="header-title">🎨 Waiting for Host</h1>
                             <div className="prompt-card">
-                                <p className="prompt-text">"{currentRound.prompt}"</p>
+                                <div className="prompt-header">
+                                    <p className="prompt-text">"{currentRound.prompt}"</p>
+                                    <button className="leave-game-btn-integrated" onClick={handleLeaveGame}>
+                                        Leave Game
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -138,10 +147,6 @@ export const JudgingPage: React.FC = () => {
 
     return (
         <div className="judging-page">
-            {/* Leave Game Button */}
-            <button className="leave-game-btn" onClick={handleLeaveGame}>
-                Leave Game
-            </button>
             {/* New Round Notification */}
            
             
@@ -151,7 +156,12 @@ export const JudgingPage: React.FC = () => {
                     <div className="header-content">
                         <h1 className="header-title">🎨 Vote for Your Favorites!</h1>
                         <div className="prompt-card">
-                            <p className="prompt-text">"{currentRound.prompt}"</p>
+                            <div className="prompt-header">
+                                <p className="prompt-text">"{currentRound.prompt}"</p>
+                                <button className="leave-game-btn-integrated" onClick={handleLeaveGame}>
+                                    Leave Game
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
