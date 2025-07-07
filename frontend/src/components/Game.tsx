@@ -40,6 +40,8 @@ export const Game: React.FC = () => {
     const [detailedVoteResults, setDetailedVoteResults] = useState<any[]>([]);
     const [allPlayersSubmitted, setAllPlayersSubmitted] = useState(false);
     
+
+    
     const isIPhone = () => /iPhone/i.test(navigator.userAgent);
     const colors = ['#000000', '#FF0000', '#FFA500', '#FFFF00', '#008000', '#0000FF', '#800080', '#895129', '#FFFFFF'];
 
@@ -215,7 +217,9 @@ export const Game: React.FC = () => {
         if (!ctx) return;
 
         const distance = Math.sqrt((x - startPoint.x) ** 2 + (y - startPoint.y) ** 2);
-        if (distance > 2) setHasMoved(true);
+        if (distance > 2) {
+            setHasMoved(true);
+        } 
 
         ctx.lineTo(x, y);
         ctx.stroke();
@@ -224,18 +228,31 @@ export const Game: React.FC = () => {
         const stopDrawing = () => {
         if (!isDrawing) return;
         setIsDrawing(false);
-        
-        // Save the current canvas state to history
+
         const canvas = canvasRef.current;
-        if (canvas) {
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                setDrawingHistory(prev => [...prev, imageData]);
-                setUndoneStrokes([]); // Clear undone strokes when new stroke is added
-            }
+        const ctx = canvas?.getContext('2d');
+        if (!ctx || !canvas) return;
+
+        if (!hasMoved) {
+            // 👆 Draw dot if user didn't move
+            ctx.beginPath();
+            ctx.arc(startPoint.x, startPoint.y, brushSize / 2, 0, 2 * Math.PI);
+            ctx.fillStyle = selectedColor;
+            ctx.fill();
+            ctx.closePath();
+        } else {
+            // 👇 Ensure the path is properly closed
+            ctx.closePath();
         }
+
+        // 🧠 Save for undo
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        setDrawingHistory(prev => [...prev, imageData]);
+        setUndoneStrokes([]);
         };
+
+
+
 
 
     const undoLastStroke = () => {
