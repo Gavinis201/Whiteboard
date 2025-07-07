@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Azure production URL
-const API_URL = 'https://whiteboard-backend.azurewebsites.net/api';
+const API_URL = 'https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/api';
 // const API_URL = 'http://localhost:5164/api'; // Local development URL
 
 export interface Game {
@@ -40,6 +40,22 @@ export interface Prompt {
     category: string;
     isActive: boolean;
     createdAt: string;
+}
+
+export interface Vote {
+    voteId: number;
+    voterPlayerId: number;
+    votedAnswerId: number;
+    rank: number;
+    roundId: number;
+}
+
+export interface VoteResult {
+    answerId: number;
+    answerContent: string;
+    playerName: string;
+    voteCount: number;
+    totalVotes: number;
 }
 
 export const createGame = async (): Promise<Game> => {
