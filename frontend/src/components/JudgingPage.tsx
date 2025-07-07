@@ -143,7 +143,7 @@ export const JudgingPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Instructions Section */}
+                {/* Instructions Section
                 {otherPlayersAnswers.length > 0 && !hasVoted && (
                     <div className="instructions-section">
                         <div className="instructions-card">
@@ -159,7 +159,7 @@ export const JudgingPage: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                )}
+                )} */}
 
                 {/* Main Content */}
                 {hasVoted ? (

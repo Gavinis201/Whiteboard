@@ -152,9 +152,6 @@ namespace Whiteboard.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("Rank")
-                        .HasColumnType("INTEGER");
-
                     b.Property<int>("RoundId")
                         .HasColumnType("INTEGER");
 
