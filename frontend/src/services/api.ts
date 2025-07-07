@@ -46,7 +46,6 @@ export interface Vote {
     voteId: number;
     voterPlayerId: number;
     votedAnswerId: number;
-    rank: number;
     roundId: number;
 }
 

@@ -26,17 +26,14 @@ export interface Vote {
     voteId: number;
     voterPlayerId: number;
     votedAnswerId: number;
-    rank: number; // 1st, 2nd, or 3rd place
     roundId: number;
 }
 
 export interface VoteResult {
     answerId: number;
     playerName: string;
-    firstPlaceVotes: number;
-    secondPlaceVotes: number;
-    thirdPlaceVotes: number;
-    totalPoints: number;
+    voteCount: number;
+    totalVotes: number;
 }
 
 export interface ExtendedGame {

@@ -390,12 +390,7 @@ export const Game: React.FC = () => {
                         {judgingModeEnabled && voteResult && (
                             <div className="vote-results">
                                 <div className="vote-badge">
-                                    <span className="vote-points">{voteResult.totalPoints} pts</span>
-                                </div>
-                                <div className="vote-breakdown">
-                                    <span className="vote-rank">🥇 {voteResult.firstPlaceVotes}</span>
-                                    <span className="vote-rank">🥈 {voteResult.secondPlaceVotes}</span>
-                                    <span className="vote-rank">🥉 {voteResult.thirdPlaceVotes}</span>
+                                    <span className="vote-points">{voteResult.voteCount} votes</span>
                                 </div>
                             </div>
                         )}
@@ -409,9 +404,7 @@ export const Game: React.FC = () => {
                                     <div className="voter-list">
                                         {detailedVoteResult.voters.map((voter: any, index: number) => (
                                             <div key={index} className="voter-item">
-                                                <span className="voter-rank">
-                                                    {voter.rank === 1 ? '🥇' : voter.rank === 2 ? '🥈' : '🥉'}
-                                                </span>
+                                                <span className="voter-rank">❤️</span>
                                                 <span className="voter-name">{voter.voterName}</span>
                                             </div>
                                         ))}

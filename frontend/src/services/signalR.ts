@@ -176,11 +176,11 @@ class SignalRService {
         await this.connection.invoke('ToggleJudgingMode', joinCode, enabled);
     }
 
-    async submitVote(joinCode: string, votedAnswerId: number, rank: number) {
+    async submitVote(joinCode: string, votedAnswerId: number) {
         await this.ensureConnection();
         if (!this.connection) throw new Error('No SignalR connection');
-        console.log('SignalR submitVote called with:', { joinCode, votedAnswerId, rank });
-        await this.connection.invoke('SubmitVote', joinCode, votedAnswerId, rank);
+        console.log('SignalR submitVote called with:', { joinCode, votedAnswerId });
+        await this.connection.invoke('SubmitVote', joinCode, votedAnswerId);
     }
 
     async getMaxVotesForGame(joinCode: string): Promise<number> {

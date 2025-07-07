@@ -18,11 +18,10 @@ public class VotesController : ControllerBase
     [HttpPost("submit")]
     public async Task<IActionResult> SubmitVote([FromBody] Vote vote)
     {
-        // Check if player has already voted for this rank in this round
+        // Check if player has already voted in this round
         var existingVote = await _context.Votes
             .FirstOrDefaultAsync(v => v.VoterPlayerId == vote.VoterPlayerId && 
-                                     v.RoundId == vote.RoundId && 
-                                     v.Rank == vote.Rank);
+                                     v.RoundId == vote.RoundId);
         
         if (existingVote != null)
         {
@@ -62,13 +61,10 @@ public class VotesController : ControllerBase
             {
                 AnswerId = g.Key,
                 PlayerName = g.First().VotedAnswer.PlayerName,
-                FirstPlaceVotes = g.Count(v => v.Rank == 1),
-                SecondPlaceVotes = g.Count(v => v.Rank == 2),
-                ThirdPlaceVotes = g.Count(v => v.Rank == 3),
-                TotalPoints = g.Sum(v => v.Rank == 1 ? 3 : v.Rank == 2 ? 2 : 1)
+                VoteCount = g.Count(),
+                TotalVotes = _context.Votes.Count(v => v.RoundId == roundId)
             })
-            .OrderByDescending(r => r.TotalPoints)
-            .ThenByDescending(r => r.FirstPlaceVotes)
+            .OrderByDescending(r => r.VoteCount)
             .ToListAsync();
 
         return Ok(voteResults);
@@ -80,7 +76,6 @@ public class VotesController : ControllerBase
         var votes = await _context.Votes
             .Include(v => v.VotedAnswer)
             .Where(v => v.VoterPlayerId == playerId && v.RoundId == roundId)
-            .OrderBy(v => v.Rank)
             .ToListAsync();
 
         return Ok(votes);
@@ -98,18 +93,14 @@ public class VotesController : ControllerBase
             {
                 AnswerId = g.Key,
                 PlayerName = g.First().VotedAnswer.PlayerName,
-                FirstPlaceVotes = g.Count(v => v.Rank == 1),
-                SecondPlaceVotes = g.Count(v => v.Rank == 2),
-                ThirdPlaceVotes = g.Count(v => v.Rank == 3),
-                TotalPoints = g.Sum(v => v.Rank == 1 ? 3 : v.Rank == 2 ? 2 : 1),
+                VoteCount = g.Count(),
+                TotalVotes = _context.Votes.Count(v => v.RoundId == roundId),
                 Voters = g.Select(v => new
                 {
-                    VoterName = v.VoterPlayer.Name,
-                    Rank = v.Rank
-                }).OrderBy(v => v.Rank).ToList()
+                    VoterName = v.VoterPlayer.Name
+                }).ToList()
             })
-            .OrderByDescending(r => r.TotalPoints)
-            .ThenByDescending(r => r.FirstPlaceVotes)
+            .OrderByDescending(r => r.VoteCount)
             .ToListAsync();
 
         return Ok(detailedResults);

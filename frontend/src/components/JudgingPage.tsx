@@ -6,39 +6,18 @@ import './JudgingPage.css';
 
 export const JudgingPage: React.FC = () => {
     const { game, player, currentRound, answers, players, judgingModeEnabled } = useGame();
-    const [selectedVotes, setSelectedVotes] = useState<{ [rank: number]: number | null }>({});
+    const [selectedVote, setSelectedVote] = useState<number | null>(null);
     const [voteResults, setVoteResults] = useState<VoteResult[]>([]);
     const [hasVoted, setHasVoted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [maxVotes, setMaxVotes] = useState(3);
-    const [actualVotesNeeded, setActualVotesNeeded] = useState(3);
 
     // Filter out the current player's own drawing
     const otherPlayersAnswers = answers.filter(answer => answer.playerId !== player?.playerId);
     
-    // Calculate actual votes needed based on available drawings
-    const availableDrawings = otherPlayersAnswers.length;
-    const effectiveMaxVotes = Math.min(maxVotes, availableDrawings);
-
     useEffect(() => {
-        // Get max votes for this game
-        const getMaxVotes = async () => {
-            if (game?.joinCode) {
-                try {
-                    const max = await signalRService.getMaxVotesForGame(game.joinCode);
-                    setMaxVotes(max);
-                } catch (error) {
-                    console.error('Error getting max votes:', error);
-                }
-            }
-        };
-
-        getMaxVotes();
-
         // Set up vote results listener
         signalRService.onVoteResultsUpdated((results: VoteResult[], maxVotes: number) => {
             setVoteResults(results);
-            setMaxVotes(maxVotes);
         });
 
         // Set up judging mode listener to update state when enabled
@@ -55,61 +34,27 @@ export const JudgingPage: React.FC = () => {
         };
     }, []); // Empty dependency array - only run once
 
-    // Update actual votes needed when maxVotes or available drawings change
-    useEffect(() => {
-        const availableDrawings = otherPlayersAnswers.length;
-        const effectiveMaxVotes = Math.min(maxVotes, availableDrawings);
-        setActualVotesNeeded(effectiveMaxVotes);
-        
-        // Initialize or update selectedVotes with the correct number of ranks
-        const initialVotes: { [rank: number]: number | null } = {};
-        for (let i = 1; i <= effectiveMaxVotes; i++) {
-            initialVotes[i] = null;
+    const handleVoteSelect = (answerId: number | null) => {
+        // If selecting the same answer, deselect it
+        if (selectedVote === answerId) {
+            setSelectedVote(null);
+        } else {
+            // Select the new answer
+            setSelectedVote(answerId);
         }
-        setSelectedVotes(initialVotes);
-    }, [maxVotes, otherPlayersAnswers.length]);
-
-    const handleVoteSelect = (rank: number, answerId: number | null) => {
-        setSelectedVotes(prev => {
-            const newVotes = { ...prev };
-            
-            // If selecting the same answer for the same rank, deselect it
-            if (newVotes[rank] === answerId) {
-                newVotes[rank] = null;
-            } else {
-                // If selecting a different answer, update it
-                newVotes[rank] = answerId;
-                
-                // Remove this answer from other ranks to prevent duplicates
-                Object.keys(newVotes).forEach(key => {
-                    const rankKey = parseInt(key);
-                    if (rankKey !== rank && newVotes[rankKey] === answerId) {
-                        newVotes[rankKey] = null;
-                    }
-                });
-            }
-            
-            return newVotes;
-        });
     };
 
-    const handleSubmitVotes = async () => {
-        if (!game?.joinCode || !player) return;
+    const handleSubmitVote = async () => {
+        if (!game?.joinCode || !player || selectedVote === null) return;
 
         setIsSubmitting(true);
         try {
-            // Submit each vote
-            for (const [rankStr, answerId] of Object.entries(selectedVotes)) {
-                if (answerId !== null) {
-                    const rank = parseInt(rankStr);
-                    console.log('Submitting vote:', { joinCode: game.joinCode, answerId, rank });
-                    await signalRService.submitVote(game.joinCode, answerId, rank);
-                }
-            }
+            console.log('Submitting vote:', { joinCode: game.joinCode, answerId: selectedVote });
+            await signalRService.submitVote(game.joinCode, selectedVote);
             setHasVoted(true);
         } catch (error) {
-            console.error('Error submitting votes:', error);
-            alert('Failed to submit votes. Please try again.');
+            console.error('Error submitting vote:', error);
+            alert('Failed to submit vote. Please try again.');
         } finally {
             setIsSubmitting(false);
         }
@@ -117,7 +62,7 @@ export const JudgingPage: React.FC = () => {
 
     const getVoteCountForAnswer = (answerId: number) => {
         const result = voteResults.find(r => r.answerId === answerId);
-        return result ? result.totalPoints : 0;
+        return result ? result.voteCount : 0;
     };
 
     const getVoteDisplayForAnswer = (answerId: number) => {
@@ -127,18 +72,13 @@ export const JudgingPage: React.FC = () => {
         return (
             <div className="vote-display">
                 <div className="vote-badge">
-                    <span className="vote-points">{result.totalPoints} pts</span>
-                </div>
-                <div className="vote-breakdown">
-                    <span className="vote-rank">🥇 {result.firstPlaceVotes}</span>
-                    <span className="vote-rank">🥈 {result.secondPlaceVotes}</span>
-                    <span className="vote-rank">🥉 {result.thirdPlaceVotes}</span>
+                    <span className="vote-points">{result.voteCount} votes</span>
                 </div>
             </div>
         );
     };
 
-    const canSubmit = Object.values(selectedVotes).every(vote => vote !== null) && actualVotesNeeded > 0;
+    const canSubmit = selectedVote !== null && otherPlayersAnswers.length > 0;
 
     if (!currentRound || !player) {
         return (
@@ -204,38 +144,18 @@ export const JudgingPage: React.FC = () => {
                 </div>
 
                 {/* Instructions Section */}
-                {actualVotesNeeded > 0 && !hasVoted && (
+                {otherPlayersAnswers.length > 0 && !hasVoted && (
                     <div className="instructions-section">
                         <div className="instructions-card">
                             <h2 className="instructions-title">How to Vote</h2>
                             <div className="instructions-grid">
-                                {actualVotesNeeded >= 1 && (
-                                    <div className="instruction-item">
-                                        <div className="rank-badge first">🥇</div>
-                                        <div className="instruction-content">
-                                            <h3>1st Place</h3>
-                                            <p>Your absolute favorite (3 points)</p>
-                                        </div>
+                                <div className="instruction-item">
+                                    <div className="rank-badge first">❤️</div>
+                                    <div className="instruction-content">
+                                        <h3>Vote for Your Favorite</h3>
+                                        <p>Click on the drawing you like the most!</p>
                                     </div>
-                                )}
-                                {actualVotesNeeded >= 2 && (
-                                    <div className="instruction-item">
-                                        <div className="rank-badge second">🥈</div>
-                                        <div className="instruction-content">
-                                            <h3>2nd Place</h3>
-                                            <p>Your second favorite (2 points)</p>
-                                        </div>
-                                    </div>
-                                )}
-                                {actualVotesNeeded >= 3 && (
-                                    <div className="instruction-item">
-                                        <div className="rank-badge third">🥉</div>
-                                        <div className="instruction-content">
-                                            <h3>3rd Place</h3>
-                                            <p>Your third favorite (1 point)</p>
-                                        </div>
-                                    </div>
-                                )}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -252,7 +172,7 @@ export const JudgingPage: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                ) : actualVotesNeeded === 0 ? (
+                ) : otherPlayersAnswers.length === 0 ? (
                     <div className="no-voting-section">
                         <div className="no-voting-card">
                             <div className="no-voting-icon">🎨</div>
@@ -292,33 +212,12 @@ export const JudgingPage: React.FC = () => {
                                         <h3 className="artist-name">{answer.playerName}</h3>
                                         
                                         <div className="vote-buttons">
-                                            {actualVotesNeeded >= 1 && (
-                                                <button
-                                                    className={`vote-btn ${selectedVotes[1] === answer.answerId ? 'selected first' : ''}`}
-                                                    onClick={() => handleVoteSelect(1, answer.answerId)}
-                                                    disabled={selectedVotes[1] !== null && selectedVotes[1] !== answer.answerId}
-                                                >
-                                                    🥇 1st
-                                                </button>
-                                            )}
-                                            {actualVotesNeeded >= 2 && (
-                                                <button
-                                                    className={`vote-btn ${selectedVotes[2] === answer.answerId ? 'selected second' : ''}`}
-                                                    onClick={() => handleVoteSelect(2, answer.answerId)}
-                                                    disabled={selectedVotes[2] !== null && selectedVotes[2] !== answer.answerId}
-                                                >
-                                                    🥈 2nd
-                                                </button>
-                                            )}
-                                            {actualVotesNeeded >= 3 && (
-                                                <button
-                                                    className={`vote-btn ${selectedVotes[3] === answer.answerId ? 'selected third' : ''}`}
-                                                    onClick={() => handleVoteSelect(3, answer.answerId)}
-                                                    disabled={selectedVotes[3] !== null && selectedVotes[3] !== answer.answerId}
-                                                >
-                                                    🥉 3rd
-                                                </button>
-                                            )}
+                                            <button
+                                                className={`vote-btn ${selectedVote === answer.answerId ? 'selected first' : ''}`}
+                                                onClick={() => handleVoteSelect(answer.answerId)}
+                                            >
+                                                ❤️ Vote
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -328,39 +227,21 @@ export const JudgingPage: React.FC = () => {
                         {/* Vote Summary */}
                         <div className="vote-summary">
                             <div className="summary-card">
-                                <h3 className="summary-title">Your Votes</h3>
+                                <h3 className="summary-title">Your Vote</h3>
                                 <div className="selected-votes">
-                                    {actualVotesNeeded >= 1 && (
-                                        <div className="vote-item">
-                                            <span className="vote-rank">🥇 1st:</span>
-                                            <span className="vote-player">
-                                                {selectedVotes[1] ? otherPlayersAnswers.find(a => a.answerId === selectedVotes[1])?.playerName : 'Not selected'}
-                                            </span>
-                                        </div>
-                                    )}
-                                    {actualVotesNeeded >= 2 && (
-                                        <div className="vote-item">
-                                            <span className="vote-rank">🥈 2nd:</span>
-                                            <span className="vote-player">
-                                                {selectedVotes[2] ? otherPlayersAnswers.find(a => a.answerId === selectedVotes[2])?.playerName : 'Not selected'}
-                                            </span>
-                                        </div>
-                                    )}
-                                    {actualVotesNeeded >= 3 && (
-                                        <div className="vote-item">
-                                            <span className="vote-rank">🥉 3rd:</span>
-                                            <span className="vote-player">
-                                                {selectedVotes[3] ? otherPlayersAnswers.find(a => a.answerId === selectedVotes[3])?.playerName : 'Not selected'}
-                                            </span>
-                                        </div>
-                                    )}
+                                    <div className="vote-item">
+                                        <span className="vote-rank">❤️ Favorite:</span>
+                                        <span className="vote-player">
+                                            {selectedVote ? otherPlayersAnswers.find(a => a.answerId === selectedVote)?.playerName : 'Not selected'}
+                                        </span>
+                                    </div>
                                 </div>
                                 <button
                                     className={`submit-votes-btn ${canSubmit ? 'enabled' : 'disabled'}`}
-                                    onClick={handleSubmitVotes}
+                                    onClick={handleSubmitVote}
                                     disabled={!canSubmit || isSubmitting}
                                 >
-                                    {isSubmitting ? 'Submitting...' : 'Submit Votes'}
+                                    {isSubmitting ? 'Submitting...' : 'Submit Vote'}
                                 </button>
                             </div>
                         </div>

@@ -465,7 +465,7 @@ public class GameHub : Hub
         _logger.LogInformation("Judging mode {Enabled} for game {JoinCode} by host {HostName}", enabled ? "enabled" : "disabled", joinCode, player.Name);
     }
 
-    public async Task SubmitVote(string joinCode, int votedAnswerId, int rank)
+    public async Task SubmitVote(string joinCode, int votedAnswerId)
     {
         var playerIdStr = Context.Items["PlayerId"]?.ToString();
         if (string.IsNullOrEmpty(playerIdStr) || !int.TryParse(playerIdStr, out var voterPlayerId))
@@ -488,25 +488,15 @@ public class GameHub : Hub
             .FirstOrDefault();
         if (activeRound == null) throw new HubException("No active round found");
 
-        // Calculate max votes based on player count
-        var maxVotes = GetMaxVotesForPlayerCount(game.Players.Count);
-        
-        // Validate rank is within allowed range
-        if (rank < 1 || rank > maxVotes)
-        {
-            throw new HubException($"Invalid rank. With {game.Players.Count} players, you can only vote for ranks 1-{maxVotes}.");
-        }
-
         // Check if the answer exists and belongs to this round
         var answer = await _context.Answers
             .FirstOrDefaultAsync(a => a.AnswerId == votedAnswerId && a.RoundId == activeRound.RoundId);
         if (answer == null) throw new HubException("Answer not found");
 
-        // Check if player has already voted for this rank in this round
+        // Check if player has already voted in this round
         var existingVote = await _context.Votes
             .FirstOrDefaultAsync(v => v.VoterPlayerId == voterPlayerId && 
-                                     v.RoundId == activeRound.RoundId && 
-                                     v.Rank == rank);
+                                     v.RoundId == activeRound.RoundId);
         
         if (existingVote != null)
         {
@@ -520,7 +510,6 @@ public class GameHub : Hub
             {
                 VoterPlayerId = voterPlayerId,
                 VotedAnswerId = votedAnswerId,
-                Rank = rank,
                 RoundId = activeRound.RoundId
             };
             _context.Votes.Add(vote);
@@ -531,7 +520,7 @@ public class GameHub : Hub
         // Broadcast vote results to all players
         await BroadcastVoteResults(joinCode, activeRound.RoundId);
         
-        _logger.LogInformation("Vote submitted by {PlayerName} for answer {AnswerId} with rank {Rank} (max votes: {MaxVotes})", voter.Name, votedAnswerId, rank, maxVotes);
+        _logger.LogInformation("Vote submitted by {PlayerName} for answer {AnswerId}", voter.Name, votedAnswerId);
     }
 
     private int GetMaxVotesForPlayerCount(int playerCount)
@@ -560,8 +549,6 @@ public class GameHub : Hub
         var game = await _context.Games
             .Include(g => g.Players)
             .FirstOrDefaultAsync(g => g.JoinCode == joinCode);
-        
-        var maxVotes = game != null ? GetMaxVotesForPlayerCount(game.Players.Count) : 3;
 
         var voteResults = await _context.Votes
             .Include(v => v.VotedAnswer)
@@ -571,16 +558,13 @@ public class GameHub : Hub
             {
                 AnswerId = g.Key,
                 PlayerName = g.First().VotedAnswer.PlayerName,
-                FirstPlaceVotes = g.Count(v => v.Rank == 1),
-                SecondPlaceVotes = g.Count(v => v.Rank == 2),
-                ThirdPlaceVotes = g.Count(v => v.Rank == 3),
-                TotalPoints = g.Sum(v => v.Rank == 1 ? 3 : v.Rank == 2 ? 2 : 1)
+                VoteCount = g.Count(),
+                TotalVotes = _context.Votes.Count(v => v.RoundId == roundId)
             })
-            .OrderByDescending(r => r.TotalPoints)
-            .ThenByDescending(r => r.FirstPlaceVotes)
+            .OrderByDescending(r => r.VoteCount)
             .ToListAsync();
 
-        await Clients.Group(joinCode).SendAsync("VoteResultsUpdated", voteResults, maxVotes);
+        await Clients.Group(joinCode).SendAsync("VoteResultsUpdated", voteResults, 1);
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
