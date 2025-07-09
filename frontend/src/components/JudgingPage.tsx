@@ -238,7 +238,7 @@ export const JudgingPage: React.FC = () => {
                                                 className={`vote-btn ${selectedVote === answer.answerId ? 'selected first' : ''}`}
                                                 onClick={() => handleVoteSelect(answer.answerId)}
                                             >
-                                                ❤️ Vote
+                                                💜 Vote
                                             </button>
                                         </div>
                                     </div>
@@ -252,7 +252,7 @@ export const JudgingPage: React.FC = () => {
                                 <h3 className="summary-title">Your Vote</h3>
                                 <div className="selected-votes">
                                     <div className="vote-item">
-                                        <span className="vote-rank">❤️ Favorite:</span>
+                                        <span className="vote-rank">💜 Favorite:</span>
                                         <span className="vote-player">
                                             {selectedVote ? otherPlayersAnswers.find(a => a.answerId === selectedVote)?.playerName : 'Not selected'}
                                         </span>
