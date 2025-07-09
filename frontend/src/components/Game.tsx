@@ -41,7 +41,7 @@ export const Game: React.FC = () => {
     const [allPlayersSubmitted, setAllPlayersSubmitted] = useState(false);
     
     // Add game mode state
-    const [gameMode, setGameMode] = useState<'Classic' | 'Blank' | 'Custom'>('Classic');
+    const [gameMode, setGameMode] = useState<'Classic' | 'Blank' | 'Custom'>('Custom');
 
     const isIPhone = () => /iPhone/i.test(navigator.userAgent);
     const colors = ['#000000', '#FF0000', '#FFA500', '#FFFF00', '#008000', '#0000FF', '#800080', '#895129', '#FFFFFF'];
@@ -558,11 +558,11 @@ export const Game: React.FC = () => {
                                     {/* Game mode dropdown */}
                                     <select
                                         value={gameMode}
-                                        onChange={e => setGameMode(e.target.value as 'Classic' | 'Blank' | 'Custom')}
+                                        onChange={e => setGameMode(e.target.value as 'Custom' |'Classic' | 'Blank' )}
                                         className="px-3 py-2 border border-gray-300 rounded-md bg-white"
                                         style={{ minWidth: 140 }}
                                     >
-                                        <option value="Custom">Custom</option>
+                                        <option value="Custom" disabled >Game Modes</option>
                                         <option value="Classic">Silly Prompts</option>
                                         <option value="Blank">Blank Game</option>
                                     </select>
