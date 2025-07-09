@@ -562,9 +562,9 @@ export const Game: React.FC = () => {
                                         className="px-3 py-2 border border-gray-300 rounded-md bg-white"
                                         style={{ minWidth: 140 }}
                                     >
-                                        <option value="Classic">Classic Prompts</option>
-                                        <option value="Blank">Blank</option>
                                         <option value="Custom">Custom</option>
+                                        <option value="Classic">Silly Prompts</option>
+                                        <option value="Blank">Blank Game</option>
                                     </select>
                                     {/* Prompt input and suggestions */}
                                     <div className="flex-1 relative">
