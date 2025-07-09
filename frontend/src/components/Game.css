@@ -204,6 +204,6 @@ canvas {
     align-items: flex-start;
    }
    .input {
-        width: 100%;
+        width: 100vw;
     }
 }
