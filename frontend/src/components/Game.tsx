@@ -40,8 +40,9 @@ export const Game: React.FC = () => {
     const [detailedVoteResults, setDetailedVoteResults] = useState<any[]>([]);
     const [allPlayersSubmitted, setAllPlayersSubmitted] = useState(false);
     
+    // Add game mode state
+    const [gameMode, setGameMode] = useState<'Classic' | 'Blank' | 'Custom'>('Classic');
 
-    
     const isIPhone = () => /iPhone/i.test(navigator.userAgent);
     const colors = ['#000000', '#FF0000', '#FFA500', '#FFFF00', '#008000', '#0000FF', '#800080', '#895129', '#FFFFFF'];
 
@@ -126,17 +127,25 @@ export const Game: React.FC = () => {
         }
     }, [currentRound, players, playersWhoSubmitted]);
 
-    // Filter prompts based on input
+    // Update filtered prompts based on game mode and input
     useEffect(() => {
-        if (prompt.trim() === '') {
-            setFilteredPrompts(prompts);
-        } else {
-            const filtered = prompts.filter(p => 
-                p.text.toLowerCase().includes(prompt.toLowerCase())
+        if (gameMode === 'Custom') {
+            setFilteredPrompts([]);
+        } else if (prompt.trim() === '') {
+            setFilteredPrompts(
+                prompts.filter(p =>
+                    gameMode === 'Blank' ? p.category === 'Blank' : p.category !== 'Blank'
+                )
             );
-            setFilteredPrompts(filtered);
+        } else {
+            setFilteredPrompts(
+                prompts.filter(p =>
+                    (gameMode === 'Blank' ? p.category === 'Blank' : p.category !== 'Blank') &&
+                    p.text.toLowerCase().includes(prompt.toLowerCase())
+                )
+            );
         }
-    }, [prompt, prompts]);
+    }, [prompt, prompts, gameMode]);
 
     const handlePromptSelect = (selectedPrompt: string) => {
         setPrompt(selectedPrompt);
@@ -545,18 +554,38 @@ export const Game: React.FC = () => {
                                 )} */}
                             </div>
                             <div className="relative">
-                                <div className="start-new-round-container">
+                                <div className="start-new-round-container flex items-center gap-2">
+                                    {/* Game mode dropdown */}
+                                    <select
+                                        value={gameMode}
+                                        onChange={e => setGameMode(e.target.value as 'Classic' | 'Blank' | 'Custom')}
+                                        className="px-3 py-2 border border-gray-300 rounded-md bg-white"
+                                        style={{ minWidth: 140 }}
+                                    >
+                                        <option value="Classic">Classic Prompts</option>
+                                        <option value="Blank">Blank</option>
+                                        <option value="Custom">Custom</option>
+                                    </select>
+                                    {/* Prompt input and suggestions */}
                                     <div className="flex-1 relative">
-                                        <input 
-                                            type="text" 
-                                            value={prompt} 
-                                            onChange={e => setPrompt(e.target.value)} 
+                                        <input
+                                            type="text"
+                                            value={prompt}
+                                            onChange={e => setPrompt(e.target.value)}
                                             onFocus={handlePromptInputFocus}
                                             onBlur={handlePromptInputBlur}
-                                            placeholder="Enter the prompt or click to see suggestions" 
-                                            className="input w-full" 
+                                            placeholder={
+                                                gameMode === 'Blank'
+                                                    ? 'Enter your own or pick a Blank prompt...'
+                                                    : gameMode === 'Classic'
+                                                        ? 'Enter your own or pick a classic prompt...'
+                                                        : 'Type any prompt you want!'
+                                            }
+                                            className="input w-full"
+                                            disabled={gameMode === 'Custom' ? false : false}
                                         />
-                                        {showPromptsDropdown && filteredPrompts.length > 0 && (
+                                        {/* Suggestions dropdown */}
+                                        {gameMode !== 'Custom' && showPromptsDropdown && filteredPrompts.length > 0 && (
                                             <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
                                                 {filteredPrompts.map((promptItem) => (
                                                     <div
@@ -571,6 +600,7 @@ export const Game: React.FC = () => {
                                             </div>
                                         )}
                                     </div>
+                                    {/* Timer select and Start button remain unchanged */}
                                     <select 
                                         value={selectedTimerDuration || ''} 
                                         onChange={e => setSelectedTimerDuration(e.target.value ? Number(e.target.value) : null)}
@@ -581,6 +611,7 @@ export const Game: React.FC = () => {
                                         <option value="2">2 Minutes</option>
                                         <option value="3">3 Minutes</option>
                                     </select>
+
                                     <button onClick={handleStartRound} className="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700">Start</button>
                                 </div>
                                 <div className="mt-4 flex items-center gap-4">

@@ -145,9 +145,9 @@
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/obj/Debug/net8.0/Whiteboard.pdb
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/obj/Debug/net8.0/Whiteboard.genruntimeconfig.cache
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/obj/Debug/net8.0/ref/Whiteboard.dll
-/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/whiteboard.db
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/publish/web.config
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/publish/appsettings.Development.json
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/publish/appsettings.json
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/publish/Whiteboard.deps.json
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/publish/Whiteboard.runtimeconfig.json
+/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/whiteboard.db
