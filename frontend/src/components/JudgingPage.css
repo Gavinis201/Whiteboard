@@ -58,9 +58,9 @@
 .header-title {
     font-size: 2.5rem;
     font-weight: 800;
-    color: #1f2937;
+    color: #9333ea;
     margin-bottom: 16px;
-    background: linear-gradient(135deg, #8b5cf6, #a855f7);
+    background: #9333ea;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -69,7 +69,8 @@
 .prompt-card {
     display: flex;
     flex-direction: column;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background-color: #faf5ff;
+    border: 1px solid #e9d5ff;
     border-radius: 16px;
     padding: 24px;
     margin: 20px 0;
@@ -682,7 +683,7 @@
     }
     
     .header-title {
-        font-size: 2rem;
+        font-size: 1.9rem;
     }
     
     .prompt-header {
@@ -721,6 +722,9 @@
         flex-direction: column;
         gap: 8px;
         text-align: center;
+    }
+    .vote-rank {
+        display: none;
     }
 }
 

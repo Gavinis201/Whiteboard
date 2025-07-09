@@ -198,7 +198,7 @@ export const JudgingPage: React.FC = () => {
                 ) : otherPlayersAnswers.length === 0 ? (
                     <div className="no-voting-section">
                         <div className="no-voting-card">
-                            <div className="no-voting-icon">🎨</div>
+                            {/* <div className="no-voting-icon">🎨</div> */}
                             <h2>No Drawings to Vote On</h2>
                             <p>There are no other drawings available to vote on in this round.</p>
                             <div className="no-voting-reasons">
