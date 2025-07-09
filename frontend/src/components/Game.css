@@ -191,6 +191,7 @@ canvas {
 .start-new-round-container{
     display: flex;
     flex-direction: row;
+    
     gap: 8px;
 }
 
@@ -199,5 +200,6 @@ canvas {
 @media screen and (max-width: 500px) {
    .start-new-round-container{
     flex-direction: column;
+    justify-content: flex-start;
    }
 }
