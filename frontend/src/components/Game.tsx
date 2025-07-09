@@ -579,7 +579,7 @@ export const Game: React.FC = () => {
                                                         ? 'Enter your own or pick a classic prompt...'
                                                         : 'Type any prompt you want!'
                                             }
-                                            className="input flex flex-grow"
+                                            className="input"
                                             disabled={gameMode === 'Custom' ? false : false}
                                         />
                                         {/* Suggestions dropdown */}
