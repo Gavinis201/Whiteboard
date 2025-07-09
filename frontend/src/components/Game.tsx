@@ -564,7 +564,7 @@ export const Game: React.FC = () => {
                                     >
                                         <option value="Custom" disabled>Game Modes</option>
                                         <option value="Custom" >Custom</option>
-                                        <option value="Classic" >Classic Prompts</option>
+                                        <option value="Classic" >Classic</option>
                                         <option value="Blank">Blank Game</option>
                                     </select>
                                     {/* Prompt input and suggestions */}
