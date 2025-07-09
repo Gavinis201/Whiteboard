@@ -538,11 +538,11 @@ export const Game: React.FC = () => {
                         <div className="mb-6">
                             <div className="flex items-center gap-3 mb-2">
                                 <h3 className="text-xl font-semibold text-purple-600">Start a New Round</h3>
-                                {allPlayersSubmitted && judgingModeEnabled && (
+                                {/* {allPlayersSubmitted && judgingModeEnabled && (
                                     <div className="bg-green-100 border border-green-300 rounded-full px-3 py-1">
                                         <span className="text-green-800 text-xs font-medium">Players Ready</span>
                                     </div>
-                                )}
+                                )} */}
                             </div>
                             <div className="relative">
                                 <div className="start-new-round-container">
