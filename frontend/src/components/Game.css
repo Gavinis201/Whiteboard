@@ -204,7 +204,7 @@ canvas {
     align-items: flex-start;
    }
    .start-new-round-container input[type="text"] {
-     width: 100%;
+     width: 100% !important;
      box-sizing: border-box;
    }
 input {
