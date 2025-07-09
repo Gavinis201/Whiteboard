@@ -179,6 +179,7 @@ canvas {
 
 .voter-item {
     background: #faf5ff;
+    border: 1px solid #e9d5ff;
     border-radius: 8px;
     padding: 4px 8px;
     font-size: 0.95em;
