@@ -188,16 +188,16 @@ canvas {
     gap: 4px;
 }
 
+.start-new-round-container{
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+}
+
 /* Responsive for smaller screens */
-@media (max-width: 500px) {
-    .answer-card {
-        width: 95vw;
-        height: 60vw;
-        min-height: 220px;
-        max-width: 98vw;
-    }
-    .drawing-container {
-        height: 40vw;
-        min-height: 120px;
-    }
+
+@media screen and (max-width: 500px) {
+   .start-new-round-container{
+    flex-direction: column;
+   }
 }

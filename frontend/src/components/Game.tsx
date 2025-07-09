@@ -545,7 +545,7 @@ export const Game: React.FC = () => {
                                 )}
                             </div>
                             <div className="relative">
-                                <div className="flex gap-3">
+                                <div className="start-new-round-container">
                                     <div className="flex-1 relative">
                                         <input 
                                             type="text" 
