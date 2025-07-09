@@ -74,7 +74,7 @@
     border-radius: 16px;
     padding: 24px;
     margin: 20px 0;
-    box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+    /* box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3); */
     position: relative;
     overflow: hidden;
 }
@@ -87,7 +87,7 @@
 }
 
 .prompt-text {
-    color: white;
+    color: #9333ea;
     font-size: 1.25rem;
     font-weight: 600;
     line-height: 1.4;
@@ -433,9 +433,9 @@
 }
 
 .complete-header h2 {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 700;
-    color: #1f2937;
+    color: #9333ea;
     margin-bottom: 8px;
 }
 
@@ -683,7 +683,7 @@
     }
     
     .header-title {
-        font-size: 1.9rem;
+        font-size: 1.5rem;
     }
     
     .prompt-header {
@@ -731,9 +731,9 @@
 
 
 .leave-game-btn-integrated {
-    background: linear-gradient(135deg, #8b5cf6, #a855f7);
+    background: #9333ea;
     color: white;
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    /* border: 2px solid rgba(255, 255, 255, 0.3); */
     border-radius: 8px;
     padding: 8px 16px;
     font-size: 0.875rem;
@@ -743,6 +743,7 @@
     backdrop-filter: blur(10px);
     white-space: nowrap;
     flex-shrink: 0;
+    margin-top: 1em;
 }
 
 .leave-game-btn-integrated:hover {
