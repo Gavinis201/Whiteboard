@@ -39,8 +39,6 @@ export const Game: React.FC = () => {
     const [voteResults, setVoteResults] = useState<any[]>([]);
     const [detailedVoteResults, setDetailedVoteResults] = useState<any[]>([]);
     const [allPlayersSubmitted, setAllPlayersSubmitted] = useState(false);
-    
-    // Add game mode state
     const [gameMode, setGameMode] = useState<'Classic' | 'Blank' | 'Custom'>('Custom');
 
     const isIPhone = () => /iPhone/i.test(navigator.userAgent);
