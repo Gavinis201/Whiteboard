@@ -409,7 +409,7 @@ export const Game: React.FC = () => {
                                 <div className="voter-list">
                                     {detailedVoteResult.voters.map((voter: any, index: number) => (
                                         <div key={index} className="voter-item">
-                                            <span className="voter-rank">💜</span>
+                                            {/* <span className="voter-rank">💜</span> */}
                                             <span className="voter-name">{voter.voterName}</span>
                                         </div>
                                     ))}
