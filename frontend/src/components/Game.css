@@ -203,6 +203,10 @@ canvas {
     justify-content: flex-start;
     align-items: flex-start;
    }
+   .start-new-round-container input[type="text"] {
+     width: 100%;
+     box-sizing: border-box;
+   }
 input {
   width: 100%;
 }
