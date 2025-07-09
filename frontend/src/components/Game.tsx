@@ -611,20 +611,39 @@ export const Game: React.FC = () => {
                                     {/* Show submission progress for host */}
                                     {judgingModeEnabled && (
                                         <div className="mt-4 pt-4 border-t border-purple-200">
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span className="text-sm font-medium text-purple-700">Player Submissions:</span>
-                                                <span className="text-sm text-purple-600">
-                                                    {playersWhoSubmitted.size} of {players.filter(p => !p.isReader).length} players
-                                                </span>
-                                            </div>
-                                            <div className="w-full bg-purple-200 rounded-full h-2">
-                                                <div 
-                                                    className={`h-2 rounded-full transition-all duration-300 ${allPlayersSubmitted ? 'bg-green-500' : 'bg-purple-500'}`}
-                                                    style={{ 
-                                                        width: `${(playersWhoSubmitted.size / players.filter(p => !p.isReader).length) * 100}%` 
-                                                    }}
-                                                ></div>
-                                            </div>
+                                            {/* Calculate number of unique voters */}
+                                            {(() => {
+                                                const nonReaderPlayers = players.filter(p => !p.isReader);
+                                                // Collect all voter names from detailedVoteResults
+                                                let uniqueVoters = new Set<string>();
+                                                detailedVoteResults.forEach((result: any) => {
+                                                    if (result.voters && Array.isArray(result.voters)) {
+                                                        result.voters.forEach((voter: any) => {
+                                                            if (voter && voter.voterName) uniqueVoters.add(voter.voterName);
+                                                        });
+                                                    }
+                                                });
+                                                const votesSoFar = uniqueVoters.size;
+                                                const totalVoters = nonReaderPlayers.length;
+                                                return (
+                                                    <>
+                                                        <div className="flex justify-between items-center mb-2">
+                                                            <span className="text-sm font-medium text-purple-700">Player Votes:</span>
+                                                            <span className="text-sm text-purple-600">
+                                                                {votesSoFar} of {totalVoters} players
+                                                            </span>
+                                                        </div>
+                                                        <div className="w-full bg-purple-200 rounded-full h-2">
+                                                            <div 
+                                                                className={`h-2 rounded-full transition-all duration-300 ${votesSoFar === totalVoters ? 'bg-green-500' : 'bg-purple-500'}`}
+                                                                style={{ 
+                                                                    width: `${(votesSoFar / totalVoters) * 100}%` 
+                                                                }}
+                                                            ></div>
+                                                        </div>
+                                                    </>
+                                                );
+                                            })()}
                                         </div>
                                     )}
                                 </div>
@@ -635,11 +654,11 @@ export const Game: React.FC = () => {
                             <div>
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-xl font-semibold text-purple-600">Answers</h3>
-                                    {allPlayersSubmitted && judgingModeEnabled && (
+                                    {/* {allPlayersSubmitted && judgingModeEnabled && (
                                         <div className="bg-green-100 border border-green-300 rounded-lg px-3 py-1">
                                             <span className="text-green-800 text-sm font-medium">All players submitted!</span>
                                         </div>
-                                    )}
+                                    )} */}
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {answers.map(renderAnswerCard)}
