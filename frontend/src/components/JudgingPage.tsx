@@ -154,7 +154,7 @@ export const JudgingPage: React.FC = () => {
                 {/* Header Section */}
                 <div className="judging-header">
                     <div className="header-content">
-                        <h1 className="header-title">🎨 Vote for Your Favorites!</h1>
+                        <h1 className="header-title">🎨 Vote for Your Favorite!</h1>
                         <div className="prompt-card">
                             <div className="prompt-header">
                                 <p className="prompt-text">"{currentRound.prompt}"</p>
