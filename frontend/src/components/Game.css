@@ -195,8 +195,6 @@ canvas {
     gap: 8px;
 }
 
-/* Responsive for smaller screens */
-
 @media screen and (max-width: 500px) {
    .start-new-round-container{
     flex-direction: column;
@@ -204,6 +202,6 @@ canvas {
     align-items: flex-start;
    }
    .input {
-        width: 100vw;
+        width: 60vw;
     }
 }
