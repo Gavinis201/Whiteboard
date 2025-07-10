@@ -1053,14 +1053,13 @@ export const Game: React.FC = () => {
                                                     className={`p-2 rounded-full transition-colors ${isFillMode ? 'bg-purple-200 hover:bg-purple-300' : 'bg-gray-200 hover:bg-gray-300'}`}
                                                     title="Fill bucket tool"
                                                 >
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        {/* Bucket body */}
-                                                        <rect x="6" y="8" width="12" height="8" rx="3" strokeWidth={2} />
+                                                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                    {/* Bucket body */}
+                                                        <path d="M6 8h12l-1.5 10.5a2 2 0 01-2 1.5H9.5a2 2 0 01-2-1.5L6 8z" />
                                                         {/* Bucket handle */}
-                                                        <path d="M8 8a4 4 0 018 0" strokeWidth={2} />
-                                                        {/* Water drop */}
-                                                        <path d="M15.5 17c0-1.5 2-2 2-4 0-1.1-.9-2-2-2s-2 .9-2 2c0 2 2 2.5 2 4z" fill="#60a5fa" stroke="none" />
+                                                        <path d="M8 8a4 4 0 018 0" />
                                                     </svg>
+
                                                 </button>
                                                 <button 
                                                     onClick={clearCanvas} 
