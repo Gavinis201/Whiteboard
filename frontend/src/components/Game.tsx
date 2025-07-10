@@ -138,26 +138,42 @@ export const Game: React.FC = () => {
     useEffect(() => {
         if (gameMode === 'Custom') {
             setFilteredPrompts([]);
-        } else if (gameMode === 'Blank') {
-            setFilteredPrompts(
-                prompts.filter(p => p.category === 'Blank' && p.text.toLowerCase().includes(prompt.toLowerCase()))
-            );
-        } else if (gameMode === 'Classic') {
-            setFilteredPrompts(
-                prompts.filter(p => !['Blank', 'Trivia - American History', 'Trivia - Harry Potter', 'Trivia - Star Wars', 'Trivia - Marvel', 'Trivia - Disney Movies', 'Would Ya', 'Would You Rather'].includes(p.category) && p.text.toLowerCase().includes(prompt.toLowerCase()))
-            );
-        } else if (gameMode === 'Trivia') {
-            setFilteredPrompts(
-                prompts.filter(p => p.category === `Trivia - ${triviaCategory}` && p.text.toLowerCase().includes(prompt.toLowerCase()))
-            );
-        } else if (gameMode === 'Would Ya') {
-            setFilteredPrompts(
-                prompts.filter(p => p.category === 'Would Ya' && p.text.toLowerCase().includes(prompt.toLowerCase()))
-            );
-        } else if (gameMode === 'Would You Rather') {
-            setFilteredPrompts(
-                prompts.filter(p => p.category === 'Would You Rather' && p.text.toLowerCase().includes(prompt.toLowerCase()))
-            );
+        } else if (prompt.trim() === '') {
+            // Show all prompts for the selected mode when input is empty
+            if (gameMode === 'Blank') {
+                setFilteredPrompts(prompts.filter(p => p.category === 'Blank'));
+            } else if (gameMode === 'Classic') {
+                setFilteredPrompts(prompts.filter(p => !['Blank', 'Trivia - American History', 'Trivia - Harry Potter', 'Trivia - Star Wars', 'Trivia - Marvel', 'Trivia - Disney Movies', 'Would Ya', 'Would You Rather'].includes(p.category)));
+            } else if (gameMode === 'Trivia') {
+                setFilteredPrompts(prompts.filter(p => p.category === `Trivia - ${triviaCategory}`));
+            } else if (gameMode === 'Would Ya') {
+                setFilteredPrompts(prompts.filter(p => p.category === 'Would Ya'));
+            } else if (gameMode === 'Would You Rather') {
+                setFilteredPrompts(prompts.filter(p => p.category === 'Would You Rather'));
+            }
+        } else {
+            // Filter by input text when user is typing
+            if (gameMode === 'Blank') {
+                setFilteredPrompts(
+                    prompts.filter(p => p.category === 'Blank' && p.text.toLowerCase().includes(prompt.toLowerCase()))
+                );
+            } else if (gameMode === 'Classic') {
+                setFilteredPrompts(
+                    prompts.filter(p => !['Blank', 'Trivia - American History', 'Trivia - Harry Potter', 'Trivia - Star Wars', 'Trivia - Marvel', 'Trivia - Disney Movies', 'Would Ya', 'Would You Rather'].includes(p.category) && p.text.toLowerCase().includes(prompt.toLowerCase()))
+                );
+            } else if (gameMode === 'Trivia') {
+                setFilteredPrompts(
+                    prompts.filter(p => p.category === `Trivia - ${triviaCategory}` && p.text.toLowerCase().includes(prompt.toLowerCase()))
+                );
+            } else if (gameMode === 'Would Ya') {
+                setFilteredPrompts(
+                    prompts.filter(p => p.category === 'Would Ya' && p.text.toLowerCase().includes(prompt.toLowerCase()))
+                );
+            } else if (gameMode === 'Would You Rather') {
+                setFilteredPrompts(
+                    prompts.filter(p => p.category === 'Would You Rather' && p.text.toLowerCase().includes(prompt.toLowerCase()))
+                );
+            }
         }
     }, [prompt, prompts, gameMode, triviaCategory]);
 
