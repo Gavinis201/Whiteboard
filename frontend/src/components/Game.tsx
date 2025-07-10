@@ -47,6 +47,8 @@ export const Game: React.FC = () => {
     const [currentAnswer, setCurrentAnswer] = useState('');
     // Add fill bucket tool state
     const [isFillMode, setIsFillMode] = useState(false);
+    // Add pen input tolerance
+    const [lastPointerId, setLastPointerId] = useState<number | null>(null);
     const triviaCategories = [
       'American History',
       'Harry Potter',
@@ -269,18 +271,26 @@ export const Game: React.FC = () => {
         }
     }, [drawingHistory, selectedColor, brushSize]);
 
-            const getCoordinates = (e: React.PointerEvent) => {
+    const getCoordinates = (e: React.PointerEvent) => {
         const canvas = canvasRef.current;
         if (!canvas) return { x: 0, y: 0 };
         const rect = canvas.getBoundingClientRect();
+        
+        // Use pointer coordinates for better pen support
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        // Clamp coordinates to canvas bounds
         return {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
+            x: Math.max(0, Math.min(x, canvas.width)),
+            y: Math.max(0, Math.min(y, canvas.height))
         };
-        };
+    };
 
-        const startDrawing = (e: React.PointerEvent) => {
+    const startDrawing = (e: React.PointerEvent) => {
         e.preventDefault();
+        e.stopPropagation();
+        
         const { x, y } = getCoordinates(e);
         
         // Handle fill bucket tool
@@ -291,61 +301,85 @@ export const Game: React.FC = () => {
         
         const ctx = canvasRef.current?.getContext('2d');
         if (!ctx) return;
+        
+        // Track pointer ID for pen support
+        setLastPointerId(e.pointerId);
+        
+        // Reset drawing state
         setIsDrawing(true);
         setHasMoved(false);
         setStartPoint({ x, y });
 
+        // Set drawing styles with pressure sensitivity
         ctx.strokeStyle = selectedColor;
         ctx.fillStyle = selectedColor;
-        ctx.lineWidth = brushSize;
+        ctx.lineWidth = brushSize * (e.pressure || 1); // Use pressure if available
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
+        // Start new path
         ctx.beginPath();
         ctx.moveTo(x, y);
-        };
+    };
 
-        const draw = (e: React.PointerEvent) => {
-        if (!isDrawing) return;
+    const draw = (e: React.PointerEvent) => {
+        if (!isDrawing || e.pointerId !== lastPointerId) return;
         e.preventDefault();
+        e.stopPropagation();
+        
         const { x, y } = getCoordinates(e);
         const ctx = canvasRef.current?.getContext('2d');
         if (!ctx) return;
 
+        // Check if we've moved enough to consider it a stroke
         const distance = Math.sqrt((x - startPoint.x) ** 2 + (y - startPoint.y) ** 2);
         if (distance > 2) {
             setHasMoved(true);
         } 
 
+        // Update line width based on pressure
+        ctx.lineWidth = brushSize * (e.pressure || 1);
+
+        // Continue the line
         ctx.lineTo(x, y);
         ctx.stroke();
-        };
+    };
 
-        const stopDrawing = () => {
+    const stopDrawing = (e?: React.PointerEvent) => {
         if (!isDrawing) return;
+        
+        // Only stop if it's the same pointer or no specific pointer
+        if (e && e.pointerId !== lastPointerId) return;
+        
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
         setIsDrawing(false);
+        setLastPointerId(null);
 
         const canvas = canvasRef.current;
         const ctx = canvas?.getContext('2d');
         if (!ctx || !canvas) return;
 
         if (!hasMoved) {
-            // 👆 Draw dot if user didn't move
+            // Draw dot if user didn't move
             ctx.beginPath();
             ctx.arc(startPoint.x, startPoint.y, brushSize / 2, 0, 2 * Math.PI);
             ctx.fillStyle = selectedColor;
             ctx.fill();
             ctx.closePath();
         } else {
-            // 👇 Ensure the path is properly closed
+            // Ensure the path is properly closed
             ctx.closePath();
         }
 
-        // 🧠 Save for undo
+        // Save for undo
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         setDrawingHistory(prev => [...prev, imageData]);
         setUndoneStrokes([]);
-        };
+    };
 
 
 
@@ -630,7 +664,13 @@ export const Game: React.FC = () => {
     if (!game || !player) return <div className="text-center p-8">Loading...</div>;
 
     return (
-        <div className="min-h-screen bg-gray-50 p-4">
+        <div className="min-h-screen bg-gray-50 p-4" style={{
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            MozUserSelect: 'none',
+            msUserSelect: 'none',
+            touchAction: 'manipulation'
+        }}>
             {/* Fixed Timer Display for all users (host and players) */}
             {isTimerActive && selectedTimerDuration && timeRemaining !== null && (
                 <div className="fixed top-4 right-4 z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-4">
@@ -1078,16 +1118,40 @@ export const Game: React.FC = () => {
                                                 </button>
                                             </div>
                                         </div>
-                                        <div className="canvas-container select-none" style={{ userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none', msUserSelect: 'none' }}>
+                                        <div className="canvas-container select-none" style={{ 
+                                            userSelect: 'none', 
+                                            WebkitUserSelect: 'none', 
+                                            MozUserSelect: 'none', 
+                                            msUserSelect: 'none',
+                                            touchAction: 'none',
+                                            WebkitTouchCallout: 'none',
+                                            WebkitTapHighlightColor: 'transparent',
+                                            WebkitUserModify: 'read-only',
+                                            WebkitOverflowScrolling: 'touch'
+                                        }}>
                                             <canvas
-                                                  ref={canvasRef}
-                                                  onPointerDown={startDrawing}
-                                                  onPointerMove={draw}
-                                                  onPointerUp={stopDrawing}
-                                                  onPointerLeave={stopDrawing}
-                                                  style={{ userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none', msUserSelect: 'none' }}
-                                                />
-                                            </div>
+                                                ref={canvasRef}
+                                                onPointerDown={startDrawing}
+                                                onPointerMove={draw}
+                                                onPointerUp={stopDrawing}
+                                                onPointerLeave={stopDrawing}
+                                                onPointerCancel={stopDrawing}
+                                                onTouchStart={(e) => e.preventDefault()}
+                                                onTouchMove={(e) => e.preventDefault()}
+                                                onTouchEnd={(e) => e.preventDefault()}
+                                                style={{ 
+                                                    userSelect: 'none', 
+                                                    WebkitUserSelect: 'none', 
+                                                    MozUserSelect: 'none', 
+                                                    msUserSelect: 'none',
+                                                    touchAction: 'none',
+                                                    WebkitTouchCallout: 'none',
+                                                    WebkitTapHighlightColor: 'transparent',
+                                                    WebkitUserModify: 'read-only',
+                                                    WebkitOverflowScrolling: 'touch'
+                                                }}
+                                            />
+                                        </div>
                                         <div className="flex flex-col sm:flex-row items-center gap-4 mt-2 select-none" style={{ userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none', msUserSelect: 'none' }}>
                                             {isFillMode && (
                                                 <div className="bg-purple-100 border border-purple-300 rounded-lg px-3 py-1 text-sm text-purple-700 font-medium">
