@@ -53,6 +53,26 @@ export const Game: React.FC = () => {
     const isIPhone = () => /iPhone/i.test(navigator.userAgent);
     const colors = ['#000000', '#FF0000', '#FFA500', '#FFFF00', '#008000', '#0000FF', '#800080', '#895129', '#FFFFFF'];
 
+    // Utility function to hide answers in parentheses
+    const hideAnswers = (text: string) => {
+        // Replace text in parentheses with invisible text (same color as background)
+        return text.replace(/\([^)]*\)/g, (match) => {
+            return `<span style="color: transparent; background: transparent;">${match}</span>`;
+        });
+    };
+
+    // Utility function to render text with hidden answers
+    const renderTextWithHiddenAnswers = (text: string) => {
+        const parts = text.split(/(\([^)]*\))/g);
+        return parts.map((part, index) => {
+            if (part.match(/^\([^)]*\)$/)) {
+                // This is an answer in parentheses - make it invisible but selectable
+                return <span key={index} style={{ color: 'transparent', background: 'transparent' }}>{part}</span>;
+            }
+            return <span key={index}>{part}</span>;
+        });
+    };
+
     // Set up timer expire callback for auto-submission
     useEffect(() => {
         if (currentRound && !isReader && !playersWhoSubmitted.has(player?.playerId || 0)) {
@@ -640,7 +660,7 @@ export const Game: React.FC = () => {
                                                         className="px-4 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
                                                         onClick={() => handlePromptSelect(promptItem.text)}
                                                     >
-                                                        <div className="font-medium text-gray-900">{promptItem.text}</div>
+                                                        <div className="font-medium text-gray-900">{renderTextWithHiddenAnswers(promptItem.text)}</div>
                                                         <div className="text-sm text-gray-500">{promptItem.category}</div>
                                                     </div>
                                                 ))}
@@ -684,7 +704,7 @@ export const Game: React.FC = () => {
                             <div className="mb-6">
                                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                                     <h4 className="text-lg font-semibold text-purple-700 mb-2">Current Round Prompt:</h4>
-                                    <p className="text-lg text-gray-800">"{currentRound.prompt}"</p>
+                                    <p className="text-lg text-gray-800">"{renderTextWithHiddenAnswers(currentRound.prompt)}"</p>
                                     
                                     {/* Show submission progress for host */}
                                     {judgingModeEnabled && (
@@ -751,7 +771,7 @@ export const Game: React.FC = () => {
                             <div>
                                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
                                     <h4 className="text-lg font-semibold text-purple-700 mb-2">Current Prompt:</h4>
-                                    <p className="text-lg text-gray-800">"{currentRound.prompt}"</p>
+                                    <p className="text-lg text-gray-800">"{renderTextWithHiddenAnswers(currentRound.prompt)}"</p>
                                 </div>
                                 {playersWhoSubmitted.has(player.playerId) ? (
                                     <div className="bg-green-50 border border-green-200 rounded-lg p-6">
