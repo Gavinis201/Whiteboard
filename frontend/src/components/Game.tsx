@@ -827,12 +827,22 @@ export const Game: React.FC = () => {
                                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                                     <h4 className="text-lg font-semibold text-purple-700 mb-2">Current Round Prompt:</h4>
                                     <p className="text-lg text-gray-800">"{renderTextWithHiddenAnswers(currentRound.prompt)}"</p>
+                                    {(() => {
+                                        console.log('Current round prompt debug:', {
+                                            prompt: currentRound.prompt,
+                                            hasParentheses: currentRound.prompt.includes('('),
+                                            allPlayersSubmitted
+                                        });
+                                        return null;
+                                    })()}
                                     {allPlayersSubmitted && currentRound.prompt.includes('(') && (
                                         <div className="mt-3 pt-3 border-t border-purple-200">
                                             <div className="flex items-center gap-3">
                                                 <button 
                                                     onClick={() => {
+                                                        console.log('Answer button clicked, prompt:', currentRound.prompt);
                                                         const answerMatch = currentRound.prompt.match(/\(([^)]+)\)/);
+                                                        console.log('Answer match:', answerMatch);
                                                         if (answerMatch) {
                                                             setCurrentAnswer(answerMatch[1]);
                                                             setShowAnswer(!showAnswer);
