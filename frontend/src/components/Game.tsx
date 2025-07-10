@@ -45,6 +45,8 @@ export const Game: React.FC = () => {
     // Add answer display state
     const [showAnswer, setShowAnswer] = useState(false);
     const [currentAnswer, setCurrentAnswer] = useState('');
+    // Add fill bucket tool state
+    const [isFillMode, setIsFillMode] = useState(false);
     const triviaCategories = [
       'American History',
       'Harry Potter',
@@ -279,6 +281,13 @@ export const Game: React.FC = () => {
         const startDrawing = (e: React.PointerEvent) => {
         e.preventDefault();
         const { x, y } = getCoordinates(e);
+        
+        // Handle fill bucket tool
+        if (isFillMode) {
+            floodFill(Math.floor(x), Math.floor(y), selectedColor);
+            return;
+        }
+        
         const ctx = canvasRef.current?.getContext('2d');
         if (!ctx) return;
         setIsDrawing(true);
@@ -371,6 +380,81 @@ export const Game: React.FC = () => {
         setHasMoved(false);
     };
 
+    // Flood fill algorithm for fill bucket tool
+    const floodFill = (startX: number, startY: number, fillColor: string) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        
+        // Get image data for pixel manipulation
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        // Convert hex color to RGB
+        const hexToRgb = (hex: string) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : null;
+        };
+        
+        const fillRgb = hexToRgb(fillColor);
+        if (!fillRgb) return;
+        
+        // Get the target color (the color we're replacing)
+        const targetIndex = (startY * canvas.width + startX) * 4;
+        const targetR = data[targetIndex];
+        const targetG = data[targetIndex + 1];
+        const targetB = data[targetIndex + 2];
+        
+        // Don't fill if clicking on the same color
+        if (targetR === fillRgb.r && targetG === fillRgb.g && targetB === fillRgb.b) {
+            return;
+        }
+        
+        // Stack-based flood fill algorithm
+        const stack: [number, number][] = [[startX, startY]];
+        
+        while (stack.length > 0) {
+            const [x, y] = stack.pop()!;
+            const index = (y * canvas.width + x) * 4;
+            
+            // Check bounds
+            if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) {
+                continue;
+            }
+            
+            // Check if this pixel matches the target color
+            if (data[index] !== targetR || data[index + 1] !== targetG || data[index + 2] !== targetB) {
+                continue;
+            }
+            
+            // Fill this pixel
+            data[index] = fillRgb.r;
+            data[index + 1] = fillRgb.g;
+            data[index + 2] = fillRgb.b;
+            data[index + 3] = 255; // Alpha
+            
+            // Add neighboring pixels to stack
+            stack.push([x + 1, y]);
+            stack.push([x - 1, y]);
+            stack.push([x, y + 1]);
+            stack.push([x, y - 1]);
+        }
+        
+        // Put the modified image data back
+        ctx.putImageData(imageData, 0, 0);
+        
+        // Save for undo
+        const newImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        setDrawingHistory(prev => [...prev, newImageData]);
+        setUndoneStrokes([]);
+    };
+
     const clearCanvas = () => {
         // Show confirmation dialog
         if (!window.confirm('Are you sure you want to clear the canvas?')) {
@@ -448,6 +532,8 @@ export const Game: React.FC = () => {
         // Reset answer state when starting a new round
         setShowAnswer(false);
         setCurrentAnswer('');
+        // Reset fill mode when starting new round
+        setIsFillMode(false);
         // setSelectedTimerDuration(null);
     };
     
@@ -959,6 +1045,15 @@ export const Game: React.FC = () => {
                                                     </svg>
                                                 </button>
                                                 <button 
+                                                    onClick={() => setIsFillMode(!isFillMode)} 
+                                                    className={`p-2 rounded-full transition-colors ${isFillMode ? 'bg-purple-200 hover:bg-purple-300' : 'bg-gray-200 hover:bg-gray-300'}`}
+                                                    title="Fill bucket tool"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                                    </svg>
+                                                </button>
+                                                <button 
                                                     onClick={clearCanvas} 
                                                     className="p-2 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors"
                                                     title="Clear canvas"
@@ -979,6 +1074,11 @@ export const Game: React.FC = () => {
                                                 />
                                             </div>
                                         <div className="flex flex-col sm:flex-row items-center gap-4 mt-2">
+                                            {isFillMode && (
+                                                <div className="bg-purple-100 border border-purple-300 rounded-lg px-3 py-1 text-sm text-purple-700 font-medium">
+                                                    🪣 Fill Mode Active
+                                                </div>
+                                            )}
                                             <div className="flex flex-row gap-2 items-center w-full">
                                                 🖌️
                                                 <input
@@ -988,6 +1088,7 @@ export const Game: React.FC = () => {
                                                     value={brushSize}
                                                     onChange={e => setBrushSize(Number(e.target.value))}
                                                     className="flex-grow"
+                                                    disabled={isFillMode}
                                                 />
                                             </div>
                                             <button 
