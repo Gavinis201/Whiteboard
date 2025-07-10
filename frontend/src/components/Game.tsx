@@ -1078,16 +1078,17 @@ export const Game: React.FC = () => {
                                                 </button>
                                             </div>
                                         </div>
-                                        <div className="canvas-container">
+                                        <div className="canvas-container select-none" style={{ userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none', msUserSelect: 'none' }}>
                                             <canvas
                                                   ref={canvasRef}
                                                   onPointerDown={startDrawing}
                                                   onPointerMove={draw}
                                                   onPointerUp={stopDrawing}
                                                   onPointerLeave={stopDrawing}
+                                                  style={{ userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none', msUserSelect: 'none' }}
                                                 />
                                             </div>
-                                        <div className="flex flex-col sm:flex-row items-center gap-4 mt-2">
+                                        <div className="flex flex-col sm:flex-row items-center gap-4 mt-2 select-none" style={{ userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none', msUserSelect: 'none' }}>
                                             {isFillMode && (
                                                 <div className="bg-purple-100 border border-purple-300 rounded-lg px-3 py-1 text-sm text-purple-700 font-medium">
                                                     🪣 Fill Mode Active
@@ -1108,7 +1109,13 @@ export const Game: React.FC = () => {
                                             <button 
                                                 onClick={handleSubmitAnswer} 
                                                 disabled={!!compressionStatus} 
-                                                className="bg-purple-600 text-white px-8 py-3 rounded-lg hover:bg-purple-700 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="bg-purple-600 text-white px-8 py-3 rounded-lg hover:bg-purple-700 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed select-none user-select-none"
+                                                style={{ 
+                                                    userSelect: 'none',
+                                                    WebkitUserSelect: 'none',
+                                                    MozUserSelect: 'none',
+                                                    msUserSelect: 'none'
+                                                }}
                                             >
                                                 {compressionStatus || 'Submit Drawing'}
                                             </button>
