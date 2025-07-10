@@ -822,7 +822,7 @@ export const Game: React.FC = () => {
                                             <div>
                                                 <h3 className="text-lg font-semibold text-green-800">Drawing Submitted!</h3>
                                                 <p className="text-green-700">
-                                                    {allPlayersSubmitted ? 'All players have finished! Preparing for judging...' : 'Waiting for other players to finish...'}
+                                                    {allPlayersSubmitted ? 'All players have finished! ' : 'Waiting for other players to finish...'}
                                                 </p>
                                             </div>
                                         </div>
@@ -852,7 +852,7 @@ export const Game: React.FC = () => {
                                                     className={`h-2 rounded-full transition-all duration-300 ${allPlayersSubmitted ? 'bg-green-600' : 'bg-green-500'}`}
                                                     style={{ 
                                                         width: `${(playersWhoSubmitted.size / players.filter(p => !p.isReader).length) * 100}%` 
-                                                    }}
+                                                    }} 
                                                 ></div>
                                             </div>
                                         </div>
@@ -878,7 +878,7 @@ export const Game: React.FC = () => {
                                             </div>
                                         )}
                                         
-                                        {!judgingModeEnabled && allPlayersSubmitted && (
+                                        {/* {!judgingModeEnabled && allPlayersSubmitted && (
                                             <div className="border rounded-lg p-3 bg-green-100 border-green-300">
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
@@ -891,7 +891,7 @@ export const Game: React.FC = () => {
                                                     </p>
                                                 </div>
                                             </div>
-                                        )}
+                                        )} */}
                                         
 
                                     </div>
