@@ -120,15 +120,11 @@ using (var scope = app.Services.CreateScope())
         
         logger.LogInformation("Starting database initialization...");
         
-        // Ensure database is created
-        context.Database.EnsureCreated();
-        logger.LogInformation("Database created successfully.");
-        
-        // Apply migrations
+        // Apply migrations (this also creates the database if it doesn't exist)
         context.Database.Migrate();
         logger.LogInformation("Migrations applied successfully.");
         
-        // Seed prompts
+        // Seed prompts (only if database is empty)
         await PromptSeeder.SeedPrompts(context);
         logger.LogInformation("Database seeding completed successfully.");
     }
