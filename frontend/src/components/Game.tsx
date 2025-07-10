@@ -223,12 +223,18 @@ export const Game: React.FC = () => {
         setShowPromptsDropdown(false);
     };
 
+    const handlePromptItemClick = (e: React.MouseEvent, selectedPrompt: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        handlePromptSelect(selectedPrompt);
+    };
+
     const handlePromptInputFocus = () => {
         setShowPromptsDropdown(true);
     };
 
     const handlePromptInputBlur = () => {
-        // ✅ OPTIMIZED: Immediate dropdown hiding for faster response
+        // ✅ OPTIMIZED: Immediate dropdown hiding with proper click handling
         setShowPromptsDropdown(false);
     };
 
@@ -684,7 +690,7 @@ export const Game: React.FC = () => {
                                                     <div
                                                         key={promptItem.promptId}
                                                         className="px-4 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
-                                                        onClick={() => handlePromptSelect(promptItem.text)}
+                                                        onMouseDown={(e) => handlePromptItemClick(e, promptItem.text)}
                                                     >
                                                         <div className="font-medium text-gray-900">{renderTextWithHiddenAnswers(promptItem.text)}</div>
                                                         <div className="text-sm text-gray-500">{promptItem.category}</div>
