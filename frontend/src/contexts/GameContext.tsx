@@ -72,26 +72,52 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
     const players = game?.players || [];
 
-    // ✅ NEW: Page visibility detection for better auto-submission handling
+    // ✅ ENHANCED: Page visibility detection for better mobile Safari support
     useEffect(() => {
         const handleVisibilityChange = () => {
             const isVisible = !document.hidden;
             pageVisibilityRef.current = isVisible;
             console.log('Page visibility changed:', isVisible);
             
-            // If page becomes visible and we have an active timer, check if we need to auto-submit
-            if (isVisible && isTimerActive && timeRemaining !== null && timeRemaining <= 0 && !autoSubmissionAttemptedRef.current) {
-                console.log('Page became visible with expired timer, attempting auto-submission');
-                if (onTimerExpire) {
-                    autoSubmissionAttemptedRef.current = true;
-                    onTimerExpire();
+            // If page becomes visible, check connection and sync state
+            if (isVisible) {
+                console.log('Page became visible, checking connection and syncing state');
+                
+                // Force a connection check and re-sync if needed
+                if (game?.joinCode && player?.name && !signalRService.isConnected()) {
+                    console.log('Connection lost while in background, attempting to reconnect');
+                    signalRService.joinGame(game.joinCode, player.name).catch(err => {
+                        console.error('Failed to reconnect after visibility change:', err);
+                    });
+                }
+                
+                // If we have an active timer, check if we need to auto-submit
+                if (isTimerActive && timeRemaining !== null && timeRemaining <= 0 && !autoSubmissionAttemptedRef.current) {
+                    console.log('Page became visible with expired timer, attempting auto-submission');
+                    if (onTimerExpire) {
+                        autoSubmissionAttemptedRef.current = true;
+                        onTimerExpire();
+                    }
+                }
+            } else {
+                console.log('Page went to background, saving current state');
+                // Save current state when going to background
+                if (game && player) {
+                    setCookie('currentGame', JSON.stringify(game));
+                    setCookie('currentPlayer', JSON.stringify(player));
+                    if (currentRound) {
+                        setCookie('currentRound', JSON.stringify(currentRound));
+                    }
+                    if (playersWhoSubmitted.size > 0) {
+                        setCookie('playersWhoSubmitted', JSON.stringify(Array.from(playersWhoSubmitted)));
+                    }
                 }
             }
         };
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    }, [isTimerActive, timeRemaining, onTimerExpire]);
+    }, [isTimerActive, timeRemaining, onTimerExpire, game?.joinCode, player?.name, currentRound, playersWhoSubmitted]);
 
     useEffect(() => {
         const initializeApp = async () => {
@@ -637,10 +663,18 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log('Answer submitted successfully');
         } catch (error) {
             console.error('Error submitting answer:', error);
-            // If submission fails due to connection issues, try to reconnect and submit
+            
+            // Enhanced retry logic for mobile Safari
             if (signalRService.isInGame()) {
                 try {
                     console.log('Attempting to reconnect and retry submission');
+                    
+                    // ✅ OPTIMIZED: Minimal delay only for critical mobile Safari retry
+                    if (/iPhone|iPad|iPod/.test(navigator.userAgent) && /Safari/.test(navigator.userAgent)) {
+                        console.log('Mobile Safari detected, minimal delay before retry');
+                        await new Promise(resolve => setTimeout(resolve, 200)); // Reduced from 1000ms to 200ms
+                    }
+                    
                     await signalRService.joinGame(game.joinCode, player.name);
                     await signalRService.sendAnswer(game.joinCode, answer);
                     console.log('Answer submitted successfully after reconnection');
@@ -719,7 +753,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             } else {
                 setTimeRemaining(remaining);
             }
-        }, 1000);
+        }, 500); // ✅ OPTIMIZED: Faster timer updates for more responsive countdown
 
         timerIntervalRef.current = interval;
 

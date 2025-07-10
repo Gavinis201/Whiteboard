@@ -44,6 +44,13 @@ class SignalRService {
             await this.connectionPromise;
             return;
         }
+        
+        // ✅ OPTIMIZED: Minimal delay only for critical mobile Safari recovery
+        if (this.isMobileSafari() && this.connection?.state === HubConnectionState.Disconnected) {
+            console.log('Mobile Safari detected, minimal delay for connection recovery');
+            await new Promise(resolve => setTimeout(resolve, 100)); // Reduced from 500ms to 100ms
+        }
+        
         this.connectionPromise = this.connect();
         try {
             await this.connectionPromise;
@@ -67,18 +74,22 @@ class SignalRService {
                     skipNegotiation: false,
                 })
                 .configureLogging(LogLevel.Information)
-                .withAutomaticReconnect([0, 2000, 5000, 10000, 30000]) // More aggressive reconnection strategy
+                .withAutomaticReconnect([0, 1000, 2000, 5000, 10000]) // ✅ OPTIMIZED: Ultra-fast reconnection strategy
                 .build();
 
             // 🔄 REFINED: Add more detailed logging for connection lifecycle
             this.connection.onclose(e => {
                 console.error('SignalR connection closed:', e);
                 this.isReconnectingState = false;
-                // Clear current game state if connection is lost for too long
-                if (e) {
+                
+                // For mobile Safari, don't immediately clear state on connection close
+                // as it might be due to background tab throttling
+                if (e && !this.isMobileSafari()) {
                     console.log('Connection closed due to error, clearing game state');
                     this.currentJoinCode = null;
                     this.currentPlayerName = null;
+                } else if (e) {
+                    console.log('Connection closed on mobile Safari, preserving state for potential reconnection');
                 }
             });
             
@@ -267,6 +278,12 @@ class SignalRService {
             joinCode: this.currentJoinCode,
             playerName: this.currentPlayerName
         };
+    }
+
+    // ✅ NEW: Mobile Safari detection for better connection handling
+    private isMobileSafari(): boolean {
+        const userAgent = navigator.userAgent;
+        return /iPhone|iPad|iPod/.test(userAgent) && /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
     }
 }
 

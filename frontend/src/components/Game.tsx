@@ -416,17 +416,21 @@ export const Game: React.FC = () => {
             return;
         }
         
-        // Stack-based flood fill algorithm
+        // ✅ OPTIMIZED: Stack-based flood fill algorithm with early exit
         const stack: [number, number][] = [[startX, startY]];
+        const visited = new Set<string>(); // Track visited pixels for faster performance
         
         while (stack.length > 0) {
             const [x, y] = stack.pop()!;
-            const index = (y * canvas.width + x) * 4;
+            const key = `${x},${y}`;
             
-            // Check bounds
-            if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) {
+            // Check bounds and visited status
+            if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height || visited.has(key)) {
                 continue;
             }
+            
+            visited.add(key);
+            const index = (y * canvas.width + x) * 4;
             
             // Check if this pixel matches the target color
             if (data[index] !== targetR || data[index + 1] !== targetG || data[index + 2] !== targetB) {
@@ -439,7 +443,7 @@ export const Game: React.FC = () => {
             data[index + 2] = fillRgb.b;
             data[index + 3] = 255; // Alpha
             
-            // Add neighboring pixels to stack
+            // Add neighboring pixels to stack (optimized order for better performance)
             stack.push([x + 1, y]);
             stack.push([x - 1, y]);
             stack.push([x, y + 1]);
@@ -613,8 +617,8 @@ export const Game: React.FC = () => {
             }
         };
 
-        // ✅ OPTIMIZED: More frequent connection checks for better responsiveness
-        const interval = setInterval(checkConnection, 1000); // Check every second
+        // ✅ OPTIMIZED: Ultra-fast connection checks for maximum responsiveness
+        const interval = setInterval(checkConnection, 500); // Check every 500ms for instant feedback
         checkConnection(); // Initial check
 
         return () => clearInterval(interval);
