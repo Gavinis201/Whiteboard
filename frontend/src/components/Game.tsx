@@ -310,10 +310,10 @@ export const Game: React.FC = () => {
         setHasMoved(false);
         setStartPoint({ x, y });
 
-        // Set drawing styles with pressure sensitivity
+        // Set drawing styles with consistent brush size
         ctx.strokeStyle = selectedColor;
         ctx.fillStyle = selectedColor;
-        ctx.lineWidth = brushSize * (e.pressure || 1); // Use pressure if available
+        ctx.lineWidth = brushSize; // Use consistent brush size
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
@@ -337,8 +337,8 @@ export const Game: React.FC = () => {
             setHasMoved(true);
         } 
 
-        // Update line width based on pressure
-        ctx.lineWidth = brushSize * (e.pressure || 1);
+        // Use consistent brush size
+        ctx.lineWidth = brushSize;
 
         // Continue the line
         ctx.lineTo(x, y);
