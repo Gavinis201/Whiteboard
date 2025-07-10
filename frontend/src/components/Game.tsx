@@ -428,6 +428,9 @@ export const Game: React.FC = () => {
         if (!prompt.trim() || !game) return;
         await startNewRound(prompt, selectedTimerDuration || undefined);
         setPrompt('');
+        // Reset answer state when starting a new round
+        setShowAnswer(false);
+        setCurrentAnswer('');
         // setSelectedTimerDuration(null);
     };
     
