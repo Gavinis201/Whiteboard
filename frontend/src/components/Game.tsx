@@ -204,6 +204,7 @@ export const Game: React.FC = () => {
     }, [prompt, prompts, gameMode, triviaCategory]);
 
     const handlePromptSelect = (selectedPrompt: string) => {
+        // Store the full text with answers, but display clean version in input
         setPrompt(selectedPrompt);
         setShowPromptsDropdown(false);
     };
@@ -642,7 +643,7 @@ export const Game: React.FC = () => {
                                     <div className="flex-1 relative">
                                         <input
                                             type="text"
-                                            value={prompt}
+                                            value={prompt.replace(/\([^)]*\)/g, '')}
                                             onChange={e => setPrompt(e.target.value)}
                                             onFocus={handlePromptInputFocus}
                                             onBlur={handlePromptInputBlur}
