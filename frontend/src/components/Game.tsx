@@ -39,7 +39,7 @@ export const Game: React.FC = () => {
     const [voteResults, setVoteResults] = useState<any[]>([]);
     const [detailedVoteResults, setDetailedVoteResults] = useState<any[]>([]);
     const [allPlayersSubmitted, setAllPlayersSubmitted] = useState(false);
-    const [gameMode, setGameMode] = useState<'Classic' | 'Blank' | 'Custom' | 'Trivia' | 'Would Ya' | 'Would You Rather'>('Custom');
+    const [gameMode, setGameMode] = useState<'Select' | 'Classic' | 'Blank' | 'Custom' | 'Trivia' | 'Would Ya' | 'Would You Rather'>('Select');
     // Add subcategory state for Trivia
     const [triviaCategory, setTriviaCategory] = useState('American History');
     // Add answer display state
@@ -165,7 +165,7 @@ export const Game: React.FC = () => {
 
     // Update filtered prompts based on game mode, subcategory, and input
     useEffect(() => {
-        if (gameMode === 'Custom') {
+        if (gameMode === 'Custom' || gameMode === 'Select') {
             setFilteredPrompts([]);
         } else if (prompt.trim() === '') {
             // Show all prompts for the selected mode when input is empty
@@ -625,12 +625,13 @@ export const Game: React.FC = () => {
                                         className="px-3 py-2 border border-gray-300 rounded-md bg-white"
                                         style={{ minWidth: 140 }}
                                     >
+                                        <option value="Select" disabled>Game Modes</option>
                                         <option value="Custom">Custom</option>
                                         <option value="Classic">Classic</option>
-                                        <option value="Blank">Blank</option>
+                                        <option value="Blank">Blank Game</option>
                                         <option value="Trivia">Trivia</option>
-                                        <option value="Would Ya">Would Ya</option>
-                                        <option value="Would You Rather">Would You Rather</option>
+                                        <option value="Would Ya">Answer as me</option>
+                                        <option value="Would You Rather">Would You Rather?</option>
                                     </select>
                                     {/* Trivia subcategory dropdown */}
                                     {gameMode === 'Trivia' && (
@@ -654,7 +655,8 @@ export const Game: React.FC = () => {
                                             onFocus={handlePromptInputFocus}
                                             onBlur={handlePromptInputBlur}
                                             placeholder={
-                                                gameMode === 'Blank' ? 'Enter your own or pick a Blank prompt...'
+                                                gameMode === 'Select' ? 'Select a game mode first...'
+                                                : gameMode === 'Blank' ? 'Enter your own or pick a Blank prompt...'
                                                 : gameMode === 'Classic' ? 'Enter your own or pick a classic prompt...'
                                                 : gameMode === 'Trivia' ? `Enter your own or pick a ${triviaCategory} trivia question...`
                                                 : gameMode === 'Would Ya' ? 'Enter your own or pick a Would Ya question...'
