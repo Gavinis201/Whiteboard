@@ -467,60 +467,123 @@ public class GameHub : Hub
 
     public async Task SubmitVote(string joinCode, int votedAnswerId)
     {
-        var playerIdStr = Context.Items["PlayerId"]?.ToString();
-        if (string.IsNullOrEmpty(playerIdStr) || !int.TryParse(playerIdStr, out var voterPlayerId))
+        try
         {
-            throw new HubException("Player not identified");
-        }
-
-        var voter = await _context.Players.FindAsync(voterPlayerId);
-        if (voter == null) throw new HubException("Player not found");
-
-        var game = await _context.Games
-            .Include(g => g.Players)
-            .Include(g => g.Rounds)
-            .FirstOrDefaultAsync(g => g.JoinCode == joinCode);
-        if (game == null) throw new HubException("Game not found");
-
-        var activeRound = game.Rounds
-            .Where(r => !r.IsCompleted)
-            .OrderByDescending(r => r.RoundId)
-            .FirstOrDefault();
-        if (activeRound == null) throw new HubException("No active round found");
-
-        // Check if the answer exists and belongs to this round
-        var answer = await _context.Answers
-            .FirstOrDefaultAsync(a => a.AnswerId == votedAnswerId && a.RoundId == activeRound.RoundId);
-        if (answer == null) throw new HubException("Answer not found");
-
-        // Check if player has already voted in this round
-        var existingVote = await _context.Votes
-            .FirstOrDefaultAsync(v => v.VoterPlayerId == voterPlayerId && 
-                                     v.RoundId == activeRound.RoundId);
-        
-        if (existingVote != null)
-        {
-            // Update existing vote
-            existingVote.VotedAnswerId = votedAnswerId;
-        }
-        else
-        {
-            // Add new vote
-            var vote = new Vote
+            var playerIdStr = Context.Items["PlayerId"]?.ToString();
+            if (string.IsNullOrEmpty(playerIdStr) || !int.TryParse(playerIdStr, out var voterPlayerId))
             {
-                VoterPlayerId = voterPlayerId,
-                VotedAnswerId = votedAnswerId,
-                RoundId = activeRound.RoundId
-            };
-            _context.Votes.Add(vote);
-        }
-        
-        await _context.SaveChangesAsync();
+                throw new HubException("Player not identified");
+            }
 
-        // Broadcast vote results to all players
-        await BroadcastVoteResults(joinCode, activeRound.RoundId);
-        
-        _logger.LogInformation("Vote submitted by {PlayerName} for answer {AnswerId}", voter.Name, votedAnswerId);
+            _logger.LogInformation("SubmitVote called - PlayerId: {PlayerId}, VotedAnswerId: {VotedAnswerId}, JoinCode: {JoinCode}", voterPlayerId, votedAnswerId, joinCode);
+
+            var voter = await _context.Players.FindAsync(voterPlayerId);
+            if (voter == null) 
+            {
+                _logger.LogError("Voter not found for PlayerId: {PlayerId}", voterPlayerId);
+                throw new HubException("Player not found");
+            }
+
+            var game = await _context.Games
+                .Include(g => g.Players)
+                .Include(g => g.Rounds)
+                .FirstOrDefaultAsync(g => g.JoinCode == joinCode);
+            if (game == null) 
+            {
+                _logger.LogError("Game not found for JoinCode: {JoinCode}", joinCode);
+                throw new HubException("Game not found");
+            }
+
+            var activeRound = game.Rounds
+                .Where(r => !r.IsCompleted)
+                .OrderByDescending(r => r.RoundId)
+                .FirstOrDefault();
+            if (activeRound == null) 
+            {
+                _logger.LogError("No active round found for game: {JoinCode}", joinCode);
+                throw new HubException("No active round found");
+            }
+
+            _logger.LogInformation("Active round found - RoundId: {RoundId}", activeRound.RoundId);
+
+            // Check if the answer exists and belongs to this round
+            var answer = await _context.Answers
+                .FirstOrDefaultAsync(a => a.AnswerId == votedAnswerId && a.RoundId == activeRound.RoundId);
+            if (answer == null) 
+            {
+                _logger.LogError("Answer not found - AnswerId: {AnswerId}, RoundId: {RoundId}", votedAnswerId, activeRound.RoundId);
+                throw new HubException("Answer not found");
+            }
+
+            _logger.LogInformation("Answer found - AnswerId: {AnswerId}, PlayerName: {PlayerName}", answer.AnswerId, answer.PlayerName);
+
+            // Additional validation: Ensure the voter is still in the game
+            var voterInGame = await _context.Players
+                .AnyAsync(p => p.PlayerId == voterPlayerId && p.GameId == game.GameId);
+            if (!voterInGame)
+            {
+                _logger.LogError("Voter not in game - PlayerId: {PlayerId}, GameId: {GameId}", voterPlayerId, game.GameId);
+                throw new HubException("Player not found in game");
+            }
+
+            // Additional validation: Ensure the answer's player is still in the game
+            var answerPlayerInGame = await _context.Players
+                .AnyAsync(p => p.PlayerId == answer.PlayerId && p.GameId == game.GameId);
+            if (!answerPlayerInGame)
+            {
+                _logger.LogError("Answer player not in game - PlayerId: {PlayerId}, GameId: {GameId}", answer.PlayerId, game.GameId);
+                throw new HubException("Answer player not found in game");
+            }
+
+            // Check if player has already voted in this round
+            var existingVote = await _context.Votes
+                .FirstOrDefaultAsync(v => v.VoterPlayerId == voterPlayerId && 
+                                         v.RoundId == activeRound.RoundId);
+            
+            if (existingVote != null)
+            {
+                _logger.LogInformation("Updating existing vote - VoteId: {VoteId}, OldAnswerId: {OldAnswerId}, NewAnswerId: {NewAnswerId}", 
+                    existingVote.VoteId, existingVote.VotedAnswerId, votedAnswerId);
+                // Update existing vote
+                existingVote.VotedAnswerId = votedAnswerId;
+            }
+            else
+            {
+                _logger.LogInformation("Creating new vote - VoterPlayerId: {VoterPlayerId}, VotedAnswerId: {VotedAnswerId}, RoundId: {RoundId}", 
+                    voterPlayerId, votedAnswerId, activeRound.RoundId);
+                // Add new vote
+                var vote = new Vote
+                {
+                    VoterPlayerId = voterPlayerId,
+                    VotedAnswerId = votedAnswerId,
+                    RoundId = activeRound.RoundId
+                };
+                _context.Votes.Add(vote);
+            }
+            
+            try
+            {
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Vote saved successfully");
+            }
+            catch (Exception saveEx)
+            {
+                _logger.LogError(saveEx, "Database error saving vote - VoterPlayerId: {VoterPlayerId}, VotedAnswerId: {VotedAnswerId}, RoundId: {RoundId}", 
+                    voterPlayerId, votedAnswerId, activeRound.RoundId);
+                throw new HubException($"Failed to save vote: {saveEx.Message}");
+            }
+
+            // Broadcast vote results to all players
+            await BroadcastVoteResults(joinCode, activeRound.RoundId);
+            
+            _logger.LogInformation("Vote submitted by {PlayerName} for answer {AnswerId}", voter.Name, votedAnswerId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in SubmitVote - PlayerId: {PlayerId}, VotedAnswerId: {VotedAnswerId}, JoinCode: {JoinCode}", 
+                Context.Items["PlayerId"]?.ToString(), votedAnswerId, joinCode);
+            throw;
+        }
     }
 
     private int GetMaxVotesForPlayerCount(int playerCount)
@@ -768,7 +831,7 @@ public class GameHub : Hub
             foreach (var player in playersWhoHaventSubmitted)
             {
                 // Create a blank white canvas as base64
-                var blankCanvas = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=";
+                var blankCanvas = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxAAPwCdABmX/9k=";
                 
                 var newAnswer = new Answer
                 {
@@ -787,7 +850,7 @@ public class GameHub : Hub
             // Notify all clients about the auto-submissions
             foreach (var player in playersWhoHaventSubmitted)
             {
-                var blankCanvas = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=";
+                var blankCanvas = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxAAPwCdABmX/9k=";
                 await Clients.Group(joinCode).SendAsync("AnswerReceived", player.PlayerId.ToString(), player.Name, blankCanvas);
             }
 

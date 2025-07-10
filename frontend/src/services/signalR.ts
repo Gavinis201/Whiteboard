@@ -72,6 +72,7 @@ class SignalRService {
                 .withUrl('https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/gameHub', {
                     transport: HttpTransportType.WebSockets | HttpTransportType.LongPolling | HttpTransportType.ServerSentEvents,
                     skipNegotiation: false,
+                    timeout: 30000, // 30 second timeout for connection
                 })
                 .configureLogging(LogLevel.Information)
                 .withAutomaticReconnect([0, 1000, 2000, 5000, 10000]) // ✅ OPTIMIZED: Ultra-fast reconnection strategy
@@ -166,7 +167,14 @@ class SignalRService {
         this.currentPlayerName = playerName;
         
         try {
-            await this.connection.invoke('JoinGame', joinCode, playerName);
+            // Add timeout for join game
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Join game timeout')), 20000); // 20 second timeout
+            });
+            
+            const joinPromise = this.connection.invoke('JoinGame', joinCode, playerName);
+            
+            await Promise.race([joinPromise, timeoutPromise]);
             console.log('Successfully invoked JoinGame');
         } catch (error) {
             console.error('Error invoking JoinGame:', error);
@@ -203,7 +211,15 @@ class SignalRService {
         await this.ensureConnection();
         if (!this.connection) throw new Error('No SignalR connection');
         console.log('SignalR submitVote called with:', { joinCode, votedAnswerId });
-        await this.connection.invoke('SubmitVote', joinCode, votedAnswerId);
+        
+        // Add timeout for vote submission
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Vote submission timeout')), 15000); // 15 second timeout
+        });
+        
+        const votePromise = this.connection.invoke('SubmitVote', joinCode, votedAnswerId);
+        
+        await Promise.race([votePromise, timeoutPromise]);
     }
 
     async getMaxVotesForGame(joinCode: string): Promise<number> {
