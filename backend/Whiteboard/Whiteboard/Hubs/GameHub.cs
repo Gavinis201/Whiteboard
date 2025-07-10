@@ -210,7 +210,11 @@ public class GameHub : Hub
         _context.Rounds.Add(newRound);
         await _context.SaveChangesAsync();
 
-        // Set up backend timer if duration is specified
+        // ✅ OPTIMIZED: Send round start event immediately for faster frontend response
+        await Clients.Group(joinCode).SendAsync("RoundStarted", prompt, newRound.RoundId, timerDurationMinutes);
+        _logger.LogInformation("Round started and saved successfully in game {JoinCode} with roundId {RoundId}", joinCode, newRound.RoundId);
+
+        // Set up backend timer if duration is specified (after sending the event)
         if (timerDurationMinutes.HasValue && timerDurationMinutes.Value > 0)
         {
             var timerKey = joinCode;
@@ -229,10 +233,6 @@ public class GameHub : Hub
             
             _logger.LogInformation("Backend timer started for game {JoinCode} with {Duration} minutes", joinCode, timerDurationMinutes.Value);
         }
-
-        // Send the roundId along with the prompt and timer info so frontend can properly track submissions
-        await Clients.Group(joinCode).SendAsync("RoundStarted", prompt, newRound.RoundId, timerDurationMinutes);
-        _logger.LogInformation("Round started and saved successfully in game {JoinCode} with roundId {RoundId}", joinCode, newRound.RoundId);
     }
 
     public async Task SubmitAnswer(string joinCode, string answer)

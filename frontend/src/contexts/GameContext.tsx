@@ -226,6 +226,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 const isNewRound = currentRound?.roundId !== payload.activeRound.roundId;
                 console.log("Is new round:", isNewRound);
                 
+                // ✅ OPTIMIZED: Immediate round state update for faster transitions
                 setCurrentRound({
                     prompt: payload.activeRound.prompt,
                     isCompleted: payload.activeRound.isCompleted,
@@ -330,12 +331,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             // Reset auto-submission flag for new rounds
             autoSubmissionAttemptedRef.current = false;
             
-            // Always reset timer state for new rounds to ensure consistency
-            setSelectedTimerDuration(timerDurationMinutes || null);
-            setRoundStartTime(new Date());
-            setIsTimerActive(!!timerDurationMinutes);
-            lastSyncedTimerRef.current = null;
-            
+            // ✅ OPTIMIZED: Immediate state updates for faster round transitions
             setCurrentRound({ 
                 prompt, 
                 isCompleted: false, 
@@ -348,6 +344,12 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log("Force clearing answers and playersWhoSubmitted");
             setAnswers([]);
             setPlayersWhoSubmitted(new Set());
+            
+            // Always reset timer state for new rounds to ensure consistency
+            setSelectedTimerDuration(timerDurationMinutes || null);
+            setRoundStartTime(new Date());
+            setIsTimerActive(!!timerDurationMinutes);
+            lastSyncedTimerRef.current = null;
             
             // Also reset submission flag
             submissionInProgressRef.current = false;
@@ -442,10 +444,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 console.log('All players have submitted and judging mode is enabled, navigating to judging page');
                 hasNavigatedToJudgingRef.current = true;
                 
-                // Use setTimeout to ensure the state updates are processed first
-                setTimeout(() => {
-                    window.location.href = '/judging';
-                }, 1000); // 1 second delay to show the completion state
+                // ✅ OPTIMIZED: Immediate navigation for faster transitions
+                window.location.href = '/judging';
             } else {
                 console.log('All players have submitted but judging mode is disabled, staying on game page');
             }
@@ -483,10 +483,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log('New round started, redirecting player back to game page');
             previousRoundIdRef.current = currentRound.roundId;
             
-            // Use setTimeout to ensure the state updates are processed first
-            setTimeout(() => {
-                window.location.href = '/game';
-            }, 500); // 0.5 second delay
+            // ✅ OPTIMIZED: Immediate navigation for faster transitions
+            window.location.href = '/game';
         }
     }, [isInitialized, game, player, currentRound?.roundId]);
 
@@ -563,8 +561,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setPlayersWhoSubmitted(new Set());
             setIsReader(false);
             
-            // Force a small delay to ensure state is cleared
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // ✅ OPTIMIZED: Removed delay for faster game joining
             
             // ✅ OPTIMIZED: Parallel API calls for faster game joining
             const [playerData, gameData] = await Promise.all([
@@ -657,10 +654,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 throw error;
             }
         } finally {
-            // Reset submission flag after a short delay to allow for state updates
-            setTimeout(() => {
-                submissionInProgressRef.current = false;
-            }, 1000);
+            // ✅ OPTIMIZED: Immediate reset for faster response
+            submissionInProgressRef.current = false;
         }
     };
 

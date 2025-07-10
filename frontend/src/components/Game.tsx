@@ -228,8 +228,8 @@ export const Game: React.FC = () => {
     };
 
     const handlePromptInputBlur = () => {
-        // Delay hiding dropdown to allow for clicks
-        setTimeout(() => setShowPromptsDropdown(false), 200);
+        // ✅ OPTIMIZED: Immediate dropdown hiding for faster response
+        setShowPromptsDropdown(false);
     };
 
     useEffect(() => {
@@ -521,8 +521,8 @@ export const Game: React.FC = () => {
             }
         };
 
-        // Check connection status more frequently for better responsiveness
-        const interval = setInterval(checkConnection, 2000);
+        // ✅ OPTIMIZED: More frequent connection checks for better responsiveness
+        const interval = setInterval(checkConnection, 1000); // Check every second
         checkConnection(); // Initial check
 
         return () => clearInterval(interval);
