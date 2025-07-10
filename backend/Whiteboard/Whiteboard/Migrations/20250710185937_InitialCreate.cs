@@ -18,7 +18,8 @@ namespace Whiteboard.Migrations
                     GameId = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     JoinCode = table.Column<string>(type: "TEXT", maxLength: 6, nullable: false),
-                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false)
+                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
+                    JudgingModeEnabled = table.Column<bool>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -113,6 +114,39 @@ namespace Whiteboard.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "Votes",
+                columns: table => new
+                {
+                    VoteId = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    VoterPlayerId = table.Column<int>(type: "INTEGER", nullable: false),
+                    VotedAnswerId = table.Column<int>(type: "INTEGER", nullable: false),
+                    RoundId = table.Column<int>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Votes", x => x.VoteId);
+                    table.ForeignKey(
+                        name: "FK_Votes_Answers_VotedAnswerId",
+                        column: x => x.VotedAnswerId,
+                        principalTable: "Answers",
+                        principalColumn: "AnswerId",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_Votes_Players_VoterPlayerId",
+                        column: x => x.VoterPlayerId,
+                        principalTable: "Players",
+                        principalColumn: "PlayerId",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_Votes_Rounds_RoundId",
+                        column: x => x.RoundId,
+                        principalTable: "Rounds",
+                        principalColumn: "RoundId",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
             migrationBuilder.CreateIndex(
                 name: "IX_Answers_PlayerId",
                 table: "Answers",
@@ -132,16 +166,34 @@ namespace Whiteboard.Migrations
                 name: "IX_Rounds_GameId",
                 table: "Rounds",
                 column: "GameId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Votes_RoundId",
+                table: "Votes",
+                column: "RoundId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Votes_VotedAnswerId",
+                table: "Votes",
+                column: "VotedAnswerId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Votes_VoterPlayerId",
+                table: "Votes",
+                column: "VoterPlayerId");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "Answers");
+                name: "Prompts");
 
             migrationBuilder.DropTable(
-                name: "Prompts");
+                name: "Votes");
+
+            migrationBuilder.DropTable(
+                name: "Answers");
 
             migrationBuilder.DropTable(
                 name: "Players");

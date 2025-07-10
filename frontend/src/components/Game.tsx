@@ -221,6 +221,7 @@ export const Game: React.FC = () => {
 
     const handlePromptSelect = (selectedPrompt: string) => {
         // Store the full text with answers, but display clean version in input
+        console.log('Prompt selected:', selectedPrompt);
         setPrompt(selectedPrompt);
         setShowPromptsDropdown(false);
     };
@@ -531,6 +532,8 @@ export const Game: React.FC = () => {
      
     const handleStartRound = async () => {
         if (!prompt.trim() || !game) return;
+        // Use the full prompt text (with parentheses) for starting the round
+        console.log('Starting round with prompt:', prompt);
         await startNewRound(prompt, selectedTimerDuration || undefined);
         setPrompt('');
         // Reset answer state when starting a new round
@@ -827,22 +830,13 @@ export const Game: React.FC = () => {
                                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                                     <h4 className="text-lg font-semibold text-purple-700 mb-2">Current Round Prompt:</h4>
                                     <p className="text-lg text-gray-800">"{renderTextWithHiddenAnswers(currentRound.prompt)}"</p>
-                                    {(() => {
-                                        console.log('Current round prompt debug:', {
-                                            prompt: currentRound.prompt,
-                                            hasParentheses: currentRound.prompt.includes('('),
-                                            allPlayersSubmitted
-                                        });
-                                        return null;
-                                    })()}
+
                                     {allPlayersSubmitted && currentRound.prompt.includes('(') && (
                                         <div className="mt-3 pt-3 border-t border-purple-200">
                                             <div className="flex items-center gap-3">
                                                 <button 
                                                     onClick={() => {
-                                                        console.log('Answer button clicked, prompt:', currentRound.prompt);
                                                         const answerMatch = currentRound.prompt.match(/\(([^)]+)\)/);
-                                                        console.log('Answer match:', answerMatch);
                                                         if (answerMatch) {
                                                             setCurrentAnswer(answerMatch[1]);
                                                             setShowAnswer(!showAnswer);

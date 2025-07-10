@@ -11,8 +11,8 @@ using Whiteboard.Models;
 namespace Whiteboard.Migrations
 {
     [DbContext(typeof(GameDbContext))]
-    [Migration("20250706204427_AddJudgingModeAndVotes")]
-    partial class AddJudgingModeAndVotes
+    [Migration("20250710185937_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -153,9 +153,6 @@ namespace Whiteboard.Migrations
                 {
                     b.Property<int>("VoteId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("Rank")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("RoundId")
