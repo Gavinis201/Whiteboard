@@ -54,7 +54,7 @@ export const Game: React.FC = () => {
       'Marvel',
       'Disney Movies',
     ];
-
+    
     const isIPhone = () => /iPhone/i.test(navigator.userAgent);
     const colors = ['#000000', '#FF0000', '#FFA500', '#FFFF00', '#008000', '#0000FF', '#800080', '#895129', '#FFFFFF'];
 
@@ -109,7 +109,7 @@ export const Game: React.FC = () => {
                     console.error('Auto-submission failed:', error);
                     // Show a user-friendly message only if page is visible
                     if (!document.hidden) {
-                        alert('Timer expired but submission failed. Please try submitting manually.');
+                    alert('Timer expired but submission failed. Please try submitting manually.');
                     }
                 }
             });
@@ -210,7 +210,7 @@ export const Game: React.FC = () => {
             } else if (gameMode === 'Would Ya') {
                 setFilteredPrompts(
                     prompts.filter(p => p.category === 'Would Ya' && p.text.toLowerCase().includes(prompt.toLowerCase()))
-                );
+            );
             } else if (gameMode === 'Would You Rather') {
                 setFilteredPrompts(
                     prompts.filter(p => p.category === 'Would You Rather' && p.text.toLowerCase().includes(prompt.toLowerCase()))
@@ -599,10 +599,10 @@ export const Game: React.FC = () => {
                             </div>
                         )}
                     </div>
-                            </div>
-        </div>
-    );
-};
+                </div>
+            </div>
+        );
+    };
     
     // Monitor connection status
     useEffect(() => {
@@ -743,7 +743,7 @@ export const Game: React.FC = () => {
                                         <option value="Trivia">Trivia</option>
                                         <option value="Would Ya">Answer as me</option>
                                         <option value="Would You Rather">Would You Rather?</option>
-                                    </select>
+                                        </select>
                                     {/* Trivia subcategory dropdown */}
                                     {gameMode === 'Trivia' && (
                                         <select
@@ -759,10 +759,10 @@ export const Game: React.FC = () => {
                                     )}
                                     {/* Prompt input and suggestions */}
                                     <div className="flex-1 relative">
-                                        <input
-                                            type="text"
+                                        <input 
+                                            type="text" 
                                             value={prompt.replace(/\([^)]*\)/g, '')}
-                                            onChange={e => setPrompt(e.target.value)}
+                                            onChange={e => setPrompt(e.target.value)} 
                                             onFocus={handlePromptInputFocus}
                                             onBlur={handlePromptInputBlur}
                                             placeholder={
@@ -964,7 +964,7 @@ export const Game: React.FC = () => {
                                                     className={`h-2 rounded-full transition-all duration-300 ${allPlayersSubmitted ? 'bg-green-600' : 'bg-green-500'}`}
                                                     style={{ 
                                                         width: `${(playersWhoSubmitted.size / players.filter(p => !p.isReader).length) * 100}%` 
-                                                    }} 
+                                                    }}
                                                 ></div>
                                             </div>
                                         </div>
