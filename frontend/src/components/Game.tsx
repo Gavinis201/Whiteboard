@@ -39,7 +39,16 @@ export const Game: React.FC = () => {
     const [voteResults, setVoteResults] = useState<any[]>([]);
     const [detailedVoteResults, setDetailedVoteResults] = useState<any[]>([]);
     const [allPlayersSubmitted, setAllPlayersSubmitted] = useState(false);
-    const [gameMode, setGameMode] = useState<'Classic' | 'Blank' | 'Custom'>('Custom');
+    const [gameMode, setGameMode] = useState<'Classic' | 'Blank' | 'Custom' | 'Trivia' | 'Would Ya' | 'Would You Rather'>('Custom');
+    // Add subcategory state for Trivia
+    const [triviaCategory, setTriviaCategory] = useState('American History');
+    const triviaCategories = [
+      'American History',
+      'Harry Potter',
+      'Star Wars',
+      'Marvel',
+      'Disney Movies',
+    ];
 
     const isIPhone = () => /iPhone/i.test(navigator.userAgent);
     const colors = ['#000000', '#FF0000', '#FFA500', '#FFFF00', '#008000', '#0000FF', '#800080', '#895129', '#FFFFFF'];
@@ -125,25 +134,32 @@ export const Game: React.FC = () => {
         }
     }, [currentRound, players, playersWhoSubmitted]);
 
-    // Update filtered prompts based on game mode and input
+    // Update filtered prompts based on game mode, subcategory, and input
     useEffect(() => {
         if (gameMode === 'Custom') {
             setFilteredPrompts([]);
-        } else if (prompt.trim() === '') {
+        } else if (gameMode === 'Blank') {
             setFilteredPrompts(
-                prompts.filter(p =>
-                    gameMode === 'Blank' ? p.category === 'Blank' : p.category !== 'Blank'
-                )
+                prompts.filter(p => p.category === 'Blank' && p.text.toLowerCase().includes(prompt.toLowerCase()))
             );
-        } else {
+        } else if (gameMode === 'Classic') {
             setFilteredPrompts(
-                prompts.filter(p =>
-                    (gameMode === 'Blank' ? p.category === 'Blank' : p.category !== 'Blank') &&
-                    p.text.toLowerCase().includes(prompt.toLowerCase())
-                )
+                prompts.filter(p => !['Blank', 'Trivia - American History', 'Trivia - Harry Potter', 'Trivia - Star Wars', 'Trivia - Marvel', 'Trivia - Disney Movies', 'Would Ya', 'Would You Rather'].includes(p.category) && p.text.toLowerCase().includes(prompt.toLowerCase()))
+            );
+        } else if (gameMode === 'Trivia') {
+            setFilteredPrompts(
+                prompts.filter(p => p.category === `Trivia - ${triviaCategory}` && p.text.toLowerCase().includes(prompt.toLowerCase()))
+            );
+        } else if (gameMode === 'Would Ya') {
+            setFilteredPrompts(
+                prompts.filter(p => p.category === 'Would Ya' && p.text.toLowerCase().includes(prompt.toLowerCase()))
+            );
+        } else if (gameMode === 'Would You Rather') {
+            setFilteredPrompts(
+                prompts.filter(p => p.category === 'Would You Rather' && p.text.toLowerCase().includes(prompt.toLowerCase()))
             );
         }
-    }, [prompt, prompts, gameMode]);
+    }, [prompt, prompts, gameMode, triviaCategory]);
 
     const handlePromptSelect = (selectedPrompt: string) => {
         setPrompt(selectedPrompt);
@@ -556,14 +572,30 @@ export const Game: React.FC = () => {
                                     {/* Game mode dropdown */}
                                     <select
                                         value={gameMode}
-                                        onChange={e => setGameMode(e.target.value as 'Custom' |'Classic' | 'Blank' )}
+                                        onChange={e => setGameMode(e.target.value as any)}
                                         className="px-3 py-2 border border-gray-300 rounded-md bg-white"
                                         style={{ minWidth: 140 }}
                                     >
-                                        <option value="Custom">Game Modes</option>
-                                        <option value="Classic" >Classic</option>
-                                        <option value="Blank">Blank Game</option>
+                                        <option value="Custom">Custom</option>
+                                        <option value="Classic">Classic</option>
+                                        <option value="Blank">Blank</option>
+                                        <option value="Trivia">Trivia</option>
+                                        <option value="Would Ya">Would Ya</option>
+                                        <option value="Would You Rather">Would You Rather</option>
                                     </select>
+                                    {/* Trivia subcategory dropdown */}
+                                    {gameMode === 'Trivia' && (
+                                        <select
+                                            value={triviaCategory}
+                                            onChange={e => setTriviaCategory(e.target.value)}
+                                            className="px-3 py-2 border border-gray-300 rounded-md bg-white"
+                                            style={{ minWidth: 140 }}
+                                        >
+                                            {triviaCategories.map(cat => (
+                                                <option key={cat} value={cat}>{cat}</option>
+                                            ))}
+                                        </select>
+                                    )}
                                     {/* Prompt input and suggestions */}
                                     <div className="flex-1 relative">
                                         <input
@@ -573,11 +605,12 @@ export const Game: React.FC = () => {
                                             onFocus={handlePromptInputFocus}
                                             onBlur={handlePromptInputBlur}
                                             placeholder={
-                                                gameMode === 'Blank'
-                                                    ? 'Enter your own or pick a Blank prompt...'
-                                                    : gameMode === 'Classic'
-                                                        ? 'Enter your own or pick a classic prompt...'
-                                                        : 'Type any prompt you want!'
+                                                gameMode === 'Blank' ? 'Enter your own or pick a Blank prompt...'
+                                                : gameMode === 'Classic' ? 'Enter your own or pick a classic prompt...'
+                                                : gameMode === 'Trivia' ? `Enter your own or pick a ${triviaCategory} trivia question...`
+                                                : gameMode === 'Would Ya' ? 'Enter your own or pick a Would Ya question...'
+                                                : gameMode === 'Would You Rather' ? 'Enter your own or pick a Would You Rather question...'
+                                                : 'Type any prompt you want!'
                                             }
                                             className="input"
                                             disabled={gameMode === 'Custom' ? false : false}
