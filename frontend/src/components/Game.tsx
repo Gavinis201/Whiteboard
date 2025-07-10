@@ -1054,10 +1054,12 @@ export const Game: React.FC = () => {
                                                     title="Fill bucket tool"
                                                 >
                                                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                    {/* Bucket body */}
+                                                        {/* Bucket body */}
                                                         <path d="M6 8h12l-1.5 10.5a2 2 0 01-2 1.5H9.5a2 2 0 01-2-1.5L6 8z" />
                                                         {/* Bucket handle */}
                                                         <path d="M8 8a4 4 0 018 0" />
+                                                        {/* Paint drip */}
+                                                        <path d="M12 8v3c0 .5.5 1 .5 1s.5-.5.5-1V8z" fill="currentColor" stroke="none" />
                                                     </svg>
 
                                                 </button>
