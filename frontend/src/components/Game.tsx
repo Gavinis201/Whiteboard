@@ -67,7 +67,13 @@ export const Game: React.FC = () => {
         return parts.map((part, index) => {
             if (part.match(/^\([^)]*\)$/)) {
                 // This is an answer in parentheses - make it invisible but selectable
-                return <span key={index} style={{ color: 'transparent', background: 'transparent' }}>{part}</span>;
+                return <span key={index} style={{ 
+                    color: 'transparent', 
+                    background: 'transparent', 
+                    userSelect: 'text',
+                    cursor: 'text',
+                    fontSize: '0.1px' // Make it tiny but still selectable
+                }}>{part}</span>;
             }
             return <span key={index}>{part}</span>;
         });
@@ -634,43 +640,22 @@ export const Game: React.FC = () => {
                                     )}
                                     {/* Prompt input and suggestions */}
                                     <div className="flex-1 relative">
-                                        <div className="flex-1 relative">
-                                            <div 
-                                                className="input"
-                                                style={{ 
-                                                    minHeight: '40px',
-                                                    padding: '8px 12px',
-                                                    border: '1px solid #d1d5db',
-                                                    borderRadius: '6px',
-                                                    backgroundColor: 'white',
-                                                    color: '#374151',
-                                                    fontSize: '14px',
-                                                    lineHeight: '1.5',
-                                                    whiteSpace: 'pre-wrap',
-                                                    wordBreak: 'break-word',
-                                                    position: 'relative'
-                                                }}
-                                                contentEditable
-                                                onInput={(e) => {
-                                                    const target = e.target as HTMLDivElement;
-                                                    setPrompt(target.textContent || '');
-                                                }}
-                                                onFocus={handlePromptInputFocus}
-                                                onBlur={handlePromptInputBlur}
-                                                suppressContentEditableWarning={true}
-                                            >
-                                                {prompt ? renderTextWithHiddenAnswers(prompt) : (
-                                                    <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>
-                                                        {gameMode === 'Blank' ? 'Enter your own or pick a Blank prompt...'
-                                                        : gameMode === 'Classic' ? 'Enter your own or pick a classic prompt...'
-                                                        : gameMode === 'Trivia' ? `Enter your own or pick a ${triviaCategory} trivia question...`
-                                                        : gameMode === 'Would Ya' ? 'Enter your own or pick a Would Ya question...'
-                                                        : gameMode === 'Would You Rather' ? 'Enter your own or pick a Would You Rather question...'
-                                                        : 'Type any prompt you want!'}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
+                                        <input
+                                            type="text"
+                                            value={prompt}
+                                            onChange={e => setPrompt(e.target.value)}
+                                            onFocus={handlePromptInputFocus}
+                                            onBlur={handlePromptInputBlur}
+                                            placeholder={
+                                                gameMode === 'Blank' ? 'Enter your own or pick a Blank prompt...'
+                                                : gameMode === 'Classic' ? 'Enter your own or pick a classic prompt...'
+                                                : gameMode === 'Trivia' ? `Enter your own or pick a ${triviaCategory} trivia question...`
+                                                : gameMode === 'Would Ya' ? 'Enter your own or pick a Would Ya question...'
+                                                : gameMode === 'Would You Rather' ? 'Enter your own or pick a Would You Rather question...'
+                                                : 'Type any prompt you want!'
+                                            }
+                                            className="input"
+                                        />
                                         {/* Suggestions dropdown */}
                                         {gameMode !== 'Custom' && showPromptsDropdown && filteredPrompts.length > 0 && (
                                             <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
