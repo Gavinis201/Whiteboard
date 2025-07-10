@@ -42,6 +42,9 @@ export const Game: React.FC = () => {
     const [gameMode, setGameMode] = useState<'Classic' | 'Blank' | 'Custom' | 'Trivia' | 'Would Ya' | 'Would You Rather'>('Custom');
     // Add subcategory state for Trivia
     const [triviaCategory, setTriviaCategory] = useState('American History');
+    // Add modal state for answer display
+    const [showAnswerModal, setShowAnswerModal] = useState(false);
+    const [currentAnswer, setCurrentAnswer] = useState('');
     const triviaCategories = [
       'American History',
       'Harry Potter',
@@ -483,10 +486,41 @@ export const Game: React.FC = () => {
                             </div>
                         )}
                     </div>
+                            </div>
+            
+            {/* Answer Modal */}
+            {showAnswerModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-semibold text-purple-700">🎯 Correct Answer</h3>
+                            <button 
+                                onClick={() => setShowAnswerModal(false)}
+                                className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+                            >
+                                ×
+                            </button>
+                        </div>
+                        <div className="mb-6">
+                            <p className="text-gray-600 mb-2">The correct answer is:</p>
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                <p className="text-lg font-semibold text-green-800">{currentAnswer}</p>
+                            </div>
+                        </div>
+                        <div className="flex justify-end">
+                            <button 
+                                onClick={() => setShowAnswerModal(false)}
+                                className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        );
-    };
+            )}
+        </div>
+    );
+};
     
     // Monitor connection status
     useEffect(() => {
@@ -711,6 +745,22 @@ export const Game: React.FC = () => {
                                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                                     <h4 className="text-lg font-semibold text-purple-700 mb-2">Current Round Prompt:</h4>
                                     <p className="text-lg text-gray-800">"{renderTextWithHiddenAnswers(currentRound.prompt)}"</p>
+                                    {allPlayersSubmitted && currentRound.prompt.includes('(') && (
+                                        <div className="mt-3 pt-3 border-t border-purple-200">
+                                            <button 
+                                                onClick={() => {
+                                                    const answerMatch = currentRound.prompt.match(/\(([^)]+)\)/);
+                                                    if (answerMatch) {
+                                                        setCurrentAnswer(answerMatch[1]);
+                                                        setShowAnswerModal(true);
+                                                    }
+                                                }}
+                                                className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 text-sm"
+                                            >
+                                                🎯 Show Answer
+                                            </button>
+                                        </div>
+                                    )}
                                     
                                     {/* Show submission progress for host */}
                                     {judgingModeEnabled && (
