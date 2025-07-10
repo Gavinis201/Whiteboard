@@ -90,14 +90,25 @@ export const Game: React.FC = () => {
                     console.log('Timer expired, attempting auto-submission');
                     // Check if already submitted before attempting auto-submission
                     if (!playersWhoSubmitted.has(player?.playerId || 0)) {
+                        // Check if page is visible - if not, we might be in background
+                        const isPageVisible = !document.hidden;
+                        console.log('Page visibility during auto-submission:', isPageVisible);
+                        
+                        // If page is not visible, we might be in background - still try to submit
+                        if (!isPageVisible) {
+                            console.log('Page not visible, but attempting auto-submission anyway');
+                        }
+                        
                         await handleSubmitAnswer();
                     } else {
                         console.log('Player already submitted, skipping auto-submission');
                     }
                 } catch (error) {
                     console.error('Auto-submission failed:', error);
-                    // Show a user-friendly message
-                    alert('Timer expired but submission failed. Please try submitting manually.');
+                    // Show a user-friendly message only if page is visible
+                    if (!document.hidden) {
+                        alert('Timer expired but submission failed. Please try submitting manually.');
+                    }
                 }
             });
         } else {
@@ -499,18 +510,19 @@ export const Game: React.FC = () => {
         const checkConnection = () => {
             const isInGame = signalRService.isInGame();
             const isConnected = signalRService.isConnected();
+            const isReconnecting = signalRService.isReconnecting();
             
             if (!isInGame) {
                 setConnectionStatus('disconnected');
-            } else if (!isConnected) {
+            } else if (isReconnecting || !isConnected) {
                 setConnectionStatus('reconnecting');
             } else {
                 setConnectionStatus('connected');
             }
         };
 
-        // Check connection status periodically
-        const interval = setInterval(checkConnection, 3000);
+        // Check connection status more frequently for better responsiveness
+        const interval = setInterval(checkConnection, 2000);
         checkConnection(); // Initial check
 
         return () => clearInterval(interval);

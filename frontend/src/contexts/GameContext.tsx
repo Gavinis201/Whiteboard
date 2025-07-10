@@ -67,8 +67,31 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const isJoiningRef = useRef<boolean>(false);
     const hasNavigatedToJudgingRef = useRef<boolean>(false);
     const previousRoundIdRef = useRef<number | null>(null);
+    const pageVisibilityRef = useRef<boolean>(true); // ✅ NEW: Track page visibility
+    const autoSubmissionAttemptedRef = useRef<boolean>(false); // ✅ NEW: Prevent multiple auto-submissions
 
     const players = game?.players || [];
+
+    // ✅ NEW: Page visibility detection for better auto-submission handling
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            const isVisible = !document.hidden;
+            pageVisibilityRef.current = isVisible;
+            console.log('Page visibility changed:', isVisible);
+            
+            // If page becomes visible and we have an active timer, check if we need to auto-submit
+            if (isVisible && isTimerActive && timeRemaining !== null && timeRemaining <= 0 && !autoSubmissionAttemptedRef.current) {
+                console.log('Page became visible with expired timer, attempting auto-submission');
+                if (onTimerExpire) {
+                    autoSubmissionAttemptedRef.current = true;
+                    onTimerExpire();
+                }
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [isTimerActive, timeRemaining, onTimerExpire]);
 
     useEffect(() => {
         const initializeApp = async () => {
@@ -210,6 +233,11 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     gameId: payload.activeRound.gameId
                 });
                 
+                // Reset auto-submission flag for new rounds
+                if (isNewRound) {
+                    autoSubmissionAttemptedRef.current = false;
+                }
+                
                 // Improved timer sync logic - always sync from backend for consistency
                 if (payload.timerInfo && payload.timerInfo.remainingSeconds > 0) {
                     console.log("Syncing timer from backend:", payload.timerInfo);
@@ -298,6 +326,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log("Round started with prompt:", prompt, "roundId:", roundId, "timer:", timerDurationMinutes);
             console.log("Clearing answers and playersWhoSubmitted for new round");
             console.log("Previous round ID:", currentRound?.roundId, "New round ID:", roundId);
+            
+            // Reset auto-submission flag for new rounds
+            autoSubmissionAttemptedRef.current = false;
             
             // Always reset timer state for new rounds to ensure consistency
             setSelectedTimerDuration(timerDurationMinutes || null);
@@ -481,8 +512,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setPlayersWhoSubmitted(new Set());
             setIsReader(false);
             
+            // ✅ OPTIMIZED: Sequential API calls for game creation (needed for dependency)
             const gameData = await createGameApi();
             const playerData = await joinGameApi(gameData.joinCode, playerName);
+            
             const fullGameData = await getGame(gameData.joinCode);
             
             console.log('Create game response - Player data:', playerData);
@@ -533,8 +566,11 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             // Force a small delay to ensure state is cleared
             await new Promise(resolve => setTimeout(resolve, 100));
             
-            const playerData = await joinGameApi(joinCode, playerName);
-            const gameData = await getGame(joinCode);
+            // ✅ OPTIMIZED: Parallel API calls for faster game joining
+            const [playerData, gameData] = await Promise.all([
+                joinGameApi(joinCode, playerName),
+                getGame(joinCode)
+            ]);
             
             console.log('Join game response - Player data:', playerData);
             console.log('Join game response - Game data:', gameData);
@@ -628,7 +664,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    // Improved timer countdown effect with better error handling and auto-submission
+    // ✅ IMPROVED: Better timer countdown effect with page visibility handling
     useEffect(() => {
         // Clear any existing timer
         if (timerIntervalRef.current) {
@@ -672,15 +708,18 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 setIsTimerActive(false);
                 
                 // Call the timer expire callback for auto-submission with error handling
-                if (onTimerExpire && !submissionInProgressRef.current) {
+                if (onTimerExpire && !submissionInProgressRef.current && !autoSubmissionAttemptedRef.current) {
                     try {
                         console.log('Timer expired, calling auto-submission callback');
+                        autoSubmissionAttemptedRef.current = true;
                         onTimerExpire();
                     } catch (error) {
                         console.error('Error in timer expire callback:', error);
                     }
                 } else if (submissionInProgressRef.current) {
                     console.log('Submission already in progress, skipping auto-submission');
+                } else if (autoSubmissionAttemptedRef.current) {
+                    console.log('Auto-submission already attempted, skipping');
                 }
             } else {
                 setTimeRemaining(remaining);
@@ -738,6 +777,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         handlersSetupRef.current = false;
         lastSyncedTimerRef.current = null;
         submissionInProgressRef.current = false;
+        autoSubmissionAttemptedRef.current = false;
         if (timerIntervalRef.current) {
             clearInterval(timerIntervalRef.current);
             timerIntervalRef.current = null;
