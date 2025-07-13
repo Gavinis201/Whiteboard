@@ -568,11 +568,40 @@ export const Game: React.FC = () => {
                 throw new Error('No longer in game. Please refresh and try again.');
             }
             
+            // ✅ NEW: Check connection status before submitting
+            if (connectionStatus === 'disconnected') {
+                console.log('Connection is disconnected, attempting to reconnect before submission');
+                setCompressionStatus('Reconnecting...');
+                
+                // Try to reconnect
+                try {
+                    await signalRService.joinGame(game.joinCode, player.name);
+                    setCompressionStatus('Sending...');
+                } catch (reconnectError) {
+                    console.error('Failed to reconnect:', reconnectError);
+                    throw new Error('Connection lost. Please refresh the page and try again.');
+                }
+            }
+            
             await submitAnswer(base64Image);
             clearCanvasWithoutConfirmation(); // Use the version without confirmation
         } catch (error: any) {
             console.error('Error submitting answer:', error);
-            alert(error.message || 'Failed to submit drawing. Please try again.');
+            
+            // ✅ NEW: Better error messages for different scenarios
+            let errorMessage = 'Failed to submit drawing. Please try again.';
+            
+            if (error.message?.includes('Connection lost')) {
+                errorMessage = 'Connection lost. Please refresh the page and try again.';
+            } else if (error.message?.includes('No longer in game')) {
+                errorMessage = 'You are no longer in the game. Please refresh and rejoin.';
+            } else if (error.message?.includes('Player not identified')) {
+                errorMessage = 'Connection issue. Please refresh the page and try again.';
+            } else if (error.message?.includes('already submitted')) {
+                errorMessage = 'You have already submitted a drawing for this round.';
+            }
+            
+            alert(errorMessage);
         } finally {
             setCompressionStatus('');
         }
@@ -658,10 +687,14 @@ export const Game: React.FC = () => {
             const isInGame = signalRService.isInGame();
             const isConnected = signalRService.isConnected();
             const isReconnecting = signalRService.isReconnecting();
+            const isPlayerIdentified = signalRService.isPlayerIdentified();
             
             if (!isInGame) {
                 setConnectionStatus('disconnected');
             } else if (isReconnecting || !isConnected) {
+                setConnectionStatus('reconnecting');
+            } else if (!isPlayerIdentified) {
+                // Connected but player not properly identified
                 setConnectionStatus('reconnecting');
             } else {
                 setConnectionStatus('connected');
@@ -719,6 +752,19 @@ export const Game: React.FC = () => {
                         <div className="text-sm text-red-700">
                             <div className="font-semibold">Connection Lost</div>
                             <div>Your drawing will be submitted automatically when the timer expires.</div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
+            {/* Connection warning when player is not properly identified */}
+            {isTimerActive && connectionStatus === 'reconnecting' && !isReader && !playersWhoSubmitted.has(player?.playerId || 0) && (
+                <div className="fixed top-20 right-4 z-50 bg-yellow-50 border border-yellow-200 rounded-lg p-3 max-w-sm">
+                    <div className="flex items-center gap-2">
+                        <div className="text-yellow-600">🔄</div>
+                        <div className="text-sm text-yellow-700">
+                            <div className="font-semibold">Reconnecting...</div>
+                            <div>Please wait while we restore your connection to the game.</div>
                         </div>
                     </div>
                 </div>

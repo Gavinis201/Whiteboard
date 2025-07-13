@@ -191,7 +191,41 @@ class SignalRService {
     async sendAnswer(joinCode: string, answer: string) {
         await this.ensureConnection();
         if (!this.connection) throw new Error('No SignalR connection');
-        await this.connection.invoke('SubmitAnswer', joinCode, answer);
+        
+        // ✅ NEW: Enhanced reconnection logic for submit answer
+        try {
+            await this.connection.invoke('SubmitAnswer', joinCode, answer);
+        } catch (error: any) {
+            console.error('Error submitting answer via SignalR:', error);
+            
+            // If we get a "Player not identified" error, try to rejoin the game
+            if (error.message?.includes('Player not identified') || error.message?.includes('Player not found')) {
+                console.log('Player not identified, attempting to rejoin game before retry');
+                
+                // Try to rejoin the game
+                if (this.currentJoinCode && this.currentPlayerName) {
+                    try {
+                        await this.joinGame(this.currentJoinCode, this.currentPlayerName);
+                        console.log('Successfully rejoined game, retrying answer submission');
+                        
+                        // Wait a moment for the connection to stabilize
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        
+                        // Retry the submission
+                        await this.connection.invoke('SubmitAnswer', joinCode, answer);
+                        console.log('Answer submitted successfully after rejoin');
+                    } catch (rejoinError) {
+                        console.error('Failed to rejoin game and retry submission:', rejoinError);
+                        throw rejoinError;
+                    }
+                } else {
+                    console.error('No current game info available for rejoin');
+                    throw error;
+                }
+            } else {
+                throw error;
+            }
+        }
     }
 
     async kickPlayer(joinCode: string, playerId: number) {
@@ -285,8 +319,13 @@ class SignalRService {
         return this.isReconnectingState;
     }
 
+    // ✅ NEW: Check if player is properly identified in the game
+    isPlayerIdentified(): boolean {
+        return this.isConnected() && this.currentJoinCode !== null && this.currentPlayerName !== null;
+    }
+
     isSubmitting(): boolean {
-        return this.isConnecting || this.isReconnectingState;
+        return false; // Placeholder for future implementation
     }
 
     getCurrentGameInfo(): { joinCode: string | null; playerName: string | null } {

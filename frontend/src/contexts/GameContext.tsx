@@ -659,7 +659,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const submitAnswer = async (answer: string) => {
-        if (!game?.joinCode || !player?.playerId) return;
+        if (!game?.joinCode || !player?.playerId) {
+            console.error('Cannot submit answer: missing game or player info');
+            throw new Error('No longer in game. Please refresh and try again.');
+        }
         
         // Prevent double submissions
         if (submissionInProgressRef.current) {
@@ -676,29 +679,40 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         submissionInProgressRef.current = true;
         
         try {
+            // ✅ NEW: Ensure connection is stable before submitting
+            if (!signalRService.isConnected()) {
+                console.log('SignalR not connected, attempting to reconnect before submission');
+                await signalRService.joinGame(game.joinCode, player.name);
+                
+                // Wait a moment for the connection to stabilize
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
             await signalRService.sendAnswer(game.joinCode, answer);
             console.log('Answer submitted successfully');
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error submitting answer:', error);
             
-            // Enhanced retry logic for mobile Safari
-            if (signalRService.isInGame()) {
+            // Enhanced retry logic with better error handling
+            if (signalRService.isInGame() && (error.message?.includes('Player not identified') || 
+                error.message?.includes('Player not found') || 
+                error.message?.includes('No SignalR connection'))) {
                 try {
-                    console.log('Attempting to reconnect and retry submission');
+                    console.log('Connection issue detected, attempting to reconnect and retry submission');
                     
-                    // ✅ OPTIMIZED: Minimal delay only for critical mobile Safari retry
-                    if (/iPhone|iPad|iPod/.test(navigator.userAgent) && /Safari/.test(navigator.userAgent)) {
-                        console.log('Mobile Safari detected, minimal delay before retry');
-                        await new Promise(resolve => setTimeout(resolve, 200)); // Reduced from 1000ms to 200ms
-                    }
-                    
+                    // Force rejoin the game
                     await signalRService.joinGame(game.joinCode, player.name);
+                    
+                    // Wait for connection to stabilize
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    // Retry the submission
                     await signalRService.sendAnswer(game.joinCode, answer);
                     console.log('Answer submitted successfully after reconnection');
                 } catch (retryError) {
                     console.error('Error retrying answer submission:', retryError);
                     submissionInProgressRef.current = false;
-                    throw retryError;
+                    throw new Error('Failed to submit drawing after reconnection. Please try refreshing the page.');
                 }
             } else {
                 submissionInProgressRef.current = false;
