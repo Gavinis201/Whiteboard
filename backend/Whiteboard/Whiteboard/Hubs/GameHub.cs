@@ -169,6 +169,19 @@ public class GameHub : Hub
 
         // Send the complete state to the client that just joined/reconnected
         _logger.LogInformation("Sending GameStateSynced with JudgingModeEnabled: {JudgingModeEnabled}", gameState.JudgingModeEnabled);
+        
+        // Log detailed information about the active round for debugging reconnection issues
+        if (gameState.ActiveRound != null)
+        {
+            _logger.LogInformation("Active round details for {PlayerName}: RoundId={RoundId}, Prompt={Prompt}, TimerDuration={TimerDuration}, TimerStartTime={TimerStartTime}", 
+                playerName, gameState.ActiveRound.RoundId, gameState.ActiveRound.Prompt, 
+                gameState.ActiveRound.TimerDurationMinutes, gameState.ActiveRound.TimerStartTime);
+        }
+        else
+        {
+            _logger.LogInformation("No active round for {PlayerName}", playerName);
+        }
+        
         await Clients.Caller.SendAsync("GameStateSynced", new
         {
             Players = gameState.Players,

@@ -178,6 +178,20 @@ export const Game: React.FC = () => {
         }
     }, [currentRound, players, playersWhoSubmitted]);
 
+    // Debug logging for currentRound changes
+    useEffect(() => {
+        if (currentRound) {
+            console.log('Current round updated:', {
+                roundId: currentRound.roundId,
+                prompt: currentRound.prompt,
+                timerDurationMinutes: currentRound.timerDurationMinutes,
+                isCompleted: currentRound.isCompleted
+            });
+        } else {
+            console.log('Current round cleared');
+        }
+    }, [currentRound]);
+
     // Update filtered prompts based on game mode, subcategory, and input
     useEffect(() => {
         if (gameMode === 'Custom' || gameMode === 'Select') {
@@ -962,6 +976,10 @@ export const Game: React.FC = () => {
                                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
                                     <h4 className="text-lg font-semibold text-purple-700 mb-2">Current Prompt:</h4>
                                     <p className="text-lg text-gray-800">"{renderTextWithHiddenAnswers(currentRound.prompt)}"</p>
+                                    {/* Debug info for reconnection issues */}
+                                    <div className="mt-2 text-xs text-gray-500">
+                                        Round ID {currentRound.roundId}, Timer: {currentRound.timerDurationMinutes || 'none'}
+                                    </div>
                                 </div>
                                 {playersWhoSubmitted.has(player.playerId) ? (
                                     <div className="bg-green-50 border border-green-200 rounded-lg p-6">

@@ -257,12 +257,15 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     prompt: payload.activeRound.prompt,
                     isCompleted: payload.activeRound.isCompleted,
                     roundId: payload.activeRound.roundId,
-                    gameId: payload.activeRound.gameId
+                    gameId: payload.activeRound.gameId,
+                    timerDurationMinutes: payload.activeRound.timerDurationMinutes
                 });
                 
                 // Reset auto-submission flag for new rounds
                 if (isNewRound) {
                     autoSubmissionAttemptedRef.current = false;
+                    // Reset submission flag for new rounds
+                    submissionInProgressRef.current = false;
                 }
                 
                 // Improved timer sync logic - always sync from backend for consistency
@@ -312,6 +315,20 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     console.log("Existing round, using filtered answers:", currentRoundAnswers);
                     setAnswers(currentRoundAnswers);
                     setPlayersWhoSubmitted(new Set(currentRoundAnswers.map(a => a.playerId)));
+                }
+                
+                // ✅ NEW: Ensure prompt is visible for reconnecting players
+                // If this is a reconnection to an active round, make sure the prompt is properly displayed
+                if (payload.activeRound.prompt && !isNewRound) {
+                    console.log("Reconnecting to active round, ensuring prompt visibility:", payload.activeRound.prompt);
+                    // The prompt should already be set in currentRound, but we can add additional logging
+                    console.log("Current round prompt after sync:", payload.activeRound.prompt);
+                    console.log("Current round state after sync:", {
+                        roundId: payload.activeRound.roundId,
+                        prompt: payload.activeRound.prompt,
+                        timerDurationMinutes: payload.activeRound.timerDurationMinutes,
+                        isCompleted: payload.activeRound.isCompleted
+                    });
                 }
             } else {
                 setCurrentRound(null);
