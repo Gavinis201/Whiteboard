@@ -167,14 +167,25 @@ public class GameHub : Hub
             throw new HubException("Game state not found");
         }
 
+        // ✅ FIX: Calculate round number within this game for the active round
+        int? roundNumber = null;
+        if (gameState.ActiveRound != null)
+        {
+            var roundsInGame = await _context.Rounds
+                .Where(r => r.GameId == game.GameId && r.RoundId <= gameState.ActiveRound.RoundId)
+                .OrderBy(r => r.RoundId)
+                .ToListAsync();
+            roundNumber = roundsInGame.Count;
+        }
+
         // Send the complete state to the client that just joined/reconnected
         _logger.LogInformation("Sending GameStateSynced with JudgingModeEnabled: {JudgingModeEnabled}", gameState.JudgingModeEnabled);
         
         // Log detailed information about the active round for debugging reconnection issues
         if (gameState.ActiveRound != null)
         {
-            _logger.LogInformation("Active round details for {PlayerName}: RoundId={RoundId}, Prompt={Prompt}, TimerDuration={TimerDuration}, TimerStartTime={TimerStartTime}", 
-                playerName, gameState.ActiveRound.RoundId, gameState.ActiveRound.Prompt, 
+            _logger.LogInformation("Active round details for {PlayerName}: RoundNumber={RoundNumber}, RoundId={RoundId}, Prompt={Prompt}, TimerDuration={TimerDuration}, TimerStartTime={TimerStartTime}", 
+                playerName, roundNumber, gameState.ActiveRound.RoundId, gameState.ActiveRound.Prompt, 
                 gameState.ActiveRound.TimerDurationMinutes, gameState.ActiveRound.TimerStartTime);
         }
         else
@@ -185,7 +196,14 @@ public class GameHub : Hub
         await Clients.Caller.SendAsync("GameStateSynced", new
         {
             Players = gameState.Players,
-            ActiveRound = gameState.ActiveRound,
+            ActiveRound = gameState.ActiveRound != null ? new
+            {
+                RoundId = roundNumber, // ✅ FIX: Send round number instead of global RoundId
+                Prompt = gameState.ActiveRound.Prompt,
+                IsCompleted = gameState.ActiveRound.IsCompleted,
+                GameId = gameState.ActiveRound.GameId,
+                TimerDurationMinutes = gameState.ActiveRound.TimerDurationMinutes
+            } : null,
             CurrentAnswers = gameState.CurrentAnswers,
             JudgingModeEnabled = gameState.JudgingModeEnabled,
             // Add timer information for reconnecting players
@@ -211,6 +229,10 @@ public class GameHub : Hub
         var game = await _context.Games.FirstOrDefaultAsync(g => g.JoinCode == joinCode);
         if (game == null) throw new HubException("Game not found.");
 
+        // ✅ FIX: Calculate round number within this game instead of using global auto-increment
+        var existingRoundsCount = await _context.Rounds.CountAsync(r => r.GameId == game.GameId);
+        var roundNumber = existingRoundsCount + 1;
+
         // Save the new round to the database
         var newRound = new Round
         {
@@ -223,9 +245,9 @@ public class GameHub : Hub
         _context.Rounds.Add(newRound);
         await _context.SaveChangesAsync();
 
-        // ✅ OPTIMIZED: Send round start event immediately for faster frontend response
-        await Clients.Group(joinCode).SendAsync("RoundStarted", prompt, newRound.RoundId, timerDurationMinutes);
-        _logger.LogInformation("Round started and saved successfully in game {JoinCode} with roundId {RoundId}", joinCode, newRound.RoundId);
+        // ✅ FIX: Use roundNumber instead of newRound.RoundId for frontend
+        await Clients.Group(joinCode).SendAsync("RoundStarted", prompt, roundNumber, timerDurationMinutes);
+        _logger.LogInformation("Round started and saved successfully in game {JoinCode} with roundNumber {RoundNumber} (RoundId: {RoundId})", joinCode, roundNumber, newRound.RoundId);
 
         // Set up backend timer if duration is specified (after sending the event)
         if (timerDurationMinutes.HasValue && timerDurationMinutes.Value > 0)
