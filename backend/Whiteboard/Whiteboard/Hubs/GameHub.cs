@@ -193,6 +193,16 @@ public class GameHub : Hub
             _logger.LogInformation("No active round for {PlayerName}", playerName);
         }
         
+        // ✅ FIX: Transform answers to include the correct round number for frontend
+        var transformedAnswers = gameState.CurrentAnswers.Select(a => new
+        {
+            a.AnswerId,
+            a.Content,
+            a.PlayerName,
+            a.PlayerId,
+            RoundId = roundNumber // Use the round number instead of the global RoundId
+        }).ToList();
+
         await Clients.Caller.SendAsync("GameStateSynced", new
         {
             Players = gameState.Players,
@@ -204,7 +214,7 @@ public class GameHub : Hub
                 GameId = gameState.ActiveRound.GameId,
                 TimerDurationMinutes = gameState.ActiveRound.TimerDurationMinutes
             } : null,
-            CurrentAnswers = gameState.CurrentAnswers,
+            CurrentAnswers = transformedAnswers,
             JudgingModeEnabled = gameState.JudgingModeEnabled,
             // Add timer information for reconnecting players
             TimerInfo = gameState.ActiveRound != null && gameState.ActiveRound.TimerStartTime.HasValue ? new
@@ -307,7 +317,11 @@ public class GameHub : Hub
         _context.Answers.Add(newAnswer);
         await _context.SaveChangesAsync();
 
-        await Clients.Group(joinCode).SendAsync("AnswerReceived", playerId.ToString(), player.Name, answer, newAnswer.AnswerId);
+        // ✅ FIX: Calculate round number for the answer
+        var existingRoundsCount = await _context.Rounds.CountAsync(r => r.GameId == player.GameId && r.RoundId <= activeRound.RoundId);
+        var answerRoundNumber = existingRoundsCount;
+        
+        await Clients.Group(joinCode).SendAsync("AnswerReceived", playerId.ToString(), player.Name, answer, newAnswer.AnswerId, answerRoundNumber);
         _logger.LogInformation("Answer submitted and saved by {PlayerName} in game {JoinCode}", player.Name, joinCode);
     }
 

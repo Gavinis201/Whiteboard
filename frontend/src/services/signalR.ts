@@ -21,7 +21,7 @@ class SignalRService {
     // Callbacks
     private gameStateSyncedCallback: ((payload: GameStatePayload) => void) | null = null;
     private playerListUpdatedCallback: ((players: Player[]) => void) | null = null;
-    private answerReceivedCallback: ((playerId: string, playerName: string, answer: string, answerId: number) => void) | null = null;
+    private answerReceivedCallback: ((playerId: string, playerName: string, answer: string, answerId: number, roundNumber?: number) => void) | null = null;
     private roundStartedCallback: ((prompt: string, roundId: number, timerDurationMinutes?: number) => void) | null = null;
     private playerKickedCallback: ((playerId: string, playerName: string) => void) | null = null;
     private judgingModeToggledCallback: ((enabled: boolean) => void) | null = null;
@@ -138,8 +138,8 @@ class SignalRService {
             this.playerListUpdatedCallback?.(players);
         });
 
-        this.connection.on('AnswerReceived', (playerId: string, playerName: string, answer: string, answerId: number) => {
-            this.answerReceivedCallback?.(playerId, playerName, answer, answerId);
+        this.connection.on('AnswerReceived', (playerId: string, playerName: string, answer: string, answerId: number, roundNumber?: number) => {
+            this.answerReceivedCallback?.(playerId, playerName, answer, answerId, roundNumber);
         });
 
         this.connection.on('RoundStarted', (prompt: string, roundId: number, timerDurationMinutes?: number) => {
@@ -286,7 +286,7 @@ class SignalRService {
         this.playerListUpdatedCallback = callback;
     }
 
-    onAnswerReceived(callback: (playerId: string, playerName: string, answer: string, answerId: number) => void) {
+    onAnswerReceived(callback: (playerId: string, playerName: string, answer: string, answerId: number, roundNumber?: number) => void) {
         this.answerReceivedCallback = callback;
     }
 
