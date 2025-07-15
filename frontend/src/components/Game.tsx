@@ -454,23 +454,33 @@ export const Game: React.FC = () => {
         const fillRgb = hexToRgb(fillColor);
         if (!fillRgb) return;
         
+        // Clamp coordinates to canvas bounds
+        const clampedX = Math.max(0, Math.min(startX, canvas.width - 1));
+        const clampedY = Math.max(0, Math.min(startY, canvas.height - 1));
+        
         // Get the target color (the color we're replacing)
-        const targetIndex = (startY * canvas.width + startX) * 4;
+        const targetIndex = (clampedY * canvas.width + clampedX) * 4;
         const targetR = data[targetIndex];
         const targetG = data[targetIndex + 1];
         const targetB = data[targetIndex + 2];
+        const targetA = data[targetIndex + 3];
         
-        // Don't fill if clicking on the same color
-        if (targetR === fillRgb.r && targetG === fillRgb.g && targetB === fillRgb.b) {
+        // Don't fill if clicking on the same color (with tolerance for anti-aliasing)
+        const colorDistance = Math.sqrt(
+            Math.pow(targetR - fillRgb.r, 2) + 
+            Math.pow(targetG - fillRgb.g, 2) + 
+            Math.pow(targetB - fillRgb.b, 2)
+        );
+        if (colorDistance < 5) { // Small tolerance for similar colors
             return;
         }
         
-        // ✅ OPTIMIZED: Stack-based flood fill algorithm with early exit
-        const stack: [number, number][] = [[startX, startY]];
-        const visited = new Set<string>(); // Track visited pixels for faster performance
+        // ✅ IMPROVED: Queue-based flood fill algorithm with better color matching
+        const queue: [number, number][] = [[clampedX, clampedY]];
+        const visited = new Set<string>();
         
-        while (stack.length > 0) {
-            const [x, y] = stack.pop()!;
+        while (queue.length > 0) {
+            const [x, y] = queue.shift()!;
             const key = `${x},${y}`;
             
             // Check bounds and visited status
@@ -481,8 +491,19 @@ export const Game: React.FC = () => {
             visited.add(key);
             const index = (y * canvas.width + x) * 4;
             
-            // Check if this pixel matches the target color
-            if (data[index] !== targetR || data[index + 1] !== targetG || data[index + 2] !== targetB) {
+            // Check if this pixel matches the target color (with tolerance)
+            const pixelR = data[index];
+            const pixelG = data[index + 1];
+            const pixelB = data[index + 2];
+            const pixelA = data[index + 3];
+            
+            const pixelColorDistance = Math.sqrt(
+                Math.pow(pixelR - targetR, 2) + 
+                Math.pow(pixelG - targetG, 2) + 
+                Math.pow(pixelB - targetB, 2)
+            );
+            
+            if (pixelColorDistance > 10) { // Tolerance for color matching
                 continue;
             }
             
@@ -492,11 +513,11 @@ export const Game: React.FC = () => {
             data[index + 2] = fillRgb.b;
             data[index + 3] = 255; // Alpha
             
-            // Add neighboring pixels to stack (optimized order for better performance)
-            stack.push([x + 1, y]);
-            stack.push([x - 1, y]);
-            stack.push([x, y + 1]);
-            stack.push([x, y - 1]);
+            // Add neighboring pixels to queue (BFS for better fill pattern)
+            queue.push([x + 1, y]);
+            queue.push([x - 1, y]);
+            queue.push([x, y + 1]);
+            queue.push([x, y - 1]);
         }
         
         // Put the modified image data back

@@ -374,6 +374,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             // Reset auto-submission flag for new rounds
             autoSubmissionAttemptedRef.current = false;
             
+            // ✅ FIX: Reset navigation state for new rounds
+            hasNavigatedToJudgingRef.current = false;
+            previousRoundIdRef.current = roundId;
+            
             // ✅ OPTIMIZED: Immediate state updates for faster round transitions
             setCurrentRound({ 
                 prompt, 
@@ -520,9 +524,11 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         // Check if we're currently on the judging page and a new round has started
         const isOnJudgingPage = window.location.pathname === '/judging';
         
-        // Only redirect if we're on the judging page AND this is actually a new round
-        // (not just the same round being updated)
-        if (isOnJudgingPage && currentRound.roundId !== previousRoundIdRef.current) {
+        // ✅ FIX: Only redirect if we're on the judging page AND this is actually a new round
+        // AND we haven't already navigated for this round
+        if (isOnJudgingPage && 
+            currentRound.roundId !== previousRoundIdRef.current && 
+            !hasNavigatedToJudgingRef.current) {
             console.log('New round started, redirecting player back to game page');
             previousRoundIdRef.current = currentRound.roundId;
             
