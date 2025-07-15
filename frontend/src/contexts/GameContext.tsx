@@ -83,52 +83,162 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     // Always show only the current round drawings, regardless of voting mode
     const filteredAnswers = answers.filter(answer => answer.roundId === currentRound?.roundId);
 
-    // ✅ ENHANCED: Page visibility detection for better mobile Safari support
+    // ✅ ENHANCED: Comprehensive reconnection system for all scenarios
     useEffect(() => {
         const handleVisibilityChange = () => {
             const isVisible = !document.hidden;
             pageVisibilityRef.current = isVisible;
-            console.log('Page visibility changed:', isVisible);
+            console.log('🔄 Page visibility changed:', isVisible);
             
-            // If page becomes visible, check connection and sync state
             if (isVisible) {
-                console.log('Page became visible, checking connection and syncing state');
+                console.log('🔄 Page became visible, initiating reconnection protocol');
                 
-                // Force a connection check and re-sync if needed
-                if (game?.joinCode && player?.name && !signalRService.isConnected()) {
-                    console.log('Connection lost while in background, attempting to reconnect');
-                    signalRService.joinGame(game.joinCode, player.name).catch(err => {
-                        console.error('Failed to reconnect after visibility change:', err);
-                    });
-                }
-                
-                // If we have an active timer, check if we need to auto-submit
-                if (isTimerActive && timeRemaining !== null && timeRemaining <= 0 && !autoSubmissionAttemptedRef.current) {
-                    console.log('Page became visible with expired timer, attempting auto-submission');
-                    if (onTimerExpire) {
-                        autoSubmissionAttemptedRef.current = true;
-                        onTimerExpire();
+                // ✅ ENHANCED: Comprehensive reconnection logic
+                const performReconnection = async () => {
+                    try {
+                        // Check if we have valid game state
+                        if (!game?.joinCode || !player?.name) {
+                            console.log('🔄 No valid game state for reconnection');
+                            return;
+                        }
+
+                        // Check connection status
+                        const isConnected = signalRService.isConnected();
+                        const isInGame = signalRService.isInGame();
+                        
+                        console.log('🔄 Connection status - Connected:', isConnected, 'InGame:', isInGame);
+                        
+                        if (!isConnected) {
+                            console.log('🔄 SignalR disconnected, attempting to reconnect...');
+                            setIsLoading(true);
+                            setLoadingMessage('Reconnecting to game...');
+                            
+                            // Try force reconnection first
+                            try {
+                                await signalRService.forceReconnect();
+                                await signalRService.joinGame(game.joinCode, player.name);
+                                console.log('🔄 Successfully reconnected to SignalR');
+                            } catch (reconnectError) {
+                                console.error('🔄 Force reconnection failed, trying normal reconnection:', reconnectError);
+                                // Fallback to normal reconnection
+                                await signalRService.joinGame(game.joinCode, player.name);
+                            }
+                            
+                            setIsLoading(false);
+                            setLoadingMessage('');
+                        } else if (!isInGame) {
+                            console.log('🔄 Connected but not in game, rejoining...');
+                            setIsLoading(true);
+                            setLoadingMessage('Rejoining game...');
+                            
+                            await signalRService.joinGame(game.joinCode, player.name);
+                            console.log('🔄 Successfully rejoined game');
+                            
+                            setIsLoading(false);
+                            setLoadingMessage('');
+                        } else {
+                            console.log('🔄 Already connected and in game, no reconnection needed');
+                        }
+                        
+                        // ✅ ENHANCED: Handle timer state for reconnecting players
+                        if (isTimerActive && timeRemaining !== null && timeRemaining <= 0 && !autoSubmissionAttemptedRef.current) {
+                            console.log('🔄 Timer expired while away, attempting auto-submission');
+                            if (onTimerExpire) {
+                                autoSubmissionAttemptedRef.current = true;
+                                onTimerExpire();
+                            }
+                        }
+                        
+                    } catch (error) {
+                        console.error('🔄 Reconnection failed:', error);
+                        setIsLoading(false);
+                        setLoadingMessage('');
+                        
+                        // Show user-friendly error message
+                        alert('Connection lost. Please refresh the page to rejoin the game.');
                     }
-                }
+                };
+                
+                // Add a small delay to ensure the page is fully loaded
+                setTimeout(performReconnection, 500);
+                
             } else {
-                console.log('Page went to background, saving current state');
-                // Save current state when going to background
+                console.log('🔄 Page went to background, saving comprehensive state');
+                
+                // ✅ ENHANCED: Save comprehensive state when going to background
                 if (game && player) {
-                    setCookie('currentGame', JSON.stringify(game));
-                    setCookie('currentPlayer', JSON.stringify(player));
-                    if (currentRound) {
-                        setCookie('currentRound', JSON.stringify(currentRound));
-                    }
-                    if (playersWhoSubmitted.size > 0) {
-                        setCookie('playersWhoSubmitted', JSON.stringify(Array.from(playersWhoSubmitted)));
+                    try {
+                        setCookie('currentGame', JSON.stringify(game));
+                        setCookie('currentPlayer', JSON.stringify(player));
+                        
+                        if (currentRound) {
+                            setCookie('currentRound', JSON.stringify(currentRound));
+                        }
+                        
+                        if (playersWhoSubmitted.size > 0) {
+                            setCookie('playersWhoSubmitted', JSON.stringify(Array.from(playersWhoSubmitted)));
+                        }
+                        
+                        // Save timer state
+                        if (isTimerActive && timeRemaining !== null) {
+                            setCookie('timerState', JSON.stringify({
+                                isActive: isTimerActive,
+                                timeRemaining,
+                                startTime: roundStartTime?.toISOString(),
+                                duration: selectedTimerDuration
+                            }));
+                        }
+                        
+                        console.log('🔄 State saved successfully for background');
+                    } catch (error) {
+                        console.error('🔄 Error saving state:', error);
                     }
                 }
             }
         };
 
+        // ✅ ENHANCED: Handle network connectivity changes
+        const handleOnline = () => {
+            console.log('🔄 Network came online, checking connection...');
+            if (game?.joinCode && player?.name) {
+                setTimeout(() => {
+                    if (!signalRService.isConnected()) {
+                        console.log('🔄 Attempting to reconnect after network recovery');
+                        signalRService.joinGame(game.joinCode, player.name).catch(err => {
+                            console.error('🔄 Failed to reconnect after network recovery:', err);
+                        });
+                    }
+                }, 1000);
+            }
+        };
+
+        const handleOffline = () => {
+            console.log('🔄 Network went offline');
+        };
+
+        // ✅ ENHANCED: Handle beforeunload event for clean disconnection
+        const handleBeforeUnload = () => {
+            console.log('🔄 Page unloading, attempting clean disconnection');
+            if (game?.joinCode && signalRService.isConnected()) {
+                // Note: We can't await this in beforeunload, but we can try to send it
+                signalRService.leaveGame(game.joinCode).catch(() => {
+                    // Ignore errors during page unload
+                });
+            }
+        };
+
         document.addEventListener('visibilitychange', handleVisibilityChange);
-        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    }, [isTimerActive, timeRemaining, onTimerExpire, game?.joinCode, player?.name, currentRound, playersWhoSubmitted]);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, [isTimerActive, timeRemaining, onTimerExpire, game?.joinCode, player?.name, currentRound, playersWhoSubmitted, roundStartTime, selectedTimerDuration]);
 
     useEffect(() => {
         const initializeApp = async () => {
@@ -137,6 +247,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             const savedPlayer = getCookie('currentPlayer');
             const savedRound = getCookie('currentRound');
             const savedPlayersWhoSubmitted = getCookie('playersWhoSubmitted');
+            const savedTimerState = getCookie('timerState');
             
             // Check if we're in the process of joining (this might happen during page refresh)
             if (isJoiningRef.current) {
@@ -151,35 +262,59 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 try {
                     const parsedGame = JSON.parse(savedGame);
                     const parsedPlayer = JSON.parse(savedPlayer);
-                    console.log('Restoring game state from cookies:', parsedGame.joinCode, parsedPlayer.name);
+                    console.log('🔄 Restoring game state from cookies:', parsedGame.joinCode, parsedPlayer.name);
                     setGame(convertToExtendedGame(parsedGame));
                     setPlayer(parsedPlayer);
                     setIsReader(parsedPlayer.isReader);
                     
-                    // Restore round and submission state if available
+                    // ✅ ENHANCED: Restore comprehensive state
                     if (savedRound && savedPlayersWhoSubmitted) {
                         try {
                             const parsedRound = JSON.parse(savedRound);
                             const parsedPlayersWhoSubmitted = JSON.parse(savedPlayersWhoSubmitted);
-                            console.log('Restoring round and submission state from cookies');
+                            console.log('🔄 Restoring round and submission state from cookies');
                             setCurrentRound(parsedRound);
                             setPlayersWhoSubmitted(new Set(parsedPlayersWhoSubmitted));
                             
                             // ✅ FIX: Initialize previousRoundId from saved round
-                            // This ensures the auto-redirect logic works when reconnecting
                             setPreviousRoundId(parsedRound.roundId);
                             previousRoundIdRef.current = parsedRound.roundId;
-                            console.log('Initialized previousRoundId from saved round:', parsedRound.roundId);
+                            console.log('🔄 Initialized previousRoundId from saved round:', parsedRound.roundId);
                         } catch (error) {
-                            console.error('Error parsing saved round/submission state:', error);
+                            console.error('🔄 Error parsing saved round/submission state:', error);
                         }
                     }
+                    
+                    // ✅ NEW: Restore timer state if available
+                    if (savedTimerState) {
+                        try {
+                            const parsedTimerState = JSON.parse(savedTimerState);
+                            console.log('🔄 Restoring timer state from cookies:', parsedTimerState);
+                            
+                            if (parsedTimerState.isActive && parsedTimerState.timeRemaining > 0) {
+                                setSelectedTimerDuration(parsedTimerState.duration);
+                                setTimeRemaining(parsedTimerState.timeRemaining);
+                                setIsTimerActive(true);
+                                
+                                if (parsedTimerState.startTime) {
+                                    setRoundStartTime(new Date(parsedTimerState.startTime));
+                                }
+                                
+                                console.log('🔄 Timer state restored successfully');
+                            }
+                        } catch (error) {
+                            console.error('🔄 Error parsing saved timer state:', error);
+                        }
+                    }
+                    
+                    console.log('🔄 Game state restored successfully');
                 } catch (error) {
-                    console.error('Error parsing saved game state:', error);
+                    console.error('🔄 Error parsing saved game state:', error);
                     removeCookie('currentGame');
                     removeCookie('currentPlayer');
                     removeCookie('currentRound');
                     removeCookie('playersWhoSubmitted');
+                    removeCookie('timerState');
                 }
             }
             setIsInitialized(true);
@@ -258,25 +393,35 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log("Judging mode enabled:", payload.judgingModeEnabled);
             console.log("Full payload keys:", Object.keys(payload));
             
+            // ✅ ENHANCED: Check if this is a reconnection scenario
+            const isReconnecting = currentRound?.roundId && payload.activeRound?.roundId && 
+                                 currentRound.roundId !== payload.activeRound.roundId;
+            
+            if (isReconnecting) {
+                console.log("🔄 RECONNECTION DETECTED: Player returning to browser during active round");
+                console.log("🔄 Previous round ID:", currentRound.roundId);
+                console.log("🔄 Current active round ID:", payload.activeRound?.roundId);
+                console.log("🔄 Player will be synced to current game state");
+            }
+            
             setGame(prevGame => ({ 
                 ...(prevGame as ExtendedGame), 
                 players: payload.players,
                 judgingModeEnabled: payload.judgingModeEnabled
             }));
             
-
-            
             if (payload.activeRound) {
                 const isNewRound = currentRound?.roundId !== payload.activeRound.roundId;
                 console.log("Is new round:", isNewRound);
                 
-                // ✅ OPTIMIZED: Immediate round state update for faster transitions
+                // ✅ ENHANCED: Update round state with voting mode information
                 setCurrentRound({
-                    prompt: payload.activeRound.prompt,
-                    isCompleted: payload.activeRound.isCompleted,
-                    roundId: payload.activeRound.roundId,
-                    gameId: payload.activeRound.gameId,
-                    timerDurationMinutes: payload.activeRound.timerDurationMinutes
+                    prompt: payload.activeRound!.prompt,
+                    isCompleted: payload.activeRound!.isCompleted,
+                    roundId: payload.activeRound!.roundId,
+                    gameId: payload.activeRound!.gameId,
+                    timerDurationMinutes: payload.activeRound!.timerDurationMinutes,
+                    votingEnabled: (payload.activeRound! as any).votingEnabled
                 });
                 
                 // Reset auto-submission flag for new rounds
@@ -286,7 +431,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     submissionInProgressRef.current = false;
                 }
                 
-                // Improved timer sync logic - always sync from backend for consistency
+                // ✅ ENHANCED: Improved timer sync logic for reconnecting players
                 if (payload.timerInfo && payload.timerInfo.remainingSeconds > 0) {
                     console.log("Syncing timer from backend:", payload.timerInfo);
                     
@@ -304,6 +449,12 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                         roundId: payload.activeRound.roundId,
                         remainingSeconds: payload.timerInfo.remainingSeconds
                     };
+                    
+                    // ✅ NEW: Show notification for reconnecting players with active timer
+                    if (isReconnecting) {
+                        console.log("🔄 Player reconnected with active timer - remaining time:", payload.timerInfo.remainingSeconds, "seconds");
+                        // You could add a toast notification here if desired
+                    }
                 } else if (payload.timerInfo && payload.timerInfo.remainingSeconds <= 0) {
                     // Timer has already expired, don't start it
                     console.log("Timer has already expired, not starting frontend timer");
@@ -321,17 +472,17 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     lastSyncedTimerRef.current = null;
                 }
                 
-                // Handle answers and submission state
+                // ✅ ENHANCED: Handle answers and submission state for reconnecting players
                 if (isNewRound) {
                     // For new rounds, always start with empty state regardless of backend data
                     console.log("New round detected, clearing answers and submission state");
                     
-                                    // ✅ FIX: Set previousRoundId when detecting a new round from GameStateSynced
-                if (currentRound?.roundId && currentRound.roundId !== payload.activeRound.roundId) {
-                    console.log("🎯 Setting previousRoundId from GameStateSynced:", currentRound.roundId);
-                    console.log("🎯 New round ID from GameStateSynced:", payload.activeRound.roundId);
-                    setPreviousRoundId(currentRound.roundId);
-                }
+                    // ✅ FIX: Set previousRoundId when detecting a new round from GameStateSynced
+                    if (currentRound?.roundId && currentRound.roundId !== payload.activeRound.roundId) {
+                        console.log("🎯 Setting previousRoundId from GameStateSynced:", currentRound.roundId);
+                        console.log("🎯 New round ID from GameStateSynced:", payload.activeRound.roundId);
+                        setPreviousRoundId(currentRound.roundId);
+                    }
                     
                     setAnswers([]);
                     setPlayersWhoSubmitted(new Set());
@@ -341,20 +492,34 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     console.log("Existing round, using filtered answers:", currentRoundAnswers);
                     setAnswers(currentRoundAnswers);
                     setPlayersWhoSubmitted(new Set(currentRoundAnswers.map(a => a.playerId)));
+                    
+                    // ✅ NEW: Check if player has already submitted for reconnecting players
+                    if (isReconnecting && player) {
+                        const hasSubmitted = currentRoundAnswers.some(a => a.playerId === player.playerId);
+                        if (hasSubmitted) {
+                            console.log("🔄 Player has already submitted for this round");
+                        } else {
+                            console.log("🔄 Player has not submitted yet for this round");
+                        }
+                    }
                 }
                 
-                // ✅ NEW: Ensure prompt is visible for reconnecting players
-                // If this is a reconnection to an active round, make sure the prompt is properly displayed
-                if (payload.activeRound.prompt && !isNewRound) {
+                // ✅ ENHANCED: Ensure prompt is visible for reconnecting players
+                if (payload.activeRound?.prompt && !isNewRound) {
                     console.log("Reconnecting to active round, ensuring prompt visibility:", payload.activeRound.prompt);
-                    // The prompt should already be set in currentRound, but we can add additional logging
                     console.log("Current round prompt after sync:", payload.activeRound.prompt);
                     console.log("Current round state after sync:", {
                         roundId: payload.activeRound.roundId,
                         prompt: payload.activeRound.prompt,
                         timerDurationMinutes: payload.activeRound.timerDurationMinutes,
-                        isCompleted: payload.activeRound.isCompleted
+                        isCompleted: payload.activeRound.isCompleted,
+                        votingEnabled: (payload.activeRound as any).votingEnabled
                     });
+                }
+                
+                // ✅ NEW: Update voting mode tracking for reconnecting players
+                if ((payload.activeRound as any)?.votingEnabled) {
+                    setRoundsWithVotingEnabled(prev => new Set([...prev, payload.activeRound!.roundId]));
                 }
             } else {
                 setCurrentRound(null);

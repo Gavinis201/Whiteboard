@@ -123,6 +123,35 @@ class SignalRService {
         }
     }
 
+    // ✅ ENHANCED: Robust force reconnection method
+    async forceReconnect() {
+        console.log('🔄 Force reconnecting SignalR...');
+        
+        // Close existing connection if any
+        if (this.connection) {
+            try {
+                await this.connection.stop();
+            } catch (error) {
+                console.log('🔄 Error stopping existing connection:', error);
+            }
+        }
+        
+        // Reset connection state
+        this.connection = null;
+        this.connectionPromise = null;
+        this.isConnecting = false;
+        this.isReconnectingState = false;
+        
+        // Attempt to reconnect
+        try {
+            await this.connect();
+            console.log('🔄 Force reconnection successful');
+        } catch (error) {
+            console.error('🔄 Force reconnection failed:', error);
+            throw error;
+        }
+    }
+
     private setupEventHandlers() {
         if (!this.connection) return;
 
