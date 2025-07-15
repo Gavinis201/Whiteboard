@@ -12,6 +12,7 @@ export interface Game {
     gameId: number;
     joinCode: string;
     isActive: boolean;
+    judgingModeEnabled: boolean;
     players: Player[];
 }
 

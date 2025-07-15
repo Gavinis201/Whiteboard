@@ -11,7 +11,7 @@ export const Game: React.FC = () => {
         game, player, currentRound, answers, isReader,
         playersWhoSubmitted, startNewRound, submitAnswer, players, leaveGame, kickPlayer,
         isLoading, loadingMessage, selectedTimerDuration, timeRemaining, roundStartTime, isTimerActive,
-        judgingModeEnabled, toggleJudgingMode,
+        judgingModeEnabled, toggleJudgingMode, roundsWithVotingEnabled,
         setSelectedTimerDuration, setTimeRemaining, setRoundStartTime, setIsTimerActive, setOnTimerExpire
     } = useGame();
     const navigate = useNavigate();
@@ -49,6 +49,8 @@ export const Game: React.FC = () => {
     const [isFillMode, setIsFillMode] = useState(false);
     // Add pen input tolerance
     const [lastPointerId, setLastPointerId] = useState<number | null>(null);
+    // Add per-round voting mode state
+    const [roundVotingMode, setRoundVotingMode] = useState(false);
     const triviaCategories = [
       'American History',
       'Harry Potter',
@@ -433,96 +435,81 @@ export const Game: React.FC = () => {
     const floodFill = (startX: number, startY: number, fillColor: string) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
-        
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        
+
         // Get image data for pixel manipulation
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
-        
-        // Convert hex color to RGB
-        const hexToRgb = (hex: string) => {
-            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-            return result ? {
-                r: parseInt(result[1], 16),
-                g: parseInt(result[2], 16),
-                b: parseInt(result[3], 16)
-            } : null;
+
+        // Convert hex color to RGBA
+        const hexToRgba = (hex: string) => {
+            let c = hex.replace('#', '');
+            if (c.length === 3) c = c[0]+c[0]+c[1]+c[1]+c[2]+c[2];
+            const num = parseInt(c, 16);
+            return {
+                r: (num >> 16) & 255,
+                g: (num >> 8) & 255,
+                b: num & 255,
+                a: 255
+            };
         };
-        
-        const fillRgb = hexToRgb(fillColor);
-        if (!fillRgb) return;
-        
-        // Clamp coordinates to canvas bounds
+        const fillRgba = hexToRgba(fillColor);
+
+        // Clamp coordinates
         const clampedX = Math.max(0, Math.min(startX, canvas.width - 1));
         const clampedY = Math.max(0, Math.min(startY, canvas.height - 1));
-        
+
         // Get the target color (the color we're replacing)
         const targetIndex = (clampedY * canvas.width + clampedX) * 4;
         const targetR = data[targetIndex];
         const targetG = data[targetIndex + 1];
         const targetB = data[targetIndex + 2];
         const targetA = data[targetIndex + 3];
-        
-        // Don't fill if clicking on the same color (with tolerance for anti-aliasing)
-        const colorDistance = Math.sqrt(
-            Math.pow(targetR - fillRgb.r, 2) + 
-            Math.pow(targetG - fillRgb.g, 2) + 
-            Math.pow(targetB - fillRgb.b, 2)
-        );
-        if (colorDistance < 5) { // Small tolerance for similar colors
+
+        // If the target color is already the fill color (including alpha), do nothing
+        if (
+            Math.abs(targetR - fillRgba.r) < 2 &&
+            Math.abs(targetG - fillRgba.g) < 2 &&
+            Math.abs(targetB - fillRgba.b) < 2 &&
+            Math.abs(targetA - fillRgba.a) < 2
+        ) {
             return;
         }
-        
-        // ✅ IMPROVED: Queue-based flood fill algorithm with better color matching
+
+        // Helper to compare colors (RGBA)
+        const colorMatch = (i: number) => {
+            return (
+                Math.abs(data[i] - targetR) < 16 &&
+                Math.abs(data[i + 1] - targetG) < 16 &&
+                Math.abs(data[i + 2] - targetB) < 16 &&
+                Math.abs(data[i + 3] - targetA) < 16
+            );
+        };
+
+        // Flood fill using BFS
         const queue: [number, number][] = [[clampedX, clampedY]];
-        const visited = new Set<string>();
-        
+        const visited = new Uint8Array(canvas.width * canvas.height);
         while (queue.length > 0) {
             const [x, y] = queue.shift()!;
-            const key = `${x},${y}`;
-            
-            // Check bounds and visited status
-            if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height || visited.has(key)) {
-                continue;
-            }
-            
-            visited.add(key);
-            const index = (y * canvas.width + x) * 4;
-            
-            // Check if this pixel matches the target color (with tolerance)
-            const pixelR = data[index];
-            const pixelG = data[index + 1];
-            const pixelB = data[index + 2];
-            const pixelA = data[index + 3];
-            
-            const pixelColorDistance = Math.sqrt(
-                Math.pow(pixelR - targetR, 2) + 
-                Math.pow(pixelG - targetG, 2) + 
-                Math.pow(pixelB - targetB, 2)
-            );
-            
-            if (pixelColorDistance > 10) { // Tolerance for color matching
-                continue;
-            }
-            
-            // Fill this pixel
-            data[index] = fillRgb.r;
-            data[index + 1] = fillRgb.g;
-            data[index + 2] = fillRgb.b;
-            data[index + 3] = 255; // Alpha
-            
-            // Add neighboring pixels to queue (BFS for better fill pattern)
+            if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) continue;
+            const idx = (y * canvas.width + x);
+            if (visited[idx]) continue;
+            const i = idx * 4;
+            if (!colorMatch(i)) continue;
+            // Fill pixel
+            data[i] = fillRgba.r;
+            data[i + 1] = fillRgba.g;
+            data[i + 2] = fillRgba.b;
+            data[i + 3] = fillRgba.a;
+            visited[idx] = 1;
+            // Add neighbors
             queue.push([x + 1, y]);
             queue.push([x - 1, y]);
             queue.push([x, y + 1]);
             queue.push([x, y - 1]);
         }
-        
-        // Put the modified image data back
         ctx.putImageData(imageData, 0, 0);
-        
         // Save for undo
         const newImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         setDrawingHistory(prev => [...prev, newImageData]);
@@ -632,13 +619,16 @@ export const Game: React.FC = () => {
         if (!prompt.trim() || !game) return;
         // Use the full prompt text (with parentheses) for starting the round
         console.log('Starting round with prompt:', prompt);
-        await startNewRound(prompt, selectedTimerDuration || undefined);
+        console.log('Round voting mode:', roundVotingMode);
+        await startNewRound(prompt, selectedTimerDuration || undefined, roundVotingMode);
         setPrompt('');
         // Reset answer state when starting a new round
         setShowAnswer(false);
         setCurrentAnswer('');
         // Reset fill mode when starting new round
         setIsFillMode(false);
+        // Reset round voting mode after starting round
+        setRoundVotingMode(false);
         // setSelectedTimerDuration(null);
     };
     
@@ -928,20 +918,52 @@ export const Game: React.FC = () => {
                                     <button onClick={handleStartRound} className="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700">Start</button>
                                 </div>
                                 <div className="mt-4 flex items-center gap-4">
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={judgingModeEnabled}
-                                            onChange={(e) => toggleJudgingMode(e.target.checked)}
-                                            className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-                                        />
-                                        <span className="text-sm font-medium text-gray-700">Voting Mode</span>
-                                    </label>
-                                    {judgingModeEnabled && (
+                                    
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-sm font-medium text-gray-700">Round Voting Mode</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                console.log('🔍 Round voting toggle switch clicked!');
+                                                console.log('🔍 Current roundVotingMode:', roundVotingMode);
+                                                const newValue = !roundVotingMode;
+                                                console.log('🔍 New value:', newValue);
+                                                setRoundVotingMode(newValue);
+                                                console.log('🔍 Updated roundVotingMode to:', newValue);
+                                            }}
+                                            disabled={!isReader}
+                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+                                                roundVotingMode ? 'bg-purple-600' : 'bg-gray-200'
+                                            }`}
+                                            role="switch"
+                                            aria-checked={roundVotingMode}
+                                        >
+                                            <div className="absolute inset-0 flex items-center justify-center text-xs text-white font-bold">
+                                                {roundVotingMode ? 'ON' : 'OFF'}
+                                            </div>
+                                            <span
+                                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                                    roundVotingMode ? 'translate-x-6' : 'translate-x-1'
+                                                }`}
+                                            />
+                                        </button>
+                                    </div>
+                                    {roundVotingMode && (
                                         <span className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded">
-                                            Players will vote for their favorite drawings after submission
+                                            This round will have voting enabled
                                         </span>
                                     )}
+                                    {!roundVotingMode && (
+                                        <span className="text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                                            This round will not have voting
+                                        </span>
+                                    )}
+                                    {!isReader && (
+                                        <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                                            Only the host can toggle voting mode
+                                        </span>
+                                    )}
+
                                 </div>
                             </div>
                         </div>
@@ -978,7 +1000,7 @@ export const Game: React.FC = () => {
                                     )}
                                     
                                     {/* Show submission progress for host */}
-                                    {judgingModeEnabled && (
+                                    {game?.judgingModeEnabled && (
                                         <div className="mt-4 pt-4 border-t border-purple-200">
                                             {/* Calculate number of unique voters */}
                                             {(() => {
@@ -1094,7 +1116,7 @@ export const Game: React.FC = () => {
                                             </div>
                                         </div>
                                         
-                                        {judgingModeEnabled && (
+                                        {currentRound && roundsWithVotingEnabled.has(currentRound.roundId) && (
                                             <div className={`border rounded-lg p-3 ${allPlayersSubmitted ? 'bg-purple-100 border-purple-300' : 'bg-purple-50 border-purple-200'}`}>
                                                 {allPlayersSubmitted ? (
                                                     <div className="flex items-center gap-2">
@@ -1104,14 +1126,29 @@ export const Game: React.FC = () => {
                                                             </svg>
                                                         </div>
                                                         <p className="text-purple-800 text-sm font-medium">
-                                                            All players have submitted! Redirecting to judging...
+                                                            All players have submitted! Redirecting to voting...
                                                         </p>
                                                     </div>
                                                 ) : (
                                                     <p className="text-purple-800 text-sm">
-                                                        <strong>Judging Mode Enabled:</strong> You'll be automatically redirected to vote for your favorite drawings once everyone has submitted.
+                                                        <strong>Voting Mode Enabled:</strong> You'll be automatically redirected to vote for your favorite drawings once everyone has submitted.
                                                     </p>
                                                 )}
+                                            </div>
+                                        )}
+                                        
+                                        {currentRound && !roundsWithVotingEnabled.has(currentRound.roundId) && allPlayersSubmitted && (
+                                            <div className="border rounded-lg p-3 bg-green-100 border-green-300">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+                                                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                    </div>
+                                                    <p className="text-green-800 text-sm font-medium">
+                                                        All players have submitted! Waiting for the host to start the next round.
+                                                    </p>
+                                                </div>
                                             </div>
                                         )}
                                         

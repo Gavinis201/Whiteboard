@@ -6,15 +6,23 @@ import './JudgingPage.css';
 import { useNavigate } from 'react-router-dom';
 
 export const JudgingPage: React.FC = () => {
-    const { game, player, currentRound, answers, players, judgingModeEnabled, isReader, leaveGame } = useGame();
+    const { game, player, currentRound, answers, players, judgingModeEnabled, roundsWithVotingEnabled, isReader, leaveGame } = useGame();
     const [selectedVote, setSelectedVote] = useState<number | null>(null);
     const [voteResults, setVoteResults] = useState<VoteResult[]>([]);
     const [hasVoted, setHasVoted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const navigate = useNavigate();
 
-    // Filter out the current player's own drawing
-    const otherPlayersAnswers = answers.filter(answer => answer.playerId !== player?.playerId);
+    // Filter out the current player's own drawing and only show answers from the current round
+    const otherPlayersAnswers = answers.filter(answer => 
+        answer.playerId !== player?.playerId && 
+        answer.roundId === currentRound?.roundId
+    );
+    
+    // Debug logging
+    console.log('JudgingPage - Current round ID:', currentRound?.roundId);
+    console.log('JudgingPage - All answers:', answers);
+    console.log('JudgingPage - Filtered answers for current round:', otherPlayersAnswers);
     
     useEffect(() => {
         // Set up vote results listener
@@ -104,8 +112,8 @@ export const JudgingPage: React.FC = () => {
         );
     }
 
-    // Check if judging mode is enabled
-    if (!judgingModeEnabled) {
+    // Check if this round has voting enabled
+    if (!currentRound || !roundsWithVotingEnabled.has(currentRound.roundId)) {
         return (
             <div className="judging-page">
                 <div className="judging-container">
@@ -126,11 +134,11 @@ export const JudgingPage: React.FC = () => {
                     <div className="waiting-section">
                         <div className="waiting-card">
                             <div className="waiting-icon">⏳</div>
-                            <h2>Judging Mode Not Enabled</h2>
-                            <p>The host needs to enable judging mode before voting can begin.</p>
+                            <h2>Voting Not Enabled for This Round</h2>
+                            <p>This round does not have voting enabled.</p>
                             <div className="waiting-info">
-                                <p>All players have submitted their drawings, but the host hasn't enabled voting yet.</p>
-                                <p>Please wait for the host to enable judging mode.</p>
+                                <p>All players have submitted their drawings, but this round was started without voting mode enabled.</p>
+                                <p>You will be redirected back to the game page shortly.</p>
                             </div>
                             <button
                                 className="refresh-btn"

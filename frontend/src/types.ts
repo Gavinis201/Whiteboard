@@ -26,4 +26,5 @@ export interface Round {
     prompt: string;
     isCompleted: boolean;
     gameId: string;
+    votingEnabled?: boolean;
 } 

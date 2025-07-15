@@ -139,6 +139,9 @@ namespace Whiteboard.Migrations
                     b.Property<DateTime?>("TimerStartTime")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("VotingEnabled")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("RoundId");
 
                     b.HasIndex("GameId");

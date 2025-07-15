@@ -13,6 +13,7 @@ export interface Round {
     isCompleted: boolean;
     gameId: number;
     timerDurationMinutes?: number | null;
+    votingEnabled?: boolean;
 }
 
 export interface Answer {

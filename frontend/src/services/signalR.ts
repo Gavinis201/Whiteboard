@@ -22,7 +22,7 @@ class SignalRService {
     private gameStateSyncedCallback: ((payload: GameStatePayload) => void) | null = null;
     private playerListUpdatedCallback: ((players: Player[]) => void) | null = null;
     private answerReceivedCallback: ((playerId: string, playerName: string, answer: string, answerId: number, roundNumber?: number) => void) | null = null;
-    private roundStartedCallback: ((prompt: string, roundId: number, timerDurationMinutes?: number) => void) | null = null;
+    private roundStartedCallback: ((prompt: string, roundId: number, timerDurationMinutes?: number, votingEnabled?: boolean) => void) | null = null;
     private playerKickedCallback: ((playerId: string, playerName: string) => void) | null = null;
     private judgingModeToggledCallback: ((enabled: boolean) => void) | null = null;
     private voteResultsUpdatedCallback: ((results: any[], maxVotes: number) => void) | null = null;
@@ -142,8 +142,12 @@ class SignalRService {
             this.answerReceivedCallback?.(playerId, playerName, answer, answerId, roundNumber);
         });
 
-        this.connection.on('RoundStarted', (prompt: string, roundId: number, timerDurationMinutes?: number) => {
-            this.roundStartedCallback?.(prompt, roundId, timerDurationMinutes);
+        this.connection.on('RoundStarted', (prompt: string, roundId: number, timerDurationMinutes?: number, votingEnabled?: boolean) => {
+            console.log('🎯 SignalR RoundStarted event received:', { prompt, roundId, timerDurationMinutes, votingEnabled });
+            console.log('🎯 Calling roundStartedCallback:', !!this.roundStartedCallback);
+            console.log('🎯 Current connection state:', this.connection?.state);
+            console.log('🎯 Current game info:', this.getCurrentGameInfo());
+            this.roundStartedCallback?.(prompt, roundId, timerDurationMinutes, votingEnabled);
         });
 
         this.connection.on('PlayerKicked', (playerId: string, playerName: string) => {
@@ -151,6 +155,8 @@ class SignalRService {
         });
 
         this.connection.on('JudgingModeToggled', (enabled: boolean) => {
+            console.log('🎯 SignalR JudgingModeToggled event received:', enabled);
+            console.log('🎯 Current game info:', this.getCurrentGameInfo());
             this.judgingModeToggledCallback?.(enabled);
         });
 
@@ -182,10 +188,10 @@ class SignalRService {
         }
     }
 
-    async startRound(joinCode: string, prompt: string, timerDuration?: number) {
+    async startRound(joinCode: string, prompt: string, timerDuration?: number, votingMode?: boolean) {
         await this.ensureConnection();
         if (!this.connection) throw new Error('No SignalR connection');
-        await this.connection.invoke('StartRound', joinCode, prompt, timerDuration);
+        await this.connection.invoke('StartRound', joinCode, prompt, timerDuration, votingMode);
     }
 
     async sendAnswer(joinCode: string, answer: string) {
@@ -235,10 +241,16 @@ class SignalRService {
     }
 
     async toggleJudgingMode(joinCode: string, enabled: boolean) {
+        console.log('🔍 SignalR toggleJudgingMode called with:', { joinCode, enabled });
+        console.log('🔍 Connection state:', this.connection?.state);
+        
         await this.ensureConnection();
         if (!this.connection) throw new Error('No SignalR connection');
-        console.log('SignalR toggleJudgingMode called with:', { joinCode, enabled });
+        
+        console.log('🔍 About to invoke ToggleJudgingMode on backend...');
+        console.log('🔍 Parameters being sent:', { joinCode, enabled });
         await this.connection.invoke('ToggleJudgingMode', joinCode, enabled);
+        console.log('✅ Successfully invoked ToggleJudgingMode on backend');
     }
 
     async submitVote(joinCode: string, votedAnswerId: number) {
@@ -290,7 +302,8 @@ class SignalRService {
         this.answerReceivedCallback = callback;
     }
 
-    onRoundStarted(callback: (prompt: string, roundId: number, timerDurationMinutes?: number) => void) {
+    onRoundStarted(callback: (prompt: string, roundId: number, timerDurationMinutes?: number, votingEnabled?: boolean) => void) {
+        console.log('🎯 Setting up onRoundStarted callback');
         this.roundStartedCallback = callback;
     }
 

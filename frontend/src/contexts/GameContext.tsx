@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
-import { Game, Player, Round, Answer, getGame, joinGame as joinGameApi, createGame as createGameApi } from '../services/api';
+import { useNavigate } from 'react-router-dom';
+import { Game, Player, Answer, getGame, joinGame as joinGameApi, createGame as createGameApi } from '../services/api';
+import { Round } from '../types/game';
 import { signalRService, GameStatePayload } from '../services/signalR';
 import { setCookie, getCookie, removeCookie } from '../utils/cookieUtils';
 
@@ -27,7 +29,8 @@ interface GameContextType {
     timeRemaining: number | null;
     roundStartTime: Date | null;
     isTimerActive: boolean;
-    judgingModeEnabled: boolean;
+    judgingModeEnabled: boolean; // This now returns game?.judgingModeEnabled
+    roundsWithVotingEnabled: Set<number>;
     setSelectedTimerDuration: (duration: number | null) => void;
     setTimeRemaining: (time: number | null) => void;
     setRoundStartTime: (time: Date | null) => void;
@@ -35,7 +38,7 @@ interface GameContextType {
     setOnTimerExpire: (callback: (() => void) | null) => void;
     createGame: (playerName: string) => Promise<void>;
     joinGame: (joinCode: string, playerName: string) => Promise<void>;
-    startNewRound: (prompt: string, timerDuration?: number) => Promise<void>;
+    startNewRound: (prompt: string, timerDuration?: number, votingMode?: boolean) => Promise<void>;
     submitAnswer: (answer: string) => Promise<void>;
     kickPlayer: (playerId: number) => Promise<void>;
     toggleJudgingMode: (enabled: boolean) => Promise<void>;
@@ -45,6 +48,7 @@ interface GameContextType {
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export const GameProvider = ({ children }: { children: ReactNode }) => {
+    const navigate = useNavigate();
     const [game, setGame] = useState<ExtendedGame | null>(null);
     const [player, setPlayer] = useState<Player | null>(null);
     const [currentRound, setCurrentRound] = useState<Round | null>(null);
@@ -58,8 +62,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [roundStartTime, setRoundStartTime] = useState<Date | null>(null);
     const [isTimerActive, setIsTimerActive] = useState(false);
-    const [judgingModeEnabled, setJudgingModeEnabled] = useState(false);
+    // Removed local judgingModeEnabled state - only using game?.judgingModeEnabled from backend
     const [onTimerExpire, setOnTimerExpire] = useState<(() => void) | null>(null);
+    const [previousRoundId, setPreviousRoundId] = useState<number | null>(null);
+    const [roundsWithVotingEnabled, setRoundsWithVotingEnabled] = useState<Set<number>>(new Set());
     const handlersSetupRef = useRef<boolean>(false);
     const timerIntervalRef = useRef<number | null>(null);
     const lastSyncedTimerRef = useRef<{ roundId: number; remainingSeconds: number } | null>(null);
@@ -70,7 +76,12 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const pageVisibilityRef = useRef<boolean>(true); // ✅ NEW: Track page visibility
     const autoSubmissionAttemptedRef = useRef<boolean>(false); // ✅ NEW: Prevent multiple auto-submissions
 
+
     const players = game?.players || [];
+    
+    // ✅ NEW: Filter answers to only show current round drawings
+    // Always show only the current round drawings, regardless of voting mode
+    const filteredAnswers = answers.filter(answer => answer.roundId === currentRound?.roundId);
 
     // ✅ ENHANCED: Page visibility detection for better mobile Safari support
     useEffect(() => {
@@ -153,6 +164,12 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                             console.log('Restoring round and submission state from cookies');
                             setCurrentRound(parsedRound);
                             setPlayersWhoSubmitted(new Set(parsedPlayersWhoSubmitted));
+                            
+                            // ✅ FIX: Initialize previousRoundId from saved round
+                            // This ensures the auto-redirect logic works when reconnecting
+                            setPreviousRoundId(parsedRound.roundId);
+                            previousRoundIdRef.current = parsedRound.roundId;
+                            console.log('Initialized previousRoundId from saved round:', parsedRound.roundId);
                         } catch (error) {
                             console.error('Error parsing saved round/submission state:', error);
                         }
@@ -246,7 +263,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 players: payload.players,
                 judgingModeEnabled: payload.judgingModeEnabled
             }));
-            setJudgingModeEnabled(payload.judgingModeEnabled);
+            
+
             
             if (payload.activeRound) {
                 const isNewRound = currentRound?.roundId !== payload.activeRound.roundId;
@@ -307,6 +325,14 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 if (isNewRound) {
                     // For new rounds, always start with empty state regardless of backend data
                     console.log("New round detected, clearing answers and submission state");
+                    
+                                    // ✅ FIX: Set previousRoundId when detecting a new round from GameStateSynced
+                if (currentRound?.roundId && currentRound.roundId !== payload.activeRound.roundId) {
+                    console.log("🎯 Setting previousRoundId from GameStateSynced:", currentRound.roundId);
+                    console.log("🎯 New round ID from GameStateSynced:", payload.activeRound.roundId);
+                    setPreviousRoundId(currentRound.roundId);
+                }
+                    
                     setAnswers([]);
                     setPlayersWhoSubmitted(new Set());
                 } else {
@@ -366,16 +392,27 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             }
         });
 
-        signalRService.onRoundStarted((prompt, roundId, timerDurationMinutes) => {
-            console.log("Round started with prompt:", prompt, "roundId:", roundId, "timer:", timerDurationMinutes);
-            console.log("Clearing answers and playersWhoSubmitted for new round");
+        signalRService.onRoundStarted((prompt, roundId, timerDurationMinutes, votingEnabled) => {
+            console.log("🎯 ROUND STARTED EVENT RECEIVED!");
+            console.log("Round started with prompt:", prompt, "roundId:", roundId, "timer:", timerDurationMinutes, "votingEnabled:", votingEnabled);
             console.log("Previous round ID:", currentRound?.roundId, "New round ID:", roundId);
+            
+            // ✅ FIX: Set previousRoundId FIRST before overwriting currentRound
+            if (currentRound?.roundId) {
+                setPreviousRoundId(currentRound.roundId);
+            }
             
             // Reset auto-submission flag for new rounds
             autoSubmissionAttemptedRef.current = false;
             
             // ✅ FIX: Reset navigation state for new rounds
+            console.log("🎯 Resetting hasNavigatedToJudgingRef for new round");
+            console.log("🎯 Previous hasNavigatedToJudgingRef value:", hasNavigatedToJudgingRef.current);
             hasNavigatedToJudgingRef.current = false;
+            console.log("🎯 New hasNavigatedToJudgingRef value:", hasNavigatedToJudgingRef.current);
+            
+            // Store the previous round ID before updating to the new one
+            const oldRoundId = previousRoundIdRef.current;
             previousRoundIdRef.current = roundId;
             
             // ✅ OPTIMIZED: Immediate state updates for faster round transitions
@@ -384,7 +421,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 isCompleted: false, 
                 roundId: roundId,
                 gameId: game?.gameId || 0,
-                timerDurationMinutes: timerDurationMinutes
+                timerDurationMinutes: timerDurationMinutes,
+                votingEnabled: votingEnabled
             });
             
             // Force clear answers and submission state for new round
@@ -400,6 +438,18 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             
             // Also reset submission flag
             submissionInProgressRef.current = false;
+            
+            // ✅ FIX: Use the voting mode from the round itself
+            console.log("🎯 Checking voting mode for round", roundId, ":", votingEnabled);
+            
+            if (votingEnabled) {
+                console.log("🎯 Voting mode is enabled for this round, adding round", roundId, "to voting-enabled rounds");
+                setRoundsWithVotingEnabled(prev => new Set([...prev, roundId]));
+            } else {
+                console.log("🎯 Voting mode is disabled for this round, round", roundId, "will not have voting enabled");
+            }
+            
+            console.log("🎯 Round started - voting mode for this round:", votingEnabled);
         });
 
         signalRService.onAnswerReceived((playerId, playerName, answer, answerId, roundNumber) => {
@@ -436,8 +486,22 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         });
 
         signalRService.onJudgingModeToggled((enabled: boolean) => {
-            console.log('Judging mode toggled:', enabled);
-            setJudgingModeEnabled(enabled);
+            console.log('🎯 Backend judging mode toggled event received:', enabled);
+            console.log('🎯 Current game.judgingModeEnabled before update:', game?.judgingModeEnabled);
+            console.log('🎯 Player receiving event:', player?.name, 'isReader:', player?.isReader);
+            
+            // ✅ FIX: Update the game state to keep it in sync with backend
+            setGame(prevGame => {
+                const updatedGame = { 
+                    ...(prevGame as ExtendedGame), 
+                    judgingModeEnabled: enabled || false
+                };
+                console.log('🎯 Updated game state from backend - new judgingModeEnabled:', updatedGame.judgingModeEnabled);
+                return updatedGame;
+            });
+            
+            console.log('✅ Updated game state from backend - game.judgingModeEnabled:', enabled || false);
+            console.log('✅ All players will now see the updated voting mode state');
         });
 
         return () => {
@@ -465,19 +529,46 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
     // Auto-navigate to judging when everyone has submitted (only if judging mode is enabled)
     useEffect(() => {
+        console.log('🔄 Auto-navigate to judging effect triggered');
+        console.log('  - isInitialized:', isInitialized, 'game:', !!game, 'player:', !!player, 'currentRound:', !!currentRound);
+                    console.log('  - answers.length:', answers.length, 'judgingModeEnabled:', game?.judgingModeEnabled);
+            console.log('  - game?.judgingModeEnabled:', game?.judgingModeEnabled);
+        console.log('  - playersWhoSubmitted:', Array.from(playersWhoSubmitted));
+        console.log('  - hasNavigatedToJudgingRef.current:', hasNavigatedToJudgingRef.current);
+        
         if (!isInitialized || !game || !player || !currentRound) {
+            console.log('❌ Auto-navigate to judging early return - missing required data');
             return;
         }
 
         // Only auto-navigate for non-reader players (joined players, not the host)
         if (player.isReader) {
+            console.log('❌ Auto-navigate to judging early return - player is reader');
             return; // Host stays on the game page
         }
+
+        console.log('🔍 Auto-navigate debugging:');
+        console.log('  - player.isReader:', player.isReader);
+        console.log('  - currentRound:', currentRound);
+        console.log('  - answers.length:', answers.length);
+        console.log('  - playersWhoSubmitted:', Array.from(playersWhoSubmitted));
+        console.log('  - players:', players.map(p => ({ name: p.name, isReader: p.isReader, playerId: p.playerId })));
+                    console.log('  - judgingModeEnabled:', game?.judgingModeEnabled);
+            console.log('  - game?.judgingModeEnabled:', game?.judgingModeEnabled);
+        console.log('  - hasNavigatedToJudgingRef.current:', hasNavigatedToJudgingRef.current);
 
         // Check if we're already on the judging page
         const isOnJudgingPage = window.location.pathname === '/judging';
         if (isOnJudgingPage) {
+            console.log('❌ Auto-navigate to judging early return - already on judging page');
             return; // Already on judging page, don't navigate
+        }
+
+        // ✅ FIX: Don't navigate to judging if we're in a new round (no answers yet)
+        // This prevents the rapid back-and-forth when a new round starts
+        if (answers.length === 0) {
+            console.log('❌ Auto-navigate to judging early return - no answers yet (likely new round)');
+            return;
         }
 
         // Only check for non-reader players
@@ -485,24 +576,43 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         const allNonReadersSubmitted = nonReaderPlayers.length > 0 && 
             nonReaderPlayers.every(p => playersWhoSubmitted.has(p.playerId));
 
+        console.log('  - nonReaderPlayers:', nonReaderPlayers.map(p => p.name));
+        console.log('  - allNonReadersSubmitted:', allNonReadersSubmitted);
+
         if (allNonReadersSubmitted && !hasNavigatedToJudgingRef.current) {
-            // Only navigate to judging page if judging mode is enabled
-            if (judgingModeEnabled) {
-                console.log('All players have submitted and judging mode is enabled, navigating to judging page');
+            // ✅ FIX: Check if this specific round should have voting enabled
+            const shouldVoteForThisRound = currentRound && roundsWithVotingEnabled.has(currentRound.roundId);
+            console.log('🔍 Voting check for round:', currentRound?.roundId);
+            console.log('  - roundsWithVotingEnabled:', Array.from(roundsWithVotingEnabled));
+            console.log('  - shouldVoteForThisRound:', shouldVoteForThisRound);
+            
+            if (shouldVoteForThisRound) {
+                console.log('✅ All players have submitted and this round has voting enabled, navigating to judging page');
+                console.log('  - roundId:', currentRound.roundId);
                 hasNavigatedToJudgingRef.current = true;
                 
-                // ✅ OPTIMIZED: Immediate navigation for faster transitions
-                window.location.href = '/judging';
+                // ✅ OPTIMIZED: Use React Router navigation instead of window.location.href
+                console.log('🎯 Navigating to /judging using React Router');
+                navigate('/judging');
             } else {
-                console.log('All players have submitted but judging mode is disabled, staying on game page');
+                console.log('❌ All players have submitted but this round does not have voting enabled, staying on game page');
+                console.log('  - roundId:', currentRound?.roundId);
+                console.log('  - voting enabled for this round:', shouldVoteForThisRound);
             }
+        } else {
+            console.log('❌ Auto-navigate to judging conditions not met:');
+            console.log('  - allNonReadersSubmitted:', allNonReadersSubmitted);
+            console.log('  - !hasNavigatedToJudgingRef.current:', !hasNavigatedToJudgingRef.current);
         }
-    }, [isInitialized, game, player, currentRound, players, playersWhoSubmitted, judgingModeEnabled]);
+    }, [isInitialized, game, player, currentRound, playersWhoSubmitted, roundsWithVotingEnabled, answers.length, navigate]);
 
     // Reset navigation flag when a new round starts
     useEffect(() => {
         if (currentRound) {
+            console.log("🔄 Resetting hasNavigatedToJudgingRef due to currentRound change:", currentRound.roundId);
+            console.log("🔄 Previous hasNavigatedToJudgingRef value:", hasNavigatedToJudgingRef.current);
             hasNavigatedToJudgingRef.current = false;
+            console.log("🔄 New hasNavigatedToJudgingRef value:", hasNavigatedToJudgingRef.current);
             // Initialize previous round ID if not set
             if (previousRoundIdRef.current === null) {
                 previousRoundIdRef.current = currentRound.roundId;
@@ -512,30 +622,66 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
     // Auto-redirect players back to game page when a new round starts
     useEffect(() => {
+        console.log('🔄 Auto-redirect effect triggered');
+        console.log('isInitialized:', isInitialized, 'game:', !!game, 'player:', !!player, 'currentRound:', !!currentRound);
+        console.log('currentRound?.roundId:', currentRound?.roundId, 'previousRoundId:', previousRoundId);
+        console.log('📍 Current page:', window.location.pathname);
+        
         if (!isInitialized || !game || !player || !currentRound) {
+            console.log('❌ Auto-redirect effect early return - missing required data');
             return;
         }
 
         // Only redirect non-reader players (joined players, not the host)
         if (player.isReader) {
+            console.log('❌ Auto-redirect effect early return - player is reader');
             return; // Host stays on the game page
         }
 
         // Check if we're currently on the judging page and a new round has started
         const isOnJudgingPage = window.location.pathname === '/judging';
+        console.log('📍 isOnJudgingPage:', isOnJudgingPage);
         
-        // ✅ FIX: Only redirect if we're on the judging page AND this is actually a new round
-        // AND we haven't already navigated for this round
-        if (isOnJudgingPage && 
-            currentRound.roundId !== previousRoundIdRef.current && 
-            !hasNavigatedToJudgingRef.current) {
-            console.log('New round started, redirecting player back to game page');
-            previousRoundIdRef.current = currentRound.roundId;
+        // ✅ FIX: Use the state variable to properly detect round changes
+        // Only redirect if we're on judging page and there's a new round (not just navigating to judging)
+        // Also check that we're in the same game to avoid cross-game conflicts
+        if (isOnJudgingPage && previousRoundId !== null && currentRound.roundId !== previousRoundId && 
+            previousRoundIdRef.current && previousRoundIdRef.current === previousRoundId) {
+            console.log('✅ New round started, redirecting player back to game page');
+            console.log('Current round ID:', currentRound.roundId, 'Previous round ID:', previousRoundId);
+            console.log('Previous round ID ref:', previousRoundIdRef.current);
             
-            // ✅ OPTIMIZED: Immediate navigation for faster transitions
-            window.location.href = '/game';
+            // ✅ OPTIMIZED: Use React Router navigation instead of window.location.href
+            console.log('🎯 Navigating to /game using React Router');
+            navigate('/game');
+        } else if (isOnJudgingPage && answers.length === 0 && !hasNavigatedToJudgingRef.current) {
+            // Only redirect if there are no answers AND we haven't just navigated to judging
+            // This prevents the conflict between auto-navigate and auto-redirect
+            console.log('✅ No answers for current round and not just navigated to judging, redirecting player back to game page');
+            console.log('Answers length:', answers.length, 'hasNavigatedToJudgingRef:', hasNavigatedToJudgingRef.current);
+            
+            // ✅ OPTIMIZED: Use React Router navigation instead of window.location.href
+            console.log('🎯 Navigating to /game using React Router');
+            navigate('/game');
+        } else if (isOnJudgingPage && currentRound && !roundsWithVotingEnabled.has(currentRound.roundId)) {
+            // Redirect players back to game page if this round doesn't have voting enabled
+            console.log('✅ This round does not have voting enabled, redirecting player back to game page');
+            console.log('Round ID:', currentRound.roundId, 'Voting enabled for this round:', roundsWithVotingEnabled.has(currentRound.roundId));
+            
+            // ✅ OPTIMIZED: Use React Router navigation instead of window.location.href
+            console.log('🎯 Navigating to /game using React Router');
+            navigate('/game');
+        } else {
+            console.log('❌ Auto-redirect conditions not met:');
+            console.log('  - isOnJudgingPage:', isOnJudgingPage);
+            console.log('  - previousRoundId !== null:', previousRoundId !== null);
+            console.log('  - currentRound.roundId !== previousRoundId:', currentRound.roundId !== previousRoundId);
+            console.log('  - previousRoundIdRef.current === previousRoundId:', previousRoundIdRef.current === previousRoundId);
+            console.log('  - answers.length === 0:', answers.length === 0);
+            console.log('  - judgingModeEnabled:', game?.judgingModeEnabled);
+            console.log('  - !hasNavigatedToJudgingRef.current:', !hasNavigatedToJudgingRef.current);
         }
-    }, [isInitialized, game, player, currentRound?.roundId]);
+    }, [isInitialized, game, player, currentRound?.roundId, previousRoundId, answers.length, roundsWithVotingEnabled, navigate, hasNavigatedToJudgingRef.current]);
 
     const createGame = async (playerName: string) => {
         console.log('Starting createGame, setting loading to true');
@@ -557,7 +703,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setCurrentRound(null);
             setAnswers([]);
             setPlayersWhoSubmitted(new Set());
+            setRoundsWithVotingEnabled(new Set());
             setIsReader(false);
+            setPreviousRoundId(null);
+            previousRoundIdRef.current = null;
             
             // ✅ OPTIMIZED: Sequential API calls for game creation (needed for dependency)
             const gameData = await createGameApi();
@@ -572,6 +721,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setGame(convertToExtendedGame(fullGameData));
             setPlayer(playerData);
             setIsReader(true);
+            // Removed setJudgingModeEnabled - only using backend state
             
             await signalRService.joinGame(gameData.joinCode, playerName);
             
@@ -608,7 +758,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setCurrentRound(null);
             setAnswers([]);
             setPlayersWhoSubmitted(new Set());
+            setRoundsWithVotingEnabled(new Set());
             setIsReader(false);
+            setPreviousRoundId(null);
+            previousRoundIdRef.current = null;
             
             // ✅ OPTIMIZED: Removed delay for faster game joining
             
@@ -630,6 +783,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             setGame(convertToExtendedGame(gameData));
             setPlayer(playerData);
             setIsReader(playerData.isReader);
+            // Removed setJudgingModeEnabled - only using backend state
             
             await signalRService.joinGame(joinCode, playerName);
             
@@ -652,7 +806,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    const startNewRound = async (prompt: string, timerDuration?: number) => {
+    const startNewRound = async (prompt: string, timerDuration?: number, votingMode?: boolean) => {
         if (!game?.joinCode || !isReader) return;
         
         // Reset timer state for host
@@ -661,7 +815,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         setIsTimerActive(!!timerDuration);
         lastSyncedTimerRef.current = null;
         
-        await signalRService.startRound(game.joinCode, prompt, timerDuration);
+        await signalRService.startRound(game.joinCode, prompt, timerDuration, votingMode);
     };
 
     const submitAnswer = async (answer: string) => {
@@ -820,10 +974,27 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const toggleJudgingMode = async (enabled: boolean) => {
-        if (!game?.joinCode || !isReader) return;
-        console.log('ToggleJudgingMode called with enabled:', enabled, 'for game:', game.joinCode);
-        await signalRService.toggleJudgingMode(game.joinCode, enabled);
-        setJudgingModeEnabled(enabled);
+        console.log('🔍 toggleJudgingMode called with enabled:', enabled);
+        console.log('🔍 game?.joinCode:', game?.joinCode);
+        console.log('🔍 isReader:', isReader);
+        console.log('🔍 Current game.judgingModeEnabled before toggle:', game?.judgingModeEnabled);
+        
+        if (!game?.joinCode || !isReader) {
+            console.log('❌ Early return - missing game join code or not reader');
+            return;
+        }
+        
+        console.log('✅ Proceeding with toggle - game join code:', game.joinCode);
+        
+        try {
+            // Send to backend immediately - don't update frontend state yet
+            console.log('🔍 Calling signalRService.toggleJudgingMode...');
+            await signalRService.toggleJudgingMode(game.joinCode, enabled);
+            console.log('✅ Successfully sent to backend - judgingModeEnabled:', enabled);
+            console.log('✅ Frontend will update when backend confirms the change');
+        } catch (error) {
+            console.error('❌ Error sending to backend:', error);
+        }
     };
 
     const leaveGame = async () => {
@@ -840,6 +1011,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         setCurrentRound(null);
         setAnswers([]);
         setPlayersWhoSubmitted(new Set());
+        setRoundsWithVotingEnabled(new Set());
         handlersSetupRef.current = false;
         lastSyncedTimerRef.current = null;
         submissionInProgressRef.current = false;
@@ -859,7 +1031,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             game,
             player,
             currentRound,
-            answers,
+            answers: filteredAnswers,
             players,
             isReader,
             playersWhoSubmitted,
@@ -870,7 +1042,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             timeRemaining,
             roundStartTime,
             isTimerActive,
-            judgingModeEnabled,
+            judgingModeEnabled: game?.judgingModeEnabled || false,
+            roundsWithVotingEnabled,
             setSelectedTimerDuration,
             setTimeRemaining,
             setRoundStartTime,

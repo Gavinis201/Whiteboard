@@ -1,6 +1,11 @@
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/publish-latest/Whiteboard
+/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/publish-latest/publish/web.config
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/publish-latest/appsettings.Development.json
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/publish-latest/appsettings.json
+/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/publish-latest/publish/appsettings.Development.json
+/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/publish-latest/publish/appsettings.json
+/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/publish-latest/publish/Whiteboard.deps.json
+/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/publish-latest/publish/Whiteboard.runtimeconfig.json
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/publish-latest/whiteboard.db
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/publish-latest/Whiteboard.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/publish-latest/Whiteboard.runtimeconfig.json

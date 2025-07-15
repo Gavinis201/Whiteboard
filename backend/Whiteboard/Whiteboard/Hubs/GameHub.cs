@@ -15,6 +15,7 @@ public class GameHub : Hub
 {
     private readonly ILogger<GameHub> _logger;
     private readonly GameDbContext _context;
+    private readonly IServiceProvider _serviceProvider;
     
     private static readonly ConcurrentDictionary<string, (string playerId, string playerName, string joinCode, DateTime disconnectTime)> _disconnectedPlayers = new();
     private static readonly ConcurrentDictionary<string, string> _playerConnectionIds = new(); // joinCode_playerName -> connectionId
@@ -23,10 +24,11 @@ public class GameHub : Hub
     // Timer tracking for backend auto-submission
     private static readonly ConcurrentDictionary<string, (int roundId, DateTime startTime, int durationMinutes, Timer timer)> _activeTimers = new(); // joinCode -> timer info
 
-    public GameHub(ILogger<GameHub> logger, GameDbContext context)
+    public GameHub(ILogger<GameHub> logger, GameDbContext context, IServiceProvider serviceProvider)
     {
         _logger = logger;
         _context = context;
+        _serviceProvider = serviceProvider;
     }
 
     public override async Task OnConnectedAsync()
@@ -125,7 +127,7 @@ public class GameHub : Hub
         }
         
         await Groups.AddToGroupAsync(Context.ConnectionId, joinCode);
-        _logger.LogInformation("Added player {PlayerName} to SignalR group {JoinCode} with connection ID {ConnectionId}", playerName, joinCode, Context.ConnectionId);
+        _logger.LogInformation("🎯 ADDED PLAYER TO SIGNALR GROUP - Player {PlayerName} added to SignalR group {JoinCode} with connection ID {ConnectionId}", playerName, joinCode, Context.ConnectionId);
         
         Context.Items["PlayerId"] = currentPlayer.PlayerId.ToString();
         Context.Items["JoinCode"] = joinCode;
@@ -232,9 +234,11 @@ public class GameHub : Hub
         _logger.LogInformation("Sent full game state to {PlayerName} and updated player list to the group.", playerName);
     }
 
-    public async Task StartRound(string joinCode, string prompt, int? timerDurationMinutes = null)
+    public async Task StartRound(string joinCode, string prompt, int? timerDurationMinutes = null, bool? votingMode = null)
     {
-        _logger.LogInformation("Starting round in game {JoinCode} with prompt: {Prompt} and timer: {TimerDuration} minutes", joinCode, prompt, timerDurationMinutes);
+        _logger.LogInformation("🎯 START ROUND CALLED - Starting round in game {JoinCode} with prompt: {Prompt} and timer: {TimerDuration} minutes", joinCode, prompt, timerDurationMinutes);
+        _logger.LogInformation("🎯 Current connection ID: {ConnectionId}", Context.ConnectionId);
+        _logger.LogInformation("🎯 Current player: {PlayerName}", Context.Items["PlayerName"]?.ToString());
         
         var game = await _context.Games.FirstOrDefaultAsync(g => g.JoinCode == joinCode);
         if (game == null) throw new HubException("Game not found.");
@@ -250,14 +254,16 @@ public class GameHub : Hub
             IsCompleted = false,
             GameId = game.GameId,
             TimerDurationMinutes = timerDurationMinutes,
-            TimerStartTime = timerDurationMinutes.HasValue ? DateTime.UtcNow : null
+            TimerStartTime = timerDurationMinutes.HasValue ? DateTime.UtcNow : null,
+            VotingEnabled = votingMode ?? false
         };
         _context.Rounds.Add(newRound);
         await _context.SaveChangesAsync();
 
         // ✅ FIX: Use roundNumber instead of newRound.RoundId for frontend
-        await Clients.Group(joinCode).SendAsync("RoundStarted", prompt, roundNumber, timerDurationMinutes);
-        _logger.LogInformation("Round started and saved successfully in game {JoinCode} with roundNumber {RoundNumber} (RoundId: {RoundId})", joinCode, roundNumber, newRound.RoundId);
+        _logger.LogInformation("🎯 SENDING ROUND STARTED EVENT to group {JoinCode} with roundNumber {RoundNumber} and voting mode {VotingEnabled}", joinCode, roundNumber, newRound.VotingEnabled);
+        await Clients.Group(joinCode).SendAsync("RoundStarted", prompt, roundNumber, timerDurationMinutes, newRound.VotingEnabled);
+        _logger.LogInformation("🎯 Round started and saved successfully in game {JoinCode} with roundNumber {RoundNumber} (RoundId: {RoundId}) and voting mode {VotingEnabled}", joinCode, roundNumber, newRound.RoundId, newRound.VotingEnabled);
 
         // Set up backend timer if duration is specified (after sending the event)
         if (timerDurationMinutes.HasValue && timerDurationMinutes.Value > 0)
@@ -856,18 +862,22 @@ public class GameHub : Hub
         
         try
         {
-            var game = await _context.Games
+            // Create a new DbContext instance to avoid disposed context issues
+            using var scope = _serviceProvider.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<GameDbContext>();
+            
+            var game = await context.Games
                 .Include(g => g.Players)
                 .FirstOrDefaultAsync(g => g.JoinCode == joinCode);
             if (game == null) return;
 
-            var activeRound = await _context.Rounds
+            var activeRound = await context.Rounds
                 .FirstOrDefaultAsync(r => r.RoundId == roundId && r.GameId == game.GameId && !r.IsCompleted);
                 
             if (activeRound == null) return;
 
             // Get all players who haven't submitted answers yet
-            var submittedPlayerIds = await _context.Answers
+            var submittedPlayerIds = await context.Answers
                 .Where(a => a.RoundId == roundId)
                 .Select(a => a.PlayerId)
                 .ToListAsync();
@@ -889,12 +899,12 @@ public class GameHub : Hub
                     PlayerId = player.PlayerId,
                     RoundId = roundId
                 };
-                _context.Answers.Add(newAnswer);
+                context.Answers.Add(newAnswer);
                 
                 _logger.LogInformation("Auto-submitted blank drawing for player {PlayerName} in round {RoundId}", player.Name, roundId);
             }
 
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
 
             // Notify all clients about the auto-submissions
             foreach (var player in playersWhoHaventSubmitted)
