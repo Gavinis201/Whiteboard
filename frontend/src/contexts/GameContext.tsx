@@ -109,40 +109,29 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                         console.log('🔄 Connection status - Connected:', isConnected, 'InGame:', isInGame);
                         
                         if (!isConnected) {
-                            console.log('🔄 SignalR disconnected, attempting to reconnect...');
-                            setIsLoading(true);
-                            setLoadingMessage('Reconnecting to game...');
+                            console.log('⚡ ULTRA-FAST: SignalR disconnected, instant reconnection...');
                             
-                            // Try force reconnection first
+                            // ✅ ULTRA-FAST: No loading state for instant feel
                             try {
                                 await signalRService.forceReconnect();
                                 await signalRService.joinGame(game.joinCode, player.name);
-                                console.log('🔄 Successfully reconnected to SignalR');
+                                console.log('⚡ Instant reconnection successful');
                             } catch (reconnectError) {
-                                console.error('🔄 Force reconnection failed, trying normal reconnection:', reconnectError);
-                                // Fallback to normal reconnection
+                                console.error('⚡ Instant reconnection failed, trying normal:', reconnectError);
                                 await signalRService.joinGame(game.joinCode, player.name);
                             }
-                            
-                            setIsLoading(false);
-                            setLoadingMessage('');
                         } else if (!isInGame) {
-                            console.log('🔄 Connected but not in game, rejoining...');
-                            setIsLoading(true);
-                            setLoadingMessage('Rejoining game...');
+                            console.log('⚡ ULTRA-FAST: Connected but not in game, instant rejoin...');
                             
                             await signalRService.joinGame(game.joinCode, player.name);
-                            console.log('🔄 Successfully rejoined game');
-                            
-                            setIsLoading(false);
-                            setLoadingMessage('');
+                            console.log('⚡ Instant rejoin successful');
                         } else {
-                            console.log('🔄 Already connected and in game, no reconnection needed');
+                            console.log('⚡ Already connected and in game, no reconnection needed');
                         }
                         
-                        // ✅ ENHANCED: Handle timer state for reconnecting players
+                        // ✅ ULTRA-FAST: Handle timer state for reconnecting players
                         if (isTimerActive && timeRemaining !== null && timeRemaining <= 0 && !autoSubmissionAttemptedRef.current) {
-                            console.log('🔄 Timer expired while away, attempting auto-submission');
+                            console.log('⚡ Timer expired while away, instant auto-submission');
                             if (onTimerExpire) {
                                 autoSubmissionAttemptedRef.current = true;
                                 onTimerExpire();
@@ -150,17 +139,13 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                         }
                         
                     } catch (error) {
-                        console.error('🔄 Reconnection failed:', error);
-                        setIsLoading(false);
-                        setLoadingMessage('');
-                        
-                        // Show user-friendly error message
-                        alert('Connection lost. Please refresh the page to rejoin the game.');
+                        console.error('⚡ Reconnection failed:', error);
+                        // ✅ ULTRA-FAST: No user interruption, silent fail
                     }
                 };
                 
-                // Add a small delay to ensure the page is fully loaded
-                setTimeout(performReconnection, 500);
+                // ✅ ULTRA-FAST: Immediate reconnection with no delay
+                performReconnection();
                 
             } else {
                 console.log('🔄 Page went to background, saving comprehensive state');
@@ -197,28 +182,27 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             }
         };
 
-        // ✅ ENHANCED: Handle network connectivity changes
+        // ✅ ULTRA-FAST: Handle network connectivity changes
         const handleOnline = () => {
-            console.log('🔄 Network came online, checking connection...');
+            console.log('⚡ Network came online, instant reconnection...');
             if (game?.joinCode && player?.name) {
-                setTimeout(() => {
-                    if (!signalRService.isConnected()) {
-                        console.log('🔄 Attempting to reconnect after network recovery');
-                        signalRService.joinGame(game.joinCode, player.name).catch(err => {
-                            console.error('🔄 Failed to reconnect after network recovery:', err);
-                        });
-                    }
-                }, 1000);
+                // Instant reconnection with no delay
+                if (!signalRService.isConnected()) {
+                    console.log('⚡ Instant reconnection after network recovery');
+                    signalRService.joinGame(game.joinCode, player.name).catch(err => {
+                        console.error('⚡ Failed to reconnect after network recovery:', err);
+                    });
+                }
             }
         };
 
         const handleOffline = () => {
-            console.log('🔄 Network went offline');
+            console.log('⚡ Network went offline');
         };
 
-        // ✅ ENHANCED: Handle beforeunload event for clean disconnection
+        // ✅ ULTRA-FAST: Handle beforeunload event for clean disconnection
         const handleBeforeUnload = () => {
-            console.log('🔄 Page unloading, attempting clean disconnection');
+            console.log('⚡ Page unloading, instant clean disconnection');
             if (game?.joinCode && signalRService.isConnected()) {
                 // Note: We can't await this in beforeunload, but we can try to send it
                 signalRService.leaveGame(game.joinCode).catch(() => {

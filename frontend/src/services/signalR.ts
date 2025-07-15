@@ -45,10 +45,10 @@ class SignalRService {
             return;
         }
         
-        // ✅ OPTIMIZED: Minimal delay only for critical mobile Safari recovery
+        // ✅ ULTRA-FAST: No delays for instant reconnection
         if (this.isMobileSafari() && this.connection?.state === HubConnectionState.Disconnected) {
-            console.log('Mobile Safari detected, minimal delay for connection recovery');
-            await new Promise(resolve => setTimeout(resolve, 100)); // Reduced from 500ms to 100ms
+            console.log('Mobile Safari detected, instant connection recovery');
+            // No delay for ultra-fast reconnection
         }
         
         this.connectionPromise = this.connect();
@@ -75,7 +75,7 @@ class SignalRService {
                     timeout: 30000, // 30 second timeout for connection
                 })
                 .configureLogging(LogLevel.Information)
-                .withAutomaticReconnect([0, 1000, 2000, 5000, 10000]) // ✅ OPTIMIZED: Ultra-fast reconnection strategy
+                .withAutomaticReconnect([0, 100, 200, 500, 1000]) // ✅ ULTRA-FAST: Instant reconnection strategy
                 .build();
 
             // 🔄 REFINED: Add more detailed logging for connection lifecycle
@@ -123,16 +123,16 @@ class SignalRService {
         }
     }
 
-    // ✅ ENHANCED: Robust force reconnection method
+    // ✅ ULTRA-FAST: Instant force reconnection method
     async forceReconnect() {
-        console.log('🔄 Force reconnecting SignalR...');
+        console.log('⚡ ULTRA-FAST: Force reconnecting SignalR...');
         
         // Close existing connection if any
         if (this.connection) {
             try {
                 await this.connection.stop();
             } catch (error) {
-                console.log('🔄 Error stopping existing connection:', error);
+                console.log('⚡ Error stopping existing connection:', error);
             }
         }
         
@@ -142,12 +142,12 @@ class SignalRService {
         this.isConnecting = false;
         this.isReconnectingState = false;
         
-        // Attempt to reconnect
+        // Attempt to reconnect instantly
         try {
             await this.connect();
-            console.log('🔄 Force reconnection successful');
+            console.log('⚡ ULTRA-FAST: Force reconnection successful');
         } catch (error) {
-            console.error('🔄 Force reconnection failed:', error);
+            console.error('⚡ ULTRA-FAST: Force reconnection failed:', error);
             throw error;
         }
     }
@@ -202,9 +202,9 @@ class SignalRService {
         this.currentPlayerName = playerName;
         
         try {
-            // Add timeout for join game
+            // ✅ ULTRA-FAST: Reduced timeout for instant feel
             const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('Join game timeout')), 20000); // 20 second timeout
+                setTimeout(() => reject(new Error('Join game timeout')), 5000); // 5 second timeout for instant feel
             });
             
             const joinPromise = this.connection.invoke('JoinGame', joinCode, playerName);
@@ -243,8 +243,8 @@ class SignalRService {
                         await this.joinGame(this.currentJoinCode, this.currentPlayerName);
                         console.log('Successfully rejoined game, retrying answer submission');
                         
-                        // Wait a moment for the connection to stabilize
-                        await new Promise(resolve => setTimeout(resolve, 500));
+                        // ✅ ULTRA-FAST: No stabilization delay
+                        // await new Promise(resolve => setTimeout(resolve, 500));
                         
                         // Retry the submission
                         await this.connection.invoke('SubmitAnswer', joinCode, answer);
