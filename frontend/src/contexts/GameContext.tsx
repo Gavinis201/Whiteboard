@@ -211,16 +211,29 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             }
         };
 
+        // ✅ ULTRA-FAST: Add focus event for instant reconnection
+        const handleFocus = () => {
+            console.log('⚡ Window focused, instant connection check...');
+            if (game?.joinCode && player?.name && !signalRService.isConnected()) {
+                console.log('⚡ Instant reconnection on focus');
+                signalRService.joinGame(game.joinCode, player.name).catch(err => {
+                    console.error('⚡ Failed to reconnect on focus:', err);
+                });
+            }
+        };
+
         document.addEventListener('visibilitychange', handleVisibilityChange);
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
         window.addEventListener('beforeunload', handleBeforeUnload);
+        window.addEventListener('focus', handleFocus);
         
         return () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
             window.removeEventListener('beforeunload', handleBeforeUnload);
+            window.removeEventListener('focus', handleFocus);
         };
     }, [isTimerActive, timeRemaining, onTimerExpire, game?.joinCode, player?.name, currentRound, playersWhoSubmitted, roundStartTime, selectedTimerDuration]);
 
