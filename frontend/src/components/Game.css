@@ -168,28 +168,34 @@ canvas {
 .voter-list-below {
     margin-top: 12px;
     text-align: center;
+    padding: 8px;
+    background: rgba(249, 245, 255, 0.8);
+    border-radius: 8px;
+    border: 1px solid #e9d5ff;
 }
 
 .voter-list {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 8px;
-}
-
-.voter-item {
-    background: #faf5ff;
-    border: 1px solid #e9d5ff;
-    border-radius: 8px;
-    padding: 4px 8px;
-    font-size: 0.95em;
-    display: flex;
+    flex-direction: column;
     align-items: center;
     gap: 4px;
 }
 
+.voter-item {
+    background: #7c3aed;
+    border: 1px solid #6d28d9;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.9em;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: white;
+    font-weight: 500;
+}
+
 .voter-name {
-    color: #7c3aed;
+    color: white;
     font-weight: 500;
     font-size: 0.9em;
 }

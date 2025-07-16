@@ -674,16 +674,20 @@ export const Game: React.FC = () => {
                         <div className="drawing-container">
                             <img src={answer.content} alt={`Drawing by ${answer.playerName}`} />
                         </div>
-                        {detailedVoteResult && detailedVoteResult.voters && detailedVoteResult.voters.length > 0 && (
+                        {detailedVoteResult && detailedVoteResult.voters && detailedVoteResult.voters.length > 0 ? (
                             <div className="voter-list-below">
                                 <div className="voter-list">
+                                    <span className="text-sm text-purple-600 font-medium mb-1">Voted by:</span>
                                     {detailedVoteResult.voters.map((voter: any, index: number) => (
                                         <div key={index} className="voter-item">
-                                            {/* <span className="voter-rank">💜</span> */}
                                             <span className="voter-name">{voter.voterName}</span>
                                         </div>
                                     ))}
                                 </div>
+                            </div>
+                        ) : (
+                            <div className="voter-list-below">
+                                <div className="text-sm text-gray-500 italic">No votes yet</div>
                             </div>
                         )}
                     </div>
