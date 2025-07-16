@@ -180,7 +180,7 @@ public class GameHub : Hub
                     a.Content,
                     a.PlayerName,
                     a.PlayerId,
-                    RoundId = roundNumber // Use the round number instead of the global RoundId
+                    RoundId = gameState.ActiveRound.RoundId // ✅ FIX: Send actual RoundId instead of calculated roundNumber
                 })
                 .ToListAsync();
         }
@@ -190,7 +190,7 @@ public class GameHub : Hub
             Players = gameState.Players,
             ActiveRound = gameState.ActiveRound != null ? new
             {
-                RoundId = roundNumber, // ✅ FIX: Send round number instead of global RoundId
+                RoundId = gameState.ActiveRound.RoundId, // ✅ FIX: Send actual RoundId instead of calculated roundNumber
                 Prompt = gameState.ActiveRound.Prompt,
                 IsCompleted = gameState.ActiveRound.IsCompleted,
                 GameId = gameState.ActiveRound.GameId,
@@ -241,10 +241,10 @@ public class GameHub : Hub
         _context.Rounds.Add(newRound);
         await _context.SaveChangesAsync();
 
-        // ✅ FIX: Use roundNumber instead of newRound.RoundId for frontend
-        _logger.LogInformation("🎯 SENDING ROUND STARTED EVENT to group {JoinCode} with roundNumber {RoundNumber} and voting mode {VotingEnabled}", joinCode, roundNumber, newRound.VotingEnabled);
-        await Clients.Group(joinCode).SendAsync("RoundStarted", prompt, roundNumber, timerDurationMinutes, newRound.VotingEnabled);
-        _logger.LogInformation("🎯 Round started and saved successfully in game {JoinCode} with roundNumber {RoundNumber} (RoundId: {RoundId}) and voting mode {VotingEnabled}", joinCode, roundNumber, newRound.RoundId, newRound.VotingEnabled);
+        // ✅ FIX: Use actual RoundId instead of roundNumber for frontend
+        _logger.LogInformation("🎯 SENDING ROUND STARTED EVENT to group {JoinCode} with RoundId {RoundId} and voting mode {VotingEnabled}", joinCode, newRound.RoundId, newRound.VotingEnabled);
+        await Clients.Group(joinCode).SendAsync("RoundStarted", prompt, newRound.RoundId, timerDurationMinutes, newRound.VotingEnabled);
+        _logger.LogInformation("🎯 Round started and saved successfully in game {JoinCode} with RoundId {RoundId} and voting mode {VotingEnabled}", joinCode, newRound.RoundId, newRound.VotingEnabled);
 
         // Set up backend timer if duration is specified (after sending the event)
         if (timerDurationMinutes.HasValue && timerDurationMinutes.Value > 0)
@@ -304,11 +304,8 @@ public class GameHub : Hub
         _context.Answers.Add(newAnswer);
         await _context.SaveChangesAsync();
 
-        // ✅ FIX: Calculate round number for the answer
-        var existingRoundsCount = await _context.Rounds.CountAsync(r => r.GameId == player.GameId && r.RoundId <= activeRound.RoundId);
-        var answerRoundNumber = existingRoundsCount;
-        
-        await Clients.Group(joinCode).SendAsync("AnswerReceived", playerId.ToString(), player.Name, answer, newAnswer.AnswerId, answerRoundNumber);
+        // ✅ FIX: Use actual RoundId for the answer
+        await Clients.Group(joinCode).SendAsync("AnswerReceived", playerId.ToString(), player.Name, answer, newAnswer.AnswerId, activeRound.RoundId);
         _logger.LogInformation("Answer submitted and saved by {PlayerName} in game {JoinCode}", player.Name, joinCode);
     }
 

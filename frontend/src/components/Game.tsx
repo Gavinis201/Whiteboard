@@ -90,12 +90,21 @@ export const Game: React.FC = () => {
 
     // Set up timer expire callback for auto-submission
     useEffect(() => {
-        if (currentRound && !isReader && !playersWhoSubmitted.has(player?.playerId || 0)) {
+        const hasSubmitted = answers.some(answer => 
+            answer.playerId === player?.playerId && 
+            answer.roundId === currentRound?.roundId
+        );
+        
+        if (currentRound && !isReader && !hasSubmitted) {
             setOnTimerExpire(() => async () => {
                 try {
                     console.log('Timer expired, attempting auto-submission');
                     // Check if already submitted before attempting auto-submission
-                    if (!playersWhoSubmitted.has(player?.playerId || 0)) {
+                    const currentHasSubmitted = answers.some(answer => 
+                        answer.playerId === player?.playerId && 
+                        answer.roundId === currentRound?.roundId
+                    );
+                    if (!currentHasSubmitted) {
                         // Check if page is visible - if not, we might be in background
                         const isPageVisible = !document.hidden;
                         console.log('Page visibility during auto-submission:', isPageVisible);
@@ -122,7 +131,7 @@ export const Game: React.FC = () => {
         }
          
         return () => setOnTimerExpire(null);
-    }, [currentRound, isReader, playersWhoSubmitted, player?.playerId, setOnTimerExpire]);
+    }, [currentRound, isReader, answers, player?.playerId, setOnTimerExpire]);
 
     // Fetch prompts from database
     useEffect(() => {
@@ -214,11 +223,12 @@ export const Game: React.FC = () => {
     useEffect(() => {
         if (currentRound && players.length > 0) {
             const nonReaderPlayers = players.filter(p => !p.isReader);
+            const currentRoundAnswers = answers.filter(a => a.roundId === currentRound.roundId);
             const allSubmitted = nonReaderPlayers.length > 0 && 
-                nonReaderPlayers.every(p => playersWhoSubmitted.has(p.playerId));
+                nonReaderPlayers.every(p => currentRoundAnswers.some(a => a.playerId === p.playerId));
             setAllPlayersSubmitted(allSubmitted);
         }
-    }, [currentRound, players, playersWhoSubmitted]);
+    }, [currentRound, players, answers]);
 
     // Debug logging for currentRound changes
     useEffect(() => {
@@ -717,7 +727,6 @@ export const Game: React.FC = () => {
                         {detailedVoteResult && detailedVoteResult.voters && detailedVoteResult.voters.length > 0 ? (
                             <div className="voter-list-below">
                                 <div className="voter-list">
-                                    <span className="text-sm text-purple-600 font-medium mb-1">Voted by:</span>
                                     {detailedVoteResult.voters.map((voter: any, index: number) => (
                                         <div key={index} className="voter-item">
                                             <span className="voter-name">{voter.voterName}</span>
@@ -848,7 +857,13 @@ export const Game: React.FC = () => {
                                 <div key={p.playerId} className="flex items-center gap-2 p-2 rounded-md bg-white border">
                                     <div className={`w-3 h-3 rounded-full ${p.isReader ? 'bg-purple-500' : 'bg-green-500'}`}></div>
                                     <span className="font-medium">{p.name}</span>
-                                    {playersWhoSubmitted.has(p.playerId) && (
+                                    {(() => {
+                                        const hasSubmitted = answers.some(answer => 
+                                            answer.playerId === p.playerId && 
+                                            answer.roundId === currentRound?.roundId
+                                        );
+                                        return hasSubmitted;
+                                    })() && (
                                         <span className="ml-auto text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Submitted</span>
                                     )}
                                     {isReader && !p.isReader && (
@@ -1101,69 +1116,18 @@ export const Game: React.FC = () => {
                             </div>
                         )}
                         
-                        {isReader && (
-                            <div className="mt-4">
-                                <button
-                                    onClick={testDetailedVoteResults}
-                                    className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                                >
-                                    🔍 Debug: Test Vote Results API
-                                </button>
-                            </div>
-                        )}
-                        
-                        {isReader && detailedVoteResults.length > 0 && (
-                            <div className="mt-6">
-                                <h3 className="text-xl font-semibold text-purple-600 mb-4">Voting Results</h3>
-                                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {detailedVoteResults
-                                            .filter(result => result.voteCount > 0)
-                                            .sort((a, b) => b.voteCount - a.voteCount)
-                                            .map((result, index) => (
-                                                <div key={result.answerId} className="bg-white rounded-lg p-4 border border-purple-200">
-                                                    <div className="flex items-center justify-between mb-2">
-                                                        <h4 className="font-semibold text-purple-700">{result.playerName}</h4>
-                                                        <div className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-sm font-medium">
-                                                            {result.voteCount} vote{result.voteCount !== 1 ? 's' : ''}
-                                                        </div>
-                                                    </div>
-                                                    {result.voters && result.voters.length > 0 && (
-                                                        <div className="mt-2">
-                                                            <p className="text-sm text-gray-600 mb-1">Voted by:</p>
-                                                            <div className="flex flex-wrap gap-1">
-                                                                {result.voters.map((voter: any, voterIndex: number) => (
-                                                                    <span 
-                                                                        key={voterIndex} 
-                                                                        className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs"
-                                                                    >
-                                                                        {voter.voterName}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                ) : (
-                    <div>
-                        <h3 className="text-xl font-semibold text-purple-600 mb-2">Question:</h3>
-                        {currentRound ? (
+                        {/* Drawing interface for non-reader players */}
+                        {!isReader && currentRound && (
                             <div>
-                                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
-                                    <h4 className="text-lg font-semibold text-purple-700 mb-2">Current Prompt:</h4>
-                                    <p className="text-lg text-gray-800">"{renderTextWithHiddenAnswers(currentRound.prompt)}"</p>
-                                    {/* Debug info for reconnection issues */}
-                                    <div className="mt-2 text-xs text-gray-500">
-                                        Round ID {currentRound.roundId}, Timer: {currentRound.timerDurationMinutes || 'none'}
-                                    </div>
-                                </div>
-                                {playersWhoSubmitted.has(player.playerId) ? (
+                                {(() => {
+                                    // Check if player has submitted by looking at answers array
+                                    // This handles the case where player reconnects and gets a new ID
+                                    const hasSubmitted = answers.some(answer => 
+                                        answer.playerId === player.playerId && 
+                                        answer.roundId === currentRound.roundId
+                                    );
+                                    return hasSubmitted;
+                                })() ? (
                                     <div className="bg-green-50 border border-green-200 rounded-lg p-6">
                                         <div className="flex items-center gap-3 mb-4">
                                             <div className={`w-8 h-8 rounded-full flex items-center justify-center ${allPlayersSubmitted ? 'bg-green-600' : 'bg-green-500'}`}>
@@ -1196,14 +1160,14 @@ export const Game: React.FC = () => {
                                             <div className="flex justify-between items-center mb-2">
                                                 <span className="text-sm font-medium text-green-800">Submission Progress:</span>
                                                 <span className={`text-sm ${allPlayersSubmitted ? 'text-green-800 font-medium' : 'text-green-700'}`}>
-                                                    {allPlayersSubmitted ? 'All players submitted!' : `${playersWhoSubmitted.size} of ${players.filter(p => !p.isReader).length} players`}
+                                                    {allPlayersSubmitted ? 'All players submitted!' : `${answers.filter(a => a.roundId === currentRound.roundId).length} of ${players.filter(p => !p.isReader).length} players`}
                                                 </span>
                                             </div>
                                             <div className="w-full bg-green-200 rounded-full h-2">
                                                 <div 
                                                     className={`h-2 rounded-full transition-all duration-300 ${allPlayersSubmitted ? 'bg-green-600' : 'bg-green-500'}`}
                                                     style={{ 
-                                                        width: `${(playersWhoSubmitted.size / players.filter(p => !p.isReader).length) * 100}%` 
+                                                        width: `${(answers.filter(a => a.roundId === currentRound.roundId).length / players.filter(p => !p.isReader).length) * 100}%` 
                                                     }}
                                                 ></div>
                                             </div>
@@ -1244,23 +1208,6 @@ export const Game: React.FC = () => {
                                                 </div>
                                             </div>
                                         )}
-                                        
-                                        {/* {!judgingModeEnabled && allPlayersSubmitted && (
-                                            <div className="border rounded-lg p-3 bg-green-100 border-green-300">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-                                                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                        </svg>
-                                                    </div>
-                                                    <p className="text-green-800 text-sm font-medium">
-                                                        All players have submitted! Waiting for the host to start the next round.
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        )} */}
-                                        
-
                                     </div>
                                 ) : (
                                     <>
@@ -1320,7 +1267,6 @@ export const Game: React.FC = () => {
                                                         {/* Paint drip */}
                                                         <path d="M12 8v3c0 .5.5 1 .5 1s.5-.5.5-1V8z" fill="currentColor" stroke="none" />
                                                     </svg>
-
                                                 </button>
                                                 <button 
                                                     onClick={clearCanvas} 
@@ -1407,7 +1353,11 @@ export const Game: React.FC = () => {
                                     </>
                                 )}
                             </div>
-                        ) : (<p className="text-gray-600">Waiting for the reader...</p>)}
+                        )}
+                    </div>
+                ) : (
+                    <div>
+                        <p className="text-gray-600">Waiting for the reader...</p>
                     </div>
                 )}
             </div>
