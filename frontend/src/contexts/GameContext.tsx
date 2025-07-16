@@ -628,20 +628,25 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
         signalRService.onAnswerReceived((playerId, playerName, answer, answerId, roundNumber) => {
             const numericPlayerId = parseInt(playerId, 10);
-            console.log("Answer received from player:", playerName, "ID:", numericPlayerId, "AnswerID:", answerId, "RoundNumber:", roundNumber);
-            console.log("Current playersWhoSubmitted before update:", Array.from(playersWhoSubmitted));
-            setAnswers(prev => [...prev, { 
-                answerId: answerId,
-                playerId: numericPlayerId,
-                playerName,
-                content: answer,
-                roundId: roundNumber || currentRound?.roundId || 0
-            }]);
-            setPlayersWhoSubmitted(prev => {
-                const newSet = new Set(prev).add(numericPlayerId);
-                console.log("Updated playersWhoSubmitted:", Array.from(newSet));
-                return newSet;
-            });
+            // Only process answers for the current round
+            if (roundNumber === currentRound?.roundId) {
+                console.log("Answer received from player:", playerName, "ID:", numericPlayerId, "AnswerID:", answerId, "RoundNumber:", roundNumber);
+                console.log("Current playersWhoSubmitted before update:", Array.from(playersWhoSubmitted));
+                setAnswers(prev => [...prev, { 
+                    answerId: answerId,
+                    playerId: numericPlayerId,
+                    playerName,
+                    content: answer,
+                    roundId: roundNumber || currentRound?.roundId || 0
+                }]);
+                setPlayersWhoSubmitted(prev => {
+                    const newSet = new Set(prev).add(numericPlayerId);
+                    console.log("Updated playersWhoSubmitted:", Array.from(newSet));
+                    return newSet;
+                });
+            } else {
+                console.log(`Ignoring answer for round ${roundNumber} (current round is ${currentRound?.roundId})`);
+            }
         });
 
         signalRService.onPlayerKicked((kickedPlayerId, kickedPlayerName) => {

@@ -767,34 +767,38 @@ public class GameHub : Hub
             int gameId = 0;
             try
             {
-                var player = await _context.Players.FindAsync(int.Parse(playerId));
+                // ✅ FIX: Create a new DbContext scope to avoid disposed context issues
+                using var scope = _serviceProvider.CreateScope();
+                var context = scope.ServiceProvider.GetRequiredService<GameDbContext>();
+                
+                var player = await context.Players.FindAsync(int.Parse(playerId));
                 if (player != null)
                 {
                     gameId = player.GameId;
-                    _context.Players.Remove(player);
-                    await _context.SaveChangesAsync();
+                    context.Players.Remove(player);
+                    await context.SaveChangesAsync();
                     _logger.LogInformation("Player {PlayerName} removed from database", disconnectedInfo.playerName);
+                }
+                
+                // Clean up connection tracking
+                var cleanupConnectionKey = $"{joinCode}_{disconnectedInfo.playerName}";
+                _playerConnectionIds.TryRemove(cleanupConnectionKey, out _);
+                
+                // Remove from SignalR group if they haven't reconnected
+                // Note: We can't remove by connection ID since it's already disconnected
+                // But we can send a PlayerKicked event to notify them if they somehow reconnected
+                await Clients.Group(joinCode).SendAsync("PlayerKicked", playerId, disconnectedInfo.playerName);
+                
+                if (gameId > 0)
+                {
+                    var updatedPlayers = await context.Players.Where(p => p.GameId == gameId).ToListAsync();
+                    await Clients.Group(joinCode).SendAsync("PlayerListUpdated", updatedPlayers);
+                    _logger.LogInformation("Sent updated player list to group {JoinCode} after player removal", joinCode);
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error removing player {PlayerName} from database", disconnectedInfo.playerName);
-            }
-            
-            // Clean up connection tracking
-            var cleanupConnectionKey = $"{joinCode}_{disconnectedInfo.playerName}";
-            _playerConnectionIds.TryRemove(cleanupConnectionKey, out _);
-            
-            // Remove from SignalR group if they haven't reconnected
-            // Note: We can't remove by connection ID since it's already disconnected
-            // But we can send a PlayerKicked event to notify them if they somehow reconnected
-            await Clients.Group(joinCode).SendAsync("PlayerKicked", playerId, disconnectedInfo.playerName);
-            
-            if (gameId > 0)
-            {
-                var updatedPlayers = await _context.Players.Where(p => p.GameId == gameId).ToListAsync();
-                await Clients.Group(joinCode).SendAsync("PlayerListUpdated", updatedPlayers);
-                _logger.LogInformation("Sent updated player list to group {JoinCode} after player removal", joinCode);
             }
         }
     }
@@ -807,11 +811,15 @@ public class GameHub : Hub
             
             try
             {
-                var player = await _context.Players.FindAsync(int.Parse(playerId));
+                // ✅ FIX: Create a new DbContext scope to avoid disposed context issues
+                using var scope = _serviceProvider.CreateScope();
+                var context = scope.ServiceProvider.GetRequiredService<GameDbContext>();
+                
+                var player = await context.Players.FindAsync(int.Parse(playerId));
                 if (player != null && player.IsReader)
                 {
                     var gameId = player.GameId;
-                    var allPlayers = await _context.Players.Where(p => p.GameId == gameId).ToListAsync();
+                    var allPlayers = await context.Players.Where(p => p.GameId == gameId).ToListAsync();
                     
                     // Kick all players
                     foreach (var otherPlayer in allPlayers)
@@ -834,18 +842,18 @@ public class GameHub : Hub
                     }
                     
                     // Remove all players from the game
-                    _context.Players.RemoveRange(allPlayers);
+                    context.Players.RemoveRange(allPlayers);
                     
                     // Also remove any active rounds and answers for this game
-                    var activeRounds = await _context.Rounds.Where(r => r.GameId == gameId && !r.IsCompleted).ToListAsync();
+                    var activeRounds = await context.Rounds.Where(r => r.GameId == gameId && !r.IsCompleted).ToListAsync();
                     foreach (var round in activeRounds)
                     {
-                        var roundAnswers = await _context.Answers.Where(a => a.RoundId == round.RoundId).ToListAsync();
-                        _context.Answers.RemoveRange(roundAnswers);
+                        var roundAnswers = await context.Answers.Where(a => a.RoundId == round.RoundId).ToListAsync();
+                        context.Answers.RemoveRange(roundAnswers);
                     }
-                    _context.Rounds.RemoveRange(activeRounds);
+                    context.Rounds.RemoveRange(activeRounds);
                     
-                    await _context.SaveChangesAsync();
+                    await context.SaveChangesAsync();
                     
                     // Send empty player list to remaining players
                     await Clients.Group(joinCode).SendAsync("PlayerListUpdated", new List<Player>());
