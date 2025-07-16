@@ -150,9 +150,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                         setCookie('currentGame', JSON.stringify(game));
                         setCookie('currentPlayer', JSON.stringify(player));
                         
-                        if (currentRound) {
-                            setCookie('currentRound', JSON.stringify(currentRound));
-                        }
+                        // Don't save round state - let backend sync handle it
                         
                         // Save timer state
                         if (isTimerActive && timeRemaining !== null) {
@@ -270,20 +268,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     setIsReader(parsedPlayer.isReader);
                     
                     // ✅ ENHANCED: Restore comprehensive state
-                    if (savedRound) {
-                        try {
-                            const parsedRound = JSON.parse(savedRound);
-                            console.log('🔄 Restoring round state from cookies');
-                            setCurrentRound(parsedRound);
-                            
-                            // ✅ FIX: Initialize previousRoundId from saved round
-                            setPreviousRoundId(parsedRound.roundId);
-                            previousRoundIdRef.current = parsedRound.roundId;
-                            console.log('🔄 Initialized previousRoundId from saved round:', parsedRound.roundId);
-                        } catch (error) {
-                            console.error('🔄 Error parsing saved round state:', error);
-                        }
-                    }
+                    // ✅ FIX: Don't restore round state from cookies - let backend sync handle it
+                    // This prevents stale round state when reconnecting to a new round
+                    console.log('🔄 Skipping restoration of round state from cookies - will be synced from backend');
                     
                     // ✅ FIX: Don't restore playersWhoSubmitted from cookies - let backend sync handle it
                     // This prevents stale submission state when reconnecting to a new round
@@ -706,10 +693,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         if (game && player) {
             setCookie('currentGame', JSON.stringify(game));
             setCookie('currentPlayer', JSON.stringify(player));
-            // Also save the round state (but not submission state)
-            if (currentRound) {
-                setCookie('currentRound', JSON.stringify(currentRound));
-            }
+            // Don't save round state - let backend sync handle it
         } else {
             removeCookie('currentGame');
             removeCookie('currentPlayer');
