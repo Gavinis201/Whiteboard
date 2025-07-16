@@ -227,34 +227,37 @@ class SignalRService {
         await this.ensureConnection();
         if (!this.connection) throw new Error('No SignalR connection');
         
-        // ✅ NEW: Enhanced reconnection logic for submit answer
+        // ✅ ENHANCED: Better reconnection logic for submit answer
         try {
             await this.connection.invoke('SubmitAnswer', joinCode, answer);
         } catch (error: any) {
-            console.error('Error submitting answer via SignalR:', error);
+            console.error('⚡ Error submitting answer via SignalR:', error);
             
-            // If we get a "Player not identified" error, try to rejoin the game
-            if (error.message?.includes('Player not identified') || error.message?.includes('Player not found')) {
-                console.log('Player not identified, attempting to rejoin game before retry');
+            // ✅ ENHANCED: Handle all reconnection scenarios
+            if (error.message?.includes('Player not identified') || 
+                error.message?.includes('Player not found') ||
+                error.message?.includes('No SignalR connection')) {
+                console.log('⚡ Player identification issue, attempting force reconnection before retry');
                 
-                // Try to rejoin the game
+                // Try to force rejoin the game
                 if (this.currentJoinCode && this.currentPlayerName) {
                     try {
+                        await this.forceReconnect();
                         await this.joinGame(this.currentJoinCode, this.currentPlayerName);
-                        console.log('Successfully rejoined game, retrying answer submission');
+                        console.log('⚡ Successfully force reconnected, retrying answer submission');
                         
-                        // ✅ ULTRA-FAST: No stabilization delay
-                        // await new Promise(resolve => setTimeout(resolve, 500));
+                        // Wait for proper identification
+                        await new Promise(resolve => setTimeout(resolve, 1000));
                         
                         // Retry the submission
                         await this.connection.invoke('SubmitAnswer', joinCode, answer);
-                        console.log('Answer submitted successfully after rejoin');
+                        console.log('⚡ Answer submitted successfully after force reconnection');
                     } catch (rejoinError) {
-                        console.error('Failed to rejoin game and retry submission:', rejoinError);
+                        console.error('⚡ Failed to force rejoin game and retry submission:', rejoinError);
                         throw rejoinError;
                     }
                 } else {
-                    console.error('No current game info available for rejoin');
+                    console.error('⚡ No current game info available for rejoin');
                     throw error;
                 }
             } else {
@@ -361,9 +364,12 @@ class SignalRService {
         return this.isReconnectingState;
     }
 
-    // ✅ NEW: Check if player is properly identified in the game
+    // ✅ ENHANCED: Check if player is properly identified in the game
     isPlayerIdentified(): boolean {
-        return this.isConnected() && this.currentJoinCode !== null && this.currentPlayerName !== null;
+        return this.isConnected() && 
+               this.currentJoinCode !== null && 
+               this.currentPlayerName !== null &&
+               !this.isReconnectingState;
     }
 
     isSubmitting(): boolean {

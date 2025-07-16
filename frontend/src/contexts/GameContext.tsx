@@ -109,10 +109,18 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                             await signalRService.forceReconnect();
                             await signalRService.joinGame(game.joinCode, player.name);
                             console.log('⚡ INSTANT reconnection successful');
+                            
+                            // ✅ CRITICAL: Wait for GameStateSynced to ensure player is properly identified
+                            console.log('⚡ Waiting for game state sync to complete...');
+                            await new Promise(resolve => setTimeout(resolve, 1000)); // Give time for GameStateSynced event
+                            
                         } catch (reconnectError) {
                             console.error('⚡ INSTANT reconnection failed, trying normal:', reconnectError);
                             // Fallback to normal reconnection
                             await signalRService.joinGame(game.joinCode, player.name);
+                            
+                            // ✅ CRITICAL: Wait for GameStateSynced after fallback too
+                            await new Promise(resolve => setTimeout(resolve, 1000));
                         }
                         
                         // ✅ INSTANT: Handle timer state for reconnecting players
@@ -992,40 +1000,51 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         submissionInProgressRef.current = true;
         
         try {
-            // ✅ NEW: Ensure connection is stable before submitting
+            // ✅ ENHANCED: Ensure connection and player identification before submitting
             if (!signalRService.isConnected()) {
-                console.log('SignalR not connected, attempting to reconnect before submission');
+                console.log('⚡ SignalR not connected, attempting to reconnect before submission');
+                await signalRService.forceReconnect();
                 await signalRService.joinGame(game.joinCode, player.name);
                 
-                // Wait a moment for the connection to stabilize
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // Wait for GameStateSynced to ensure player is properly identified
+                await new Promise(resolve => setTimeout(resolve, 1500));
+            }
+            
+            // ✅ NEW: Double-check player identification before submitting
+            if (!signalRService.isPlayerIdentified()) {
+                console.log('⚡ Player not identified, forcing reconnection before submission');
+                await signalRService.forceReconnect();
+                await signalRService.joinGame(game.joinCode, player.name);
+                await new Promise(resolve => setTimeout(resolve, 1500));
             }
             
             await signalRService.sendAnswer(game.joinCode, answer);
-            console.log('Answer submitted successfully');
+            console.log('⚡ Answer submitted successfully');
         } catch (error: any) {
-            console.error('Error submitting answer:', error);
+            console.error('⚡ Error submitting answer:', error);
             
-            // Enhanced retry logic with better error handling
-            if (signalRService.isInGame() && (error.message?.includes('Player not identified') || 
+            // ✅ ENHANCED: Better retry logic for reconnection scenarios
+            if (error.message?.includes('Player not identified') || 
                 error.message?.includes('Player not found') || 
-                error.message?.includes('No SignalR connection'))) {
+                error.message?.includes('No SignalR connection') ||
+                error.message?.includes('Failed to submit')) {
                 try {
-                    console.log('Connection issue detected, attempting to reconnect and retry submission');
+                    console.log('⚡ Connection/identification issue detected, attempting force reconnection and retry');
                     
-                    // Force rejoin the game
+                    // Force rejoin the game with fresh connection
+                    await signalRService.forceReconnect();
                     await signalRService.joinGame(game.joinCode, player.name);
                     
-                    // Wait for connection to stabilize
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    // Wait for proper identification
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                     
                     // Retry the submission
                     await signalRService.sendAnswer(game.joinCode, answer);
-                    console.log('Answer submitted successfully after reconnection');
+                    console.log('⚡ Answer submitted successfully after force reconnection');
                 } catch (retryError) {
-                    console.error('Error retrying answer submission:', retryError);
+                    console.error('⚡ Error retrying answer submission:', retryError);
                     submissionInProgressRef.current = false;
-                    throw new Error('Failed to submit drawing after reconnection. Please try refreshing the page.');
+                    throw new Error('Failed to submit drawing. Please try refreshing the page.');
                 }
             } else {
                 submissionInProgressRef.current = false;
