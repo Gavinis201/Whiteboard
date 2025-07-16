@@ -140,9 +140,10 @@ export const Game: React.FC = () => {
     // Set up vote results listener
     useEffect(() => {
         signalRService.onVoteResultsUpdated((results: any[], maxVotes: number) => {
+            console.log('Vote results updated:', results);
             setVoteResults(results);
             // Fetch detailed vote results when vote results are updated
-            if (currentRound && judgingModeEnabled) {
+            if (currentRound) {
                 fetchDetailedVoteResults();
             }
         });
@@ -150,7 +151,7 @@ export const Game: React.FC = () => {
         return () => {
             signalRService.onVoteResultsUpdated(() => {});
         };
-    }, [currentRound, judgingModeEnabled]);
+    }, [currentRound]);
 
     // Fetch detailed vote results
     const fetchDetailedVoteResults = async () => {
