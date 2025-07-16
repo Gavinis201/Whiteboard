@@ -155,11 +155,6 @@ public class GameHub : Hub
                     .Where(r => !r.IsCompleted)
                     .OrderByDescending(r => r.RoundId)
                     .FirstOrDefault(),
-                CurrentAnswers = g.Rounds
-                    .Where(r => !r.IsCompleted)
-                    .OrderByDescending(r => r.RoundId)
-                    .SelectMany(r => r.Answers)
-                    .ToList(),
                 JudgingModeEnabled = g.JudgingModeEnabled
             })
             .FirstOrDefaultAsync();
@@ -169,41 +164,26 @@ public class GameHub : Hub
             throw new HubException("Game state not found");
         }
 
-        // ✅ FIX: Calculate round number within this game for the active round
-        int? roundNumber = null;
-        if (gameState.ActiveRound != null)
-        {
-            var roundsInGame = await _context.Rounds
-                .Where(r => r.GameId == game.GameId && r.RoundId <= gameState.ActiveRound.RoundId)
-                .OrderBy(r => r.RoundId)
-                .ToListAsync();
-            roundNumber = roundsInGame.Count;
-        }
+        // ✅ FIX: Calculate round number within this game instead of using global auto-increment
+        var roundNumber = gameState.ActiveRound != null ? 
+            await _context.Rounds.CountAsync(r => r.GameId == game.GameId && r.RoundId <= gameState.ActiveRound.RoundId) : 0;
 
-        // Send the complete state to the client that just joined/reconnected
-        _logger.LogInformation("Sending GameStateSynced with JudgingModeEnabled: {JudgingModeEnabled}", gameState.JudgingModeEnabled);
-        
-        // Log detailed information about the active round for debugging reconnection issues
+        // ✅ FIX: Only get answers for the current active round, not all incomplete rounds
+        var currentAnswers = (object)null;
         if (gameState.ActiveRound != null)
         {
-            _logger.LogInformation("Active round details for {PlayerName}: RoundNumber={RoundNumber}, RoundId={RoundId}, Prompt={Prompt}, TimerDuration={TimerDuration}, TimerStartTime={TimerStartTime}", 
-                playerName, roundNumber, gameState.ActiveRound.RoundId, gameState.ActiveRound.Prompt, 
-                gameState.ActiveRound.TimerDurationMinutes, gameState.ActiveRound.TimerStartTime);
+            currentAnswers = await _context.Answers
+                .Where(a => a.RoundId == gameState.ActiveRound.RoundId)
+                .Select(a => new
+                {
+                    a.AnswerId,
+                    a.Content,
+                    a.PlayerName,
+                    a.PlayerId,
+                    RoundId = roundNumber // Use the round number instead of the global RoundId
+                })
+                .ToListAsync();
         }
-        else
-        {
-            _logger.LogInformation("No active round for {PlayerName}", playerName);
-        }
-        
-        // ✅ FIX: Transform answers to include the correct round number for frontend
-        var transformedAnswers = gameState.CurrentAnswers.Select(a => new
-        {
-            a.AnswerId,
-            a.Content,
-            a.PlayerName,
-            a.PlayerId,
-            RoundId = roundNumber // Use the round number instead of the global RoundId
-        }).ToList();
 
         await Clients.Caller.SendAsync("GameStateSynced", new
         {
@@ -214,9 +194,10 @@ public class GameHub : Hub
                 Prompt = gameState.ActiveRound.Prompt,
                 IsCompleted = gameState.ActiveRound.IsCompleted,
                 GameId = gameState.ActiveRound.GameId,
-                TimerDurationMinutes = gameState.ActiveRound.TimerDurationMinutes
+                TimerDurationMinutes = gameState.ActiveRound.TimerDurationMinutes,
+                VotingEnabled = gameState.ActiveRound.VotingEnabled
             } : null,
-            CurrentAnswers = transformedAnswers,
+            CurrentAnswers = currentAnswers,
             JudgingModeEnabled = gameState.JudgingModeEnabled,
             // Add timer information for reconnecting players
             TimerInfo = gameState.ActiveRound != null && gameState.ActiveRound.TimerStartTime.HasValue ? new

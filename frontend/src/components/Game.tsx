@@ -768,7 +768,7 @@ export const Game: React.FC = () => {
                 </div>
             )}
             
-            {/* Connection warning when player is not properly identified */}
+            {/* Connection warning when player is not properly identified
             {isTimerActive && connectionStatus === 'reconnecting' && !isReader && !playersWhoSubmitted.has(player?.playerId || 0) && (
                 <div className="fixed top-20 right-4 z-50 bg-yellow-50 border border-yellow-200 rounded-lg p-3 max-w-sm">
                     <div className="flex items-center gap-2">
@@ -779,7 +779,7 @@ export const Game: React.FC = () => {
                         </div>
                     </div>
                 </div>
-            )}
+            )} */}
             
             <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-lg p-4 sm:p-6">
                 {/* Header and Player List JSX remains the same */}

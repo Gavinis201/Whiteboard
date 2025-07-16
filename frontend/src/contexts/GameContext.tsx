@@ -457,6 +457,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 if (isNewRound) {
                     // For new rounds, always start with empty state regardless of backend data
                     console.log("New round detected, clearing answers and submission state");
+                    console.log("Backend sent answers:", payload.currentAnswers);
+                    console.log("Current round ID:", payload.activeRound?.roundId);
                     
                     // ✅ FIX: Set previousRoundId when detecting a new round from GameStateSynced
                     if (currentRound?.roundId && currentRound.roundId !== payload.activeRound.roundId) {
@@ -467,10 +469,13 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     
                     setAnswers([]);
                     setPlayersWhoSubmitted(new Set());
+                    console.log("✅ Cleared answers and submission state for new round");
                 } else {
                     // For existing rounds, use backend data but filter by current round
                     const currentRoundAnswers = payload.currentAnswers?.filter(a => a.roundId === payload.activeRound?.roundId) || [];
                     console.log("Existing round, using filtered answers:", currentRoundAnswers);
+                    console.log("Backend sent all answers:", payload.currentAnswers);
+                    console.log("Filtered to current round answers:", currentRoundAnswers);
                     setAnswers(currentRoundAnswers);
                     setPlayersWhoSubmitted(new Set(currentRoundAnswers.map(a => a.playerId)));
                     
