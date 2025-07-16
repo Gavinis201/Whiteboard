@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { Answer, Prompt, getPrompts, getDetailedVoteResults } from '../services/api';
 import { useNavigate } from 'react-router-dom';
@@ -137,6 +137,25 @@ export const Game: React.FC = () => {
         fetchPrompts();
     }, []);
 
+    // Fetch detailed vote results
+    const fetchDetailedVoteResults = useCallback(async () => {
+        if (!currentRound) return;
+        try {
+            console.log('🔍 Fetching detailed vote results for round:', currentRound.roundId);
+            const detailedResults = await getDetailedVoteResults(currentRound.roundId);
+            console.log('🔍 Detailed vote results received:', detailedResults);
+            console.log('🔍 Detailed results structure:', detailedResults.map(r => ({
+                answerId: r.answerId,
+                playerName: r.playerName,
+                voteCount: r.voteCount,
+                voters: r.voters
+            })));
+            setDetailedVoteResults(detailedResults);
+        } catch (error) {
+            console.error('❌ Error fetching detailed vote results:', error);
+        }
+    }, [currentRound]);
+
     // Set up vote results listener
     useEffect(() => {
         signalRService.onVoteResultsUpdated((results: any[], maxVotes: number) => {
@@ -144,6 +163,7 @@ export const Game: React.FC = () => {
             setVoteResults(results);
             // Fetch detailed vote results when vote results are updated
             if (currentRound) {
+                console.log('🔍 Triggering detailed vote results fetch due to vote results update');
                 fetchDetailedVoteResults();
             }
         });
@@ -151,25 +171,23 @@ export const Game: React.FC = () => {
         return () => {
             signalRService.onVoteResultsUpdated(() => {});
         };
-    }, [currentRound]);
+    }, [currentRound, fetchDetailedVoteResults]);
 
-    // Fetch detailed vote results
-    const fetchDetailedVoteResults = async () => {
-        if (!currentRound) return;
-        try {
-            const detailedResults = await getDetailedVoteResults(currentRound.roundId);
-            setDetailedVoteResults(detailedResults);
-        } catch (error) {
-            console.error('Error fetching detailed vote results:', error);
-        }
-    };
-
-    // Fetch detailed vote results when judging mode is enabled
+    // Fetch detailed vote results when there are votes or judging mode is enabled
     useEffect(() => {
-        if (judgingModeEnabled && currentRound) {
+        if (currentRound) {
+            console.log('🔍 Triggering detailed vote results fetch due to currentRound change');
             fetchDetailedVoteResults();
         }
-    }, [judgingModeEnabled, currentRound]);
+    }, [currentRound]);
+
+    // Also fetch detailed results when answers change (in case votes were cast before answers loaded)
+    useEffect(() => {
+        if (currentRound && answers.length > 0) {
+            console.log('🔍 Triggering detailed vote results fetch due to answers change');
+            fetchDetailedVoteResults();
+        }
+    }, [currentRound, answers.length]);
 
     // Check if all players have submitted
     useEffect(() => {
