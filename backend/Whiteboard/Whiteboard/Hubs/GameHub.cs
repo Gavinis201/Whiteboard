@@ -724,6 +724,9 @@ public class GameHub : Hub
                     
                     _logger.LogInformation("Host {PlayerName} disconnected from game {JoinCode}, added to reconnection list with 2-minute grace period", playerName, joinCode);
                     
+                    // ✅ FIX: Don't immediately send empty player list - wait for grace period
+                    // The host is still in the database, so we don't need to update the player list yet
+                    
                     // Give host a shorter grace period (2 minutes instead of 5)
                     _ = Task.Run(async () =>
                     {

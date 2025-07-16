@@ -536,20 +536,33 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log("Received a player list update for the group.");
             setGame(prevGame => ({ ...(prevGame as ExtendedGame), players: updatedPlayers }));
             
+            // ✅ FIX: Add delay before showing "host left" message to allow for reconnection
             // Only show alert if user is in this specific game and host left
             const currentGameInfo = signalRService.getCurrentGameInfo();
             if (updatedPlayers.length === 0 && player && !isReader && 
                 currentGameInfo.joinCode && game?.joinCode === currentGameInfo.joinCode) {
-                console.log('Host left the game, all players have been kicked');
-                alert('The host has left the game. You have been returned to the home page.');
-                setGame(null);
-                setPlayer(null);
-                setCurrentRound(null);
-                setAnswers([]);
-                setPlayersWhoSubmitted(new Set());
-                handlersSetupRef.current = false;
-                removeCookie('currentGame');
-                removeCookie('currentPlayer');
+                
+                console.log('⚠️ Empty player list received - host may have disconnected');
+                console.log('⏳ Waiting 5 seconds before showing "host left" message to allow for reconnection...');
+                
+                // ✅ FIX: Add delay to allow host to reconnect during page refresh
+                setTimeout(() => {
+                    // Check if we still have an empty player list after the delay
+                    if (game?.players.length === 0) {
+                        console.log('⏰ 5 seconds elapsed, host did not reconnect - showing "host left" message');
+                        alert('The host has left the game. You have been returned to the home page.');
+                        setGame(null);
+                        setPlayer(null);
+                        setCurrentRound(null);
+                        setAnswers([]);
+                        setPlayersWhoSubmitted(new Set());
+                        handlersSetupRef.current = false;
+                        removeCookie('currentGame');
+                        removeCookie('currentPlayer');
+                    } else {
+                        console.log('✅ Host reconnected within 5 seconds, not showing "host left" message');
+                    }
+                }, 5000); // Wait 5 seconds before showing the message
             }
         });
 
