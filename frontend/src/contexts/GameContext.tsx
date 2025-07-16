@@ -154,10 +154,6 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                             setCookie('currentRound', JSON.stringify(currentRound));
                         }
                         
-                        if (playersWhoSubmitted.size > 0) {
-                            setCookie('playersWhoSubmitted', JSON.stringify(Array.from(playersWhoSubmitted)));
-                        }
-                        
                         // Save timer state
                         if (isTimerActive && timeRemaining !== null) {
                             setCookie('timerState', JSON.stringify({
@@ -274,22 +270,24 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     setIsReader(parsedPlayer.isReader);
                     
                     // ✅ ENHANCED: Restore comprehensive state
-                    if (savedRound && savedPlayersWhoSubmitted) {
+                    if (savedRound) {
                         try {
                             const parsedRound = JSON.parse(savedRound);
-                            const parsedPlayersWhoSubmitted = JSON.parse(savedPlayersWhoSubmitted);
-                            console.log('🔄 Restoring round and submission state from cookies');
+                            console.log('🔄 Restoring round state from cookies');
                             setCurrentRound(parsedRound);
-                            setPlayersWhoSubmitted(new Set(parsedPlayersWhoSubmitted));
                             
                             // ✅ FIX: Initialize previousRoundId from saved round
                             setPreviousRoundId(parsedRound.roundId);
                             previousRoundIdRef.current = parsedRound.roundId;
                             console.log('🔄 Initialized previousRoundId from saved round:', parsedRound.roundId);
                         } catch (error) {
-                            console.error('🔄 Error parsing saved round/submission state:', error);
+                            console.error('🔄 Error parsing saved round state:', error);
                         }
                     }
+                    
+                    // ✅ FIX: Don't restore playersWhoSubmitted from cookies - let backend sync handle it
+                    // This prevents stale submission state when reconnecting to a new round
+                    console.log('🔄 Skipping restoration of playersWhoSubmitted from cookies - will be synced from backend');
                     
                     // ✅ NEW: Restore timer state if available
                     if (savedTimerState) {
@@ -549,8 +547,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 setTimeout(() => {
                     // Check if we still have an empty player list after the delay
                     if (game?.players.length === 0) {
-                        console.log('⏰ 5 seconds elapsed, host did not reconnect - showing "host left" message');
-                        alert('The host has left the game. You have been returned to the home page.');
+                        console.log('⏰ 5 seconds elapsed, host did not reconnect - redirecting to join page');
+                        
+                        // Clear all game state
                         setGame(null);
                         setPlayer(null);
                         setCurrentRound(null);
@@ -559,8 +558,14 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                         handlersSetupRef.current = false;
                         removeCookie('currentGame');
                         removeCookie('currentPlayer');
+                        removeCookie('currentRound');
+                        removeCookie('playersWhoSubmitted');
+                        
+                        // Redirect to join page
+                        console.log('Redirecting to join page because host left');
+                        navigate('/join');
                     } else {
-                        console.log('✅ Host reconnected within 5 seconds, not showing "host left" message');
+                        console.log('✅ Host reconnected within 5 seconds, not redirecting');
                     }
                 }, 5000); // Wait 5 seconds before showing the message
             }
@@ -653,6 +658,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             const numericKickedPlayerId = parseInt(kickedPlayerId, 10);
             if (player && player.playerId === numericKickedPlayerId) {
                 console.log('You have been kicked from the game');
+                
+                // Clear all game state
                 setGame(null);
                 setPlayer(null);
                 setCurrentRound(null);
@@ -661,6 +668,12 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 handlersSetupRef.current = false;
                 removeCookie('currentGame');
                 removeCookie('currentPlayer');
+                removeCookie('currentRound');
+                removeCookie('playersWhoSubmitted');
+                
+                // Redirect to join page
+                console.log('Redirecting kicked player to join page');
+                navigate('/join');
             }
         });
 
@@ -693,18 +706,16 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         if (game && player) {
             setCookie('currentGame', JSON.stringify(game));
             setCookie('currentPlayer', JSON.stringify(player));
-            // Also save the submission state
+            // Also save the round state (but not submission state)
             if (currentRound) {
                 setCookie('currentRound', JSON.stringify(currentRound));
-                setCookie('playersWhoSubmitted', JSON.stringify(Array.from(playersWhoSubmitted)));
             }
         } else {
             removeCookie('currentGame');
             removeCookie('currentPlayer');
             removeCookie('currentRound');
-            removeCookie('playersWhoSubmitted');
         }
-    }, [game, player, isInitialized, currentRound, playersWhoSubmitted]);
+    }, [game, player, isInitialized, currentRound]);
 
     // Auto-navigate to judging when everyone has submitted (only if judging mode is enabled)
     useEffect(() => {
