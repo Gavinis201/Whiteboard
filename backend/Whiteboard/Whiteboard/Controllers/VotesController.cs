@@ -81,9 +81,52 @@ public class VotesController : ControllerBase
         return Ok(votes);
     }
 
+    [HttpGet("debug/all")]
+    public async Task<IActionResult> GetAllVotes()
+    {
+        Console.WriteLine("🔍 GetAllVotes called - checking all votes in database");
+        
+        var allVotes = await _context.Votes
+            .Include(v => v.VoterPlayer)
+            .Include(v => v.VotedAnswer)
+            .ToListAsync();
+        
+        Console.WriteLine($"🔍 Total votes in database: {allVotes.Count}");
+        
+        var result = allVotes.Select(v => new
+        {
+            VoteId = v.VoteId,
+            VoterPlayerId = v.VoterPlayerId,
+            VoterName = v.VoterPlayer?.Name,
+            VotedAnswerId = v.VotedAnswerId,
+            VotedAnswerPlayerName = v.VotedAnswer?.PlayerName,
+            RoundId = v.RoundId
+        }).ToList();
+        
+        return Ok(result);
+    }
+
     [HttpGet("detailed-results/{roundId}")]
     public async Task<IActionResult> GetDetailedVoteResults(int roundId)
     {
+        Console.WriteLine($"🔍 GetDetailedVoteResults called for roundId: {roundId}");
+        
+        // First, let's check if there are any votes at all for this round
+        var allVotesForRound = await _context.Votes
+            .Where(v => v.RoundId == roundId)
+            .ToListAsync();
+        
+        Console.WriteLine($"🔍 Found {allVotesForRound.Count} total votes for round {roundId}");
+        
+        if (allVotesForRound.Any())
+        {
+            Console.WriteLine($"🔍 Vote details:");
+            foreach (var vote in allVotesForRound)
+            {
+                Console.WriteLine($"  - VoteId: {vote.VoteId}, VoterPlayerId: {vote.VoterPlayerId}, VotedAnswerId: {vote.VotedAnswerId}, RoundId: {vote.RoundId}");
+            }
+        }
+        
         var detailedResults = await _context.Votes
             .Include(v => v.VotedAnswer)
             .Include(v => v.VoterPlayer)
@@ -102,6 +145,12 @@ public class VotesController : ControllerBase
             })
             .OrderByDescending(r => r.VoteCount)
             .ToListAsync();
+
+        Console.WriteLine($"🔍 Detailed results count: {detailedResults.Count}");
+        foreach (var result in detailedResults)
+        {
+            Console.WriteLine($"🔍 Result - AnswerId: {result.AnswerId}, PlayerName: {result.PlayerName}, VoteCount: {result.VoteCount}, Voters: {string.Join(", ", result.Voters.Select(v => v.VoterName))}");
+        }
 
         return Ok(detailedResults);
     }

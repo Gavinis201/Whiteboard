@@ -601,6 +601,27 @@ public class GameHub : Hub
             {
                 await _context.SaveChangesAsync();
                 _logger.LogInformation("Vote saved successfully");
+                
+                // ✅ NEW: Add detailed logging to verify vote was saved
+                var savedVote = await _context.Votes
+                    .Include(v => v.VoterPlayer)
+                    .Include(v => v.VotedAnswer)
+                    .Where(v => v.VoterPlayerId == voterPlayerId && v.RoundId == activeRound.RoundId)
+                    .FirstOrDefaultAsync();
+                
+                if (savedVote != null)
+                {
+                    _logger.LogInformation("✅ Vote verification - VoteId: {VoteId}, Voter: {VoterName}, VotedAnswerId: {VotedAnswerId}, RoundId: {RoundId}", 
+                        savedVote.VoteId, savedVote.VoterPlayer?.Name, savedVote.VotedAnswerId, savedVote.RoundId);
+                }
+                else
+                {
+                    _logger.LogError("❌ Vote verification failed - vote not found after save");
+                }
+                
+                // ✅ NEW: Count total votes for this round
+                var totalVotesForRound = await _context.Votes.CountAsync(v => v.RoundId == activeRound.RoundId);
+                _logger.LogInformation("📊 Total votes for round {RoundId}: {TotalVotes}", activeRound.RoundId, totalVotesForRound);
             }
             catch (Exception saveEx)
             {
@@ -645,6 +666,8 @@ public class GameHub : Hub
 
     private async Task BroadcastVoteResults(string joinCode, int roundId)
     {
+        _logger.LogInformation("📡 Broadcasting vote results for round {RoundId}", roundId);
+        
         var game = await _context.Games
             .Include(g => g.Players)
             .FirstOrDefaultAsync(g => g.JoinCode == joinCode);
@@ -663,7 +686,15 @@ public class GameHub : Hub
             .OrderByDescending(r => r.VoteCount)
             .ToListAsync();
 
+        _logger.LogInformation("📡 Vote results to broadcast: {VoteResultsCount} results", voteResults.Count);
+        foreach (var result in voteResults)
+        {
+            _logger.LogInformation("📡 Result - AnswerId: {AnswerId}, PlayerName: {PlayerName}, VoteCount: {VoteCount}, TotalVotes: {TotalVotes}", 
+                result.AnswerId, result.PlayerName, result.VoteCount, result.TotalVotes);
+        }
+
         await Clients.Group(joinCode).SendAsync("VoteResultsUpdated", voteResults, 1);
+        _logger.LogInformation("📡 Vote results broadcast completed");
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)

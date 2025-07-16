@@ -137,6 +137,27 @@ export const Game: React.FC = () => {
         fetchPrompts();
     }, []);
 
+    // Debug function to test detailed vote results API
+    const testDetailedVoteResults = async () => {
+        if (!currentRound) return;
+        try {
+            console.log('🔍 MANUAL TEST: Fetching detailed vote results for round:', currentRound.roundId);
+            const detailedResults = await getDetailedVoteResults(currentRound.roundId);
+            console.log('🔍 MANUAL TEST: Detailed vote results received:', detailedResults);
+            
+            // Also test the debug endpoint
+            try {
+                const response = await fetch(`${import.meta.env.VITE_API_URL}/votes/debug/all`);
+                const allVotes = await response.json();
+                console.log('🔍 MANUAL TEST: All votes in database:', allVotes);
+            } catch (error) {
+                console.error('🔍 MANUAL TEST: Error fetching all votes:', error);
+            }
+        } catch (error) {
+            console.error('🔍 MANUAL TEST: Error fetching detailed vote results:', error);
+        }
+    };
+
     // Fetch detailed vote results
     const fetchDetailedVoteResults = useCallback(async () => {
         if (!currentRound) return;
@@ -1080,7 +1101,17 @@ export const Game: React.FC = () => {
                             </div>
                         )}
                         
-                        {/* Voting Results Summary for Host */}
+                        {isReader && (
+                            <div className="mt-4">
+                                <button
+                                    onClick={testDetailedVoteResults}
+                                    className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                                >
+                                    🔍 Debug: Test Vote Results API
+                                </button>
+                            </div>
+                        )}
+                        
                         {isReader && detailedVoteResults.length > 0 && (
                             <div className="mt-6">
                                 <h3 className="text-xl font-semibold text-purple-600 mb-4">Voting Results</h3>
