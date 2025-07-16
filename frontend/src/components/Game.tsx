@@ -661,7 +661,7 @@ export const Game: React.FC = () => {
                 <div className={`card-inner ${flippedCards.has(answer.answerId) ? 'flipped' : ''}`}>
                     <div className="card-front">
                         <p className="player-name">{answer.playerName || 'Unknown'}</p>
-                        {judgingModeEnabled && voteResult && (
+                        {voteResult && voteResult.voteCount > 0 && (
                             <div className="vote-results">
                                 <div className="vote-badge">
                                     <span className="vote-points">{voteResult.voteCount} votes</span>
@@ -674,7 +674,7 @@ export const Game: React.FC = () => {
                         <div className="drawing-container">
                             <img src={answer.content} alt={`Drawing by ${answer.playerName}`} />
                         </div>
-                        {judgingModeEnabled && detailedVoteResult && detailedVoteResult.voters && detailedVoteResult.voters.length > 0 && (
+                        {detailedVoteResult && detailedVoteResult.voters && detailedVoteResult.voters.length > 0 && (
                             <div className="voter-list-below">
                                 <div className="voter-list">
                                     {detailedVoteResult.voters.map((voter: any, index: number) => (
@@ -999,44 +999,44 @@ export const Game: React.FC = () => {
                                         </div>
                                     )}
                                     
-                                    {/* Show submission progress for host */}
-                                    {game?.judgingModeEnabled && (
-                                        <div className="mt-4 pt-4 border-t border-purple-200">
-                                            {/* Calculate number of unique voters */}
-                                            {(() => {
-                                                const nonReaderPlayers = players.filter(p => !p.isReader);
-                                                // Collect all voter names from detailedVoteResults
-                                                let uniqueVoters = new Set<string>();
-                                                detailedVoteResults.forEach((result: any) => {
-                                                    if (result.voters && Array.isArray(result.voters)) {
-                                                        result.voters.forEach((voter: any) => {
-                                                            if (voter && voter.voterName) uniqueVoters.add(voter.voterName);
-                                                        });
-                                                    }
+                                    {/* Show voting progress for host */}
+                                    {(() => {
+                                        const nonReaderPlayers = players.filter(p => !p.isReader);
+                                        // Collect all voter names from detailedVoteResults
+                                        let uniqueVoters = new Set<string>();
+                                        detailedVoteResults.forEach((result: any) => {
+                                            if (result.voters && Array.isArray(result.voters)) {
+                                                result.voters.forEach((voter: any) => {
+                                                    if (voter && voter.voterName) uniqueVoters.add(voter.voterName);
                                                 });
-                                                const votesSoFar = uniqueVoters.size;
-                                                const totalVoters = nonReaderPlayers.length;
-                                                return (
-                                                    <>
-                                                        <div className="flex justify-between items-center mb-2">
-                                                            <span className="text-sm font-medium text-purple-700">Player Votes:</span>
-                                                            <span className="text-sm text-purple-600">
-                                                                {votesSoFar} of {totalVoters} players
-                                                            </span>
-                                                        </div>
-                                                        <div className="w-full bg-purple-200 rounded-full h-2">
-                                                            <div 
-                                                                className={`h-2 rounded-full transition-all duration-300 ${votesSoFar === totalVoters ? 'bg-green-500' : 'bg-purple-500'}`}
-                                                                style={{ 
-                                                                    width: `${(votesSoFar / totalVoters) * 100}%` 
-                                                                }}
-                                                            ></div>
-                                                        </div>
-                                                    </>
-                                                );
-                                            })()}
-                                        </div>
-                                    )}
+                                            }
+                                        });
+                                        const votesSoFar = uniqueVoters.size;
+                                        const totalVoters = nonReaderPlayers.length;
+                                        
+                                        // Only show if there are votes or if judging mode is enabled
+                                        if (votesSoFar > 0 || game?.judgingModeEnabled) {
+                                            return (
+                                                <div className="mt-4 pt-4 border-t border-purple-200">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <span className="text-sm font-medium text-purple-700">Player Votes:</span>
+                                                        <span className="text-sm text-purple-600">
+                                                            {votesSoFar} of {totalVoters} players
+                                                        </span>
+                                                    </div>
+                                                    <div className="w-full bg-purple-200 rounded-full h-2">
+                                                        <div 
+                                                            className={`h-2 rounded-full transition-all duration-300 ${votesSoFar === totalVoters ? 'bg-green-500' : 'bg-purple-500'}`}
+                                                            style={{ 
+                                                                width: `${(votesSoFar / totalVoters) * 100}%` 
+                                                            }}
+                                                        ></div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                 </div>
                             </div>
                         )}
@@ -1053,6 +1053,45 @@ export const Game: React.FC = () => {
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {answers.map(renderAnswerCard)}
+                                </div>
+                            </div>
+                        )}
+                        
+                        {/* Voting Results Summary for Host */}
+                        {isReader && detailedVoteResults.length > 0 && (
+                            <div className="mt-6">
+                                <h3 className="text-xl font-semibold text-purple-600 mb-4">Voting Results</h3>
+                                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {detailedVoteResults
+                                            .filter(result => result.voteCount > 0)
+                                            .sort((a, b) => b.voteCount - a.voteCount)
+                                            .map((result, index) => (
+                                                <div key={result.answerId} className="bg-white rounded-lg p-4 border border-purple-200">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <h4 className="font-semibold text-purple-700">{result.playerName}</h4>
+                                                        <div className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-sm font-medium">
+                                                            {result.voteCount} vote{result.voteCount !== 1 ? 's' : ''}
+                                                        </div>
+                                                    </div>
+                                                    {result.voters && result.voters.length > 0 && (
+                                                        <div className="mt-2">
+                                                            <p className="text-sm text-gray-600 mb-1">Voted by:</p>
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {result.voters.map((voter: any, voterIndex: number) => (
+                                                                    <span 
+                                                                        key={voterIndex} 
+                                                                        className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs"
+                                                                    >
+                                                                        {voter.voterName}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                    </div>
                                 </div>
                             </div>
                         )}

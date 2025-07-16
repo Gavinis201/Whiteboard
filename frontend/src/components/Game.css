@@ -188,6 +188,17 @@ canvas {
     gap: 4px;
 }
 
+.voter-name {
+    color: #7c3aed;
+    font-weight: 500;
+    font-size: 0.9em;
+}
+
+.voter-rank {
+    font-size: 0.8em;
+    color: #a855f7;
+}
+
 .start-new-round-container{
     display: flex;
     flex-direction: row;
