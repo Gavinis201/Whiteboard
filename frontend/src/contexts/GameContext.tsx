@@ -91,45 +91,31 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log('🔄 Page visibility changed:', isVisible);
             
             if (isVisible) {
-                console.log('🔄 Page became visible, initiating reconnection protocol');
+                console.log('⚡ Page became visible, INSTANT reconnection...');
                 
-                // ✅ ENHANCED: Comprehensive reconnection logic
+                // ✅ INSTANT: Always attempt reconnection when page becomes visible
                 const performReconnection = async () => {
                     try {
                         // Check if we have valid game state
                         if (!game?.joinCode || !player?.name) {
-                            console.log('🔄 No valid game state for reconnection');
+                            console.log('⚡ No valid game state for reconnection');
                             return;
                         }
 
-                        // Check connection status
-                        const isConnected = signalRService.isConnected();
-                        const isInGame = signalRService.isInGame();
+                        console.log('⚡ INSTANT: Attempting reconnection for game:', game.joinCode, 'player:', player.name);
                         
-                        console.log('🔄 Connection status - Connected:', isConnected, 'InGame:', isInGame);
-                        
-                        if (!isConnected) {
-                            console.log('⚡ ULTRA-FAST: SignalR disconnected, instant reconnection...');
-                            
-                            // ✅ ULTRA-FAST: No loading state for instant feel
-                            try {
-                                await signalRService.forceReconnect();
-                                await signalRService.joinGame(game.joinCode, player.name);
-                                console.log('⚡ Instant reconnection successful');
-                            } catch (reconnectError) {
-                                console.error('⚡ Instant reconnection failed, trying normal:', reconnectError);
-                                await signalRService.joinGame(game.joinCode, player.name);
-                            }
-                        } else if (!isInGame) {
-                            console.log('⚡ ULTRA-FAST: Connected but not in game, instant rejoin...');
-                            
+                        // Always try to reconnect regardless of current state
+                        try {
+                            await signalRService.forceReconnect();
                             await signalRService.joinGame(game.joinCode, player.name);
-                            console.log('⚡ Instant rejoin successful');
-                        } else {
-                            console.log('⚡ Already connected and in game, no reconnection needed');
+                            console.log('⚡ INSTANT reconnection successful');
+                        } catch (reconnectError) {
+                            console.error('⚡ INSTANT reconnection failed, trying normal:', reconnectError);
+                            // Fallback to normal reconnection
+                            await signalRService.joinGame(game.joinCode, player.name);
                         }
                         
-                        // ✅ ULTRA-FAST: Handle timer state for reconnecting players
+                        // ✅ INSTANT: Handle timer state for reconnecting players
                         if (isTimerActive && timeRemaining !== null && timeRemaining <= 0 && !autoSubmissionAttemptedRef.current) {
                             console.log('⚡ Timer expired while away, instant auto-submission');
                             if (onTimerExpire) {
@@ -139,12 +125,12 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                         }
                         
                     } catch (error) {
-                        console.error('⚡ Reconnection failed:', error);
-                        // ✅ ULTRA-FAST: No user interruption, silent fail
+                        console.error('⚡ INSTANT reconnection failed:', error);
+                        // ✅ INSTANT: No user interruption, silent fail
                     }
                 };
                 
-                // ✅ ULTRA-FAST: Immediate reconnection with no delay
+                // ✅ INSTANT: Immediate reconnection with no delay
                 performReconnection();
                 
             } else {
@@ -211,12 +197,14 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             }
         };
 
-        // ✅ ULTRA-FAST: Add focus event for instant reconnection
+        // ✅ INSTANT: Add focus event for instant reconnection
         const handleFocus = () => {
-            console.log('⚡ Window focused, instant connection check...');
-            if (game?.joinCode && player?.name && !signalRService.isConnected()) {
-                console.log('⚡ Instant reconnection on focus');
-                signalRService.joinGame(game.joinCode, player.name).catch(err => {
+            console.log('⚡ Window focused, INSTANT reconnection...');
+            if (game?.joinCode && player?.name) {
+                console.log('⚡ INSTANT reconnection on focus');
+                signalRService.forceReconnect().then(() => {
+                    return signalRService.joinGame(game.joinCode, player.name);
+                }).catch(err => {
                     console.error('⚡ Failed to reconnect on focus:', err);
                 });
             }
@@ -226,6 +214,18 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
         window.addEventListener('beforeunload', handleBeforeUnload);
+        // ✅ INSTANT: Add periodic connection check
+        const connectionCheckInterval = setInterval(() => {
+            if (game?.joinCode && player?.name && !signalRService.isConnected()) {
+                console.log('⚡ Periodic check: Connection lost, INSTANT reconnection...');
+                signalRService.forceReconnect().then(() => {
+                    return signalRService.joinGame(game.joinCode, player.name);
+                }).catch(err => {
+                    console.error('⚡ Periodic reconnection failed:', err);
+                });
+            }
+        }, 5000); // Check every 5 seconds
+
         window.addEventListener('focus', handleFocus);
         
         return () => {
@@ -234,6 +234,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             window.removeEventListener('offline', handleOffline);
             window.removeEventListener('beforeunload', handleBeforeUnload);
             window.removeEventListener('focus', handleFocus);
+            clearInterval(connectionCheckInterval);
         };
     }, [isTimerActive, timeRemaining, onTimerExpire, game?.joinCode, player?.name, currentRound, playersWhoSubmitted, roundStartTime, selectedTimerDuration]);
 
@@ -328,7 +329,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         
         // Don't auto-reconnect if we're in the process of joining a game
         if (isJoiningRef.current) {
-            console.log('Auto-reconnection skipped - currently joining a game');
+            console.log('⚡ Auto-reconnection skipped - currently joining a game');
             return;
         }
         
@@ -336,39 +337,29 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             const parsedSavedGame = JSON.parse(savedGame);
             const parsedSavedPlayer = JSON.parse(savedPlayer);
             
-            console.log('Checking auto-reconnection:');
-            console.log('Saved game join code:', parsedSavedGame.joinCode);
-            console.log('Current game join code:', game.joinCode);
-            console.log('Saved player name:', parsedSavedPlayer.name);
-            console.log('Current player name:', player.name);
-            console.log('Saved player isReader:', parsedSavedPlayer.isReader);
-            console.log('Current player isReader:', player.isReader);
+            console.log('⚡ Checking auto-reconnection:');
+            console.log('⚡ Saved game join code:', parsedSavedGame.joinCode);
+            console.log('⚡ Current game join code:', game.joinCode);
+            console.log('⚡ Saved player name:', parsedSavedPlayer.name);
+            console.log('⚡ Current player name:', player.name);
             
-            // Only auto-reconnect if the saved game matches AND the player details match exactly
+            // ✅ INSTANT: Always attempt reconnection if we have valid game state
             if (parsedSavedGame.joinCode === game.joinCode && 
-                parsedSavedPlayer.name === player.name &&
-                parsedSavedPlayer.isReader === player.isReader) {
+                parsedSavedPlayer.name === player.name) {
                 const connectAndJoin = async () => {
                     try {
-                        setIsLoading(true);
-                        setLoadingMessage('Reconnecting to game...');
-                        console.log('Auto-reconnecting to restored game:', game.joinCode, 'as player:', player.name);
+                        console.log('⚡ INSTANT auto-reconnecting to restored game:', game.joinCode, 'as player:', player.name);
+                        await signalRService.forceReconnect();
                         await signalRService.joinGame(game.joinCode, player.name);
-                        setIsLoading(false);
-                        setLoadingMessage('');
+                        console.log('⚡ INSTANT auto-reconnection successful');
                     } catch (error) {
-                        console.error('Error auto-reconnecting to SignalR:', error);
-                        setGame(null);
-                        setPlayer(null);
-                        removeCookie('currentGame');
-                        removeCookie('currentPlayer');
-                        setIsLoading(false);
-                        setLoadingMessage('');
+                        console.error('⚡ INSTANT auto-reconnection failed:', error);
+                        // Don't clear state on failure, just log it
                     }
                 };
                 connectAndJoin();
             } else {
-                console.log('Auto-reconnection skipped - player details do not match');
+                console.log('⚡ Auto-reconnection skipped - player details do not match');
                 // Clear stale cookies if they don't match
                 removeCookie('currentGame');
                 removeCookie('currentPlayer');
