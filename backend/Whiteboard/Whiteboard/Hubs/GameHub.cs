@@ -180,7 +180,7 @@ public class GameHub : Hub
                     a.Content,
                     a.PlayerName,
                     a.PlayerId,
-                    RoundId = gameState.ActiveRound.RoundId // ✅ FIX: Send actual RoundId instead of calculated roundNumber
+                    RoundId = gameState.ActiveRound.RoundId // Use the actual database RoundId
                 })
                 .ToListAsync();
         }
