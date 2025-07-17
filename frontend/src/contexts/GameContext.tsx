@@ -481,8 +481,12 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             const isReconnecting = currentRound?.roundId && payload.activeRound?.roundId && 
                                  currentRound.roundId !== payload.activeRound.roundId;
             
-            if (isReconnecting) {
+            // ✅ NEW: Check if player was away during round start (no current round but backend has active round)
+            const wasAwayDuringRoundStart = !currentRound && payload.activeRound;
+            
+            if (isReconnecting || wasAwayDuringRoundStart) {
                 console.log("🔄 RECONNECTION DETECTED: Player returning to browser during active round");
+                console.log("🔄 Reconnection type:", isReconnecting ? "round change" : "away during round start");
                 
                 // ✅ FIX: Reset navigation flag for reconnecting players to allow auto-navigation
                 hasNavigatedToJudgingRef.current = false;
@@ -509,7 +513,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             
             // ✅ NEW: Handle case where player was away during previous judging round
             // This catches players who reconnect and find themselves in a voting round
-            if (!isReconnecting && (payload.activeRound as any)?.votingEnabled && payload.currentAnswers?.length > 0) {
+            if (!isReconnecting && !wasAwayDuringRoundStart && (payload.activeRound as any)?.votingEnabled && payload.currentAnswers?.length > 0) {
                 console.log("🔄 Player reconnected to active voting round");
                 
                 // Check if all players have submitted in this voting round
@@ -529,7 +533,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             
             // ✅ NEW: Handle non-voting round reconnection
             // This ensures the navigation flag is reset for all reconnection scenarios
-            if (!isReconnecting && !(payload.activeRound as any)?.votingEnabled) {
+            if (!isReconnecting && !wasAwayDuringRoundStart && !(payload.activeRound as any)?.votingEnabled) {
                 console.log("🔄 Player reconnected to non-voting round");
                 // Reset navigation flag to ensure proper state for future rounds
                 hasNavigatedToJudgingRef.current = false;
@@ -609,9 +613,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 }
                 
                 // ✅ ENHANCED: Handle answers and submission state for reconnecting players
-                if (isNewRound) {
-                    // For new rounds, always start with empty state regardless of backend data
-                    console.log("New round detected, clearing answers and submission state");
+                if (isNewRound || wasAwayDuringRoundStart) {
+                    // For new rounds or players away during round start, use backend data
+                    console.log("New round or away during round start detected");
                     console.log("Backend sent answers:", payload.currentAnswers);
                     console.log("Current round ID:", payload.activeRound?.roundId);
                     
@@ -622,9 +626,28 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                         setPreviousRoundId(currentRound.roundId);
                     }
                     
-                    setAnswers([]);
-                    setPlayersWhoSubmitted(new Set());
-                    console.log("✅ Cleared answers and submission state for new round");
+                    // ✅ NEW: For players away during round start, use backend data directly
+                    if (wasAwayDuringRoundStart) {
+                        console.log("🔄 Player was away during round start, using backend data");
+                        const currentRoundAnswers = payload.currentAnswers?.filter(a => a.roundId === payload.activeRound?.roundId) || [];
+                        setAnswers(currentRoundAnswers);
+                        setPlayersWhoSubmitted(new Set(currentRoundAnswers.map(a => a.playerId)));
+                        
+                        // Check if player has already submitted
+                        if (player) {
+                            const hasSubmitted = currentRoundAnswers.some(a => a.playerId === player.playerId);
+                            if (hasSubmitted) {
+                                console.log("🔄 Player has already submitted for this round");
+                            } else {
+                                console.log("🔄 Player has not submitted yet for this round");
+                            }
+                        }
+                    } else {
+                        // For regular new rounds, start with empty state
+                        setAnswers([]);
+                        setPlayersWhoSubmitted(new Set());
+                        console.log("✅ Cleared answers and submission state for new round");
+                    }
                 } else {
                     // For existing rounds, use backend data but filter by current round
                     const currentRoundAnswers = payload.currentAnswers?.filter(a => a.roundId === payload.activeRound?.roundId) || [];
@@ -646,7 +669,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 }
                 
                 // ✅ ENHANCED: Ensure prompt is visible for reconnecting players
-                if (payload.activeRound?.prompt && !isNewRound) {
+                if (payload.activeRound?.prompt && (!isNewRound || wasAwayDuringRoundStart)) {
                     console.log("Reconnecting to active round, ensuring prompt visibility:", payload.activeRound.prompt);
                     console.log("Current round prompt after sync:", payload.activeRound.prompt);
                     console.log("Current round state after sync:", {
@@ -661,6 +684,31 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 // ✅ NEW: Update voting mode tracking for reconnecting players
                 if ((payload.activeRound as any)?.votingEnabled) {
                     setRoundsWithVotingEnabled(prev => new Set([...prev, payload.activeRound!.roundId]));
+                }
+                
+                // ✅ NEW: Handle players who were away during round start
+                if (wasAwayDuringRoundStart) {
+                    console.log("🔄 Player was away during round start - syncing to current game state");
+                    console.log("🔄 Current round:", payload.activeRound);
+                    console.log("🔄 Current answers:", payload.currentAnswers);
+                    console.log("🔄 Timer info:", payload.timerInfo);
+                    
+                    // Force a navigation check after state is fully updated
+                    setTimeout(() => {
+                        // Check if this is a voting round and all players have submitted
+                        if ((payload.activeRound as any)?.votingEnabled && payload.currentAnswers?.length > 0) {
+                            const nonReaderPlayers = payload.players.filter((p: Player) => !p.isReader);
+                            const submittedPlayerIds = new Set(payload.currentAnswers.map((a: any) => a.playerId));
+                            const allNonReadersSubmitted = nonReaderPlayers.length > 0 && 
+                                nonReaderPlayers.every((p: Player) => submittedPlayerIds.has(p.playerId));
+                            
+                            if (allNonReadersSubmitted && !hasNavigatedToJudgingRef.current) {
+                                console.log("🔄 Player away during round start - all players submitted, navigating to judging");
+                                hasNavigatedToJudgingRef.current = true;
+                                navigate('/judging');
+                            }
+                        }
+                    }, 300); // Give state time to update
                 }
             } else {
                 setCurrentRound(null);
