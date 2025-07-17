@@ -23,8 +23,10 @@ builder.Services.AddCors(options =>
                 "https://blue-mud-0eac3971e.6.azurestaticapps.net",
                 "https://localhost:5173",
                 "https://localhost:3000",
+                "https://localhost:3001",
                 "http://localhost:5173",
                 "http://localhost:3000",
+                "http://localhost:3001",
                 "https://thewhiteboardgame.com"
                 
             )

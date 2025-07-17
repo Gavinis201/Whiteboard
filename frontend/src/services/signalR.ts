@@ -14,6 +14,15 @@ export interface GameStatePayload {
     } | null;
 }
 
+// ✅ NEW: Connection state enum for better state management
+enum ConnectionState {
+    DISCONNECTED = 'disconnected',
+    CONNECTING = 'connecting',
+    CONNECTED = 'connected',
+    RECONNECTING = 'reconnecting',
+    INTENTIONALLY_LEFT = 'intentionally_left'
+}
+
 class SignalRService {
     private connection: HubConnection | null = null;
     private connectionPromise: Promise<void> | null = null;
@@ -27,28 +36,48 @@ class SignalRService {
     private judgingModeToggledCallback: ((enabled: boolean) => void) | null = null;
     private voteResultsUpdatedCallback: ((results: any[], maxVotes: number) => void) | null = null;
     
-    // State
-    private isConnecting = false;
-    private isReconnectingState = false; // ✅ NEW: Track reconnecting state
+    // ✅ REFACTORED: Better state management
+    private connectionState: ConnectionState = ConnectionState.DISCONNECTED;
     private currentJoinCode: string | null = null;
     private currentPlayerName: string | null = null;
+    private isConnecting = false;
+    private autoReconnectEnabled = true; // ✅ NEW: Control auto-reconnection
+    private leaveInProgress = false; // ✅ NEW: Track if leave operation is in progress
 
     constructor() {
-        // Automatically start the connection when the service is instantiated
-        this.ensureConnection();
+        // Don't auto-connect on instantiation - let the app control when to connect
+        console.log('SignalR Service initialized');
+    }
+
+    // ✅ NEW: Get current connection state
+    getConnectionState(): ConnectionState {
+        return this.connectionState;
+    }
+
+    // ✅ NEW: Check if we should attempt reconnection
+    private shouldAttemptReconnection(): boolean {
+        return this.autoReconnectEnabled && 
+               !this.leaveInProgress && 
+               this.currentJoinCode !== null && 
+               this.currentPlayerName !== null &&
+               this.connectionState !== ConnectionState.INTENTIONALLY_LEFT;
     }
 
     private async ensureConnection() {
-        if (this.connection?.state === HubConnectionState.Connected) return;
+        if (this.connection?.state === HubConnectionState.Connected) {
+            this.connectionState = ConnectionState.CONNECTED;
+            return;
+        }
+        
         if (this.connectionPromise) {
             await this.connectionPromise;
             return;
         }
         
-        // ✅ ULTRA-FAST: No delays for instant reconnection
-        if (this.isMobileSafari() && this.connection?.state === HubConnectionState.Disconnected) {
-            console.log('Mobile Safari detected, instant connection recovery');
-            // No delay for ultra-fast reconnection
+        // ✅ NEW: Don't connect if we're intentionally leaving or don't have game info
+        if (!this.shouldAttemptReconnection()) {
+            console.log('Skipping connection - not in a state to reconnect');
+            return;
         }
         
         this.connectionPromise = this.connect();
@@ -63,59 +92,82 @@ class SignalRService {
         if (this.isConnecting || this.connection?.state === HubConnectionState.Connected) {
             return;
         }
+        
+        // ✅ NEW: Don't connect if we're intentionally leaving
+        if (this.leaveInProgress || this.connectionState === ConnectionState.INTENTIONALLY_LEFT) {
+            console.log('Skipping connection - leave operation in progress or intentionally left');
+            return;
+        }
+        
         this.isConnecting = true;
+        this.connectionState = ConnectionState.CONNECTING;
 
         try {
-            if (this.connection) await this.connection.stop();
+            if (this.connection) {
+                await this.connection.stop();
+            }
 
+            // Safari-specific configuration
+            const isSafari = this.isSafari();
+            const transportOptions = isSafari 
+                ? HttpTransportType.LongPolling | HttpTransportType.ServerSentEvents
+                : HttpTransportType.WebSockets | HttpTransportType.LongPolling | HttpTransportType.ServerSentEvents;
+            
+            console.log(`🔧 SignalR Configuration - Safari: ${isSafari}, Transport: ${transportOptions}`);
+            
             this.connection = new HubConnectionBuilder()
-                .withUrl('https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/gameHub', {
-                    transport: HttpTransportType.WebSockets | HttpTransportType.LongPolling | HttpTransportType.ServerSentEvents,
+                .withUrl('http://localhost:5164/gameHub', {
+                    transport: transportOptions,
                     skipNegotiation: false,
-                    timeout: 30000 // 30 second timeout for connection
+                    timeout: isSafari ? 60000 : 30000,
+                    keepAliveInterval: isSafari ? 15000 : 15000,
+                    serverTimeoutInMilliseconds: isSafari ? 30000 : 30000
                 })
                 .configureLogging(LogLevel.Information)
-                .withAutomaticReconnect([0, 100, 200, 500, 1000]) // ✅ ULTRA-FAST: Instant reconnection strategy
+                .withAutomaticReconnect(isSafari ? [0, 2000, 5000, 10000] : [0, 100, 200, 500, 1000])
                 .build();
 
-            // 🔄 REFINED: Add more detailed logging for connection lifecycle
+            // ✅ REFACTORED: Better connection lifecycle handling
             this.connection.onclose(e => {
-                console.error('SignalR connection closed:', e);
-                this.isReconnectingState = false;
+                console.log('SignalR connection closed:', e);
+                this.connectionState = ConnectionState.DISCONNECTED;
                 
-                // For mobile Safari, don't immediately clear state on connection close
-                // as it might be due to background tab throttling
-                if (e && !this.isMobileSafari()) {
-                    console.log('Connection closed due to error, clearing game state');
-                    this.currentJoinCode = null;
-                    this.currentPlayerName = null;
-                } else if (e) {
-                    console.log('Connection closed on mobile Safari, preserving state for potential reconnection');
+                // Only attempt reconnection if we should
+                if (this.shouldAttemptReconnection()) {
+                    console.log('Connection closed, will attempt reconnection');
+                    this.connectionState = ConnectionState.RECONNECTING;
+                } else {
+                    console.log('Connection closed, not attempting reconnection');
                 }
             });
             
             this.connection.onreconnecting(e => {
                 console.log('SignalR is reconnecting...', e);
-                this.isReconnectingState = true; // ✅ NEW: Set state to true
+                this.connectionState = ConnectionState.RECONNECTING;
             });
             
             this.connection.onreconnected(id => {
                 console.log('SignalR reconnected successfully:', id);
-                this.isReconnectingState = false; // ✅ NEW: Set state to false
-                // Only try to rejoin if we have valid game info
-                if (this.currentJoinCode && this.currentPlayerName) {
+                this.connectionState = ConnectionState.CONNECTED;
+                
+                // Only try to rejoin if we have valid game info and should reconnect
+                if (this.shouldAttemptReconnection()) {
                     console.log('Re-joining game after reconnection...');
-                    this.joinGame(this.currentJoinCode, this.currentPlayerName).catch(err => {
+                    this.joinGame(this.currentJoinCode!, this.currentPlayerName!).catch(err => {
                         console.error('Failed to auto-rejoin game after reconnection:', err);
                     });
+                } else {
+                    console.log('Skipping rejoin - not in a state to reconnect');
                 }
             });
 
             this.setupEventHandlers();
             await this.connection.start();
-            console.log('SignalR Connected');
+            this.connectionState = ConnectionState.CONNECTED;
+            console.log(`SignalR Connected - Safari: ${this.isSafari()}, State: ${this.connection.state}`);
         } catch (err) {
             console.error('SignalR connection error:', err);
+            this.connectionState = ConnectionState.DISCONNECTED;
             this.isConnecting = false;
             throw err;
         } finally {
@@ -123,9 +175,15 @@ class SignalRService {
         }
     }
 
-    // ✅ ULTRA-FAST: Instant force reconnection method
+    // ✅ REFACTORED: Force reconnection with better state management
     async forceReconnect() {
-        console.log('⚡ ULTRA-FAST: Force reconnecting SignalR...');
+        console.log('⚡ Force reconnecting SignalR...');
+        
+        // Don't force reconnect if we're intentionally leaving
+        if (this.leaveInProgress || this.connectionState === ConnectionState.INTENTIONALLY_LEFT) {
+            console.log('Skipping force reconnect - leave operation in progress or intentionally left');
+            return;
+        }
         
         // Close existing connection if any
         if (this.connection) {
@@ -140,14 +198,14 @@ class SignalRService {
         this.connection = null;
         this.connectionPromise = null;
         this.isConnecting = false;
-        this.isReconnectingState = false;
+        this.connectionState = ConnectionState.DISCONNECTED;
         
-        // Attempt to reconnect instantly
+        // Attempt to reconnect
         try {
             await this.connect();
-            console.log('⚡ ULTRA-FAST: Force reconnection successful');
+            console.log('⚡ Force reconnection successful');
         } catch (error) {
-            console.error('⚡ ULTRA-FAST: Force reconnection failed:', error);
+            console.error('⚡ Force reconnection failed:', error);
             throw error;
         }
     }
@@ -155,15 +213,13 @@ class SignalRService {
     private setupEventHandlers() {
         if (!this.connection) return;
 
-        // Handler for the full state sync on join/reconnect
         this.connection.on('GameStateSynced', (payload: GameStatePayload) => {
             console.log('GameStateSynced event received:', payload);
             this.gameStateSyncedCallback?.(payload);
         });
 
-        // Handler for other players to get a simple player list update
         this.connection.on('PlayerListUpdated', (players: Player[]) => {
-            console.log('PlayerListUpdated event received for group:', players);
+            console.log('🎯 SignalR PlayerListUpdated event received:', players);
             this.playerListUpdatedCallback?.(players);
         });
 
@@ -173,9 +229,6 @@ class SignalRService {
 
         this.connection.on('RoundStarted', (prompt: string, roundId: number, timerDurationMinutes?: number, votingEnabled?: boolean) => {
             console.log('🎯 SignalR RoundStarted event received:', { prompt, roundId, timerDurationMinutes, votingEnabled });
-            console.log('🎯 Calling roundStartedCallback:', !!this.roundStartedCallback);
-            console.log('🎯 Current connection state:', this.connection?.state);
-            console.log('🎯 Current game info:', this.getCurrentGameInfo());
             this.roundStartedCallback?.(prompt, roundId, timerDurationMinutes, votingEnabled);
         });
 
@@ -185,7 +238,6 @@ class SignalRService {
 
         this.connection.on('JudgingModeToggled', (enabled: boolean) => {
             console.log('🎯 SignalR JudgingModeToggled event received:', enabled);
-            console.log('🎯 Current game info:', this.getCurrentGameInfo());
             this.judgingModeToggledCallback?.(enabled);
         });
 
@@ -205,19 +257,41 @@ class SignalRService {
     }
 
     async joinGame(joinCode: string, playerName: string) {
-        const connected = await this.ensureConnectionSafe();
-        if (!connected || !this.connection) throw new Error('No SignalR connection');
+        console.log(`🎯 Joining game: ${joinCode} as ${playerName}`);
+        
+        // ✅ NEW: Reset leave state when joining a game
+        this.leaveInProgress = false;
+        this.connectionState = ConnectionState.CONNECTED;
+        this.autoReconnectEnabled = true;
+        
         this.currentJoinCode = joinCode;
         this.currentPlayerName = playerName;
+        
+        const connected = await this.ensureConnectionSafe();
+        if (!connected || !this.connection) throw new Error('No SignalR connection');
+        
         try {
             const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('Join game timeout')), 5000);
+                const timeout = this.isSafari() ? 15000 : 5000;
+                setTimeout(() => reject(new Error('Join game timeout')), timeout);
             });
             const joinPromise = this.connection.invoke('JoinGame', joinCode, playerName);
             await Promise.race([joinPromise, timeoutPromise]);
             console.log('Successfully invoked JoinGame');
         } catch (error) {
             console.error('Error invoking JoinGame:', error);
+            // For Safari, try a force reconnect and retry once
+            if (this.isSafari() && error.message?.includes('timeout')) {
+                console.log('Safari timeout detected, attempting force reconnect and retry');
+                try {
+                    await this.forceReconnect();
+                    await this.joinGame(joinCode, playerName);
+                    return;
+                } catch (retryError) {
+                    console.error('Safari retry failed:', retryError);
+                    throw retryError;
+                }
+            }
             throw error;
         }
     }
@@ -289,23 +363,43 @@ class SignalRService {
         return await this.connection.invoke('GetMaxVotesForGame', joinCode);
     }
     
+    // ✅ REFACTORED: Better leave game logic
     async leaveGame(joinCode: string) {
+        console.log('🎯 Leaving game:', joinCode);
+        
+        // ✅ NEW: Set leave state to prevent reconnection
+        this.leaveInProgress = true;
+        this.autoReconnectEnabled = false;
+        this.connectionState = ConnectionState.INTENTIONALLY_LEFT;
+        
         const connected = await this.ensureConnectionSafe();
         if (!connected || !this.connection) {
             console.warn('No SignalR connection when leaving game. Skipping backend call.');
-            this.currentJoinCode = null;
-            this.currentPlayerName = null;
+            this.clearGameState();
             return;
         }
+        
         try {
             await this.connection.invoke('LeaveGame', joinCode);
             console.log('Successfully left game');
-            this.currentJoinCode = null;
-            this.currentPlayerName = null;
+            this.clearGameState();
         } catch (error) {
             console.error('Error leaving game:', error);
+            // Reset state on error so reconnection can still work
+            this.leaveInProgress = false;
+            this.autoReconnectEnabled = true;
+            this.connectionState = ConnectionState.CONNECTED;
             throw error;
         }
+    }
+
+    // ✅ NEW: Clear game state helper
+    private clearGameState() {
+        this.currentJoinCode = null;
+        this.currentPlayerName = null;
+        this.leaveInProgress = false;
+        this.autoReconnectEnabled = true;
+        this.connectionState = ConnectionState.DISCONNECTED;
     }
 
     // Callback Registration
@@ -314,6 +408,7 @@ class SignalRService {
     }
 
     onPlayerListUpdated(callback: (players: Player[]) => void) {
+        console.log('🎯 Setting up onPlayerListUpdated callback');
         this.playerListUpdatedCallback = callback;
     }
 
@@ -338,25 +433,31 @@ class SignalRService {
         this.voteResultsUpdatedCallback = callback;
     }
 
-    // ✅ NEW: Public methods to check connection status
+    // ✅ REFACTORED: Better status checking methods
     isInGame(): boolean {
-        return this.currentJoinCode !== null && this.currentPlayerName !== null;
+        return this.currentJoinCode !== null && 
+               this.currentPlayerName !== null && 
+               this.connectionState !== ConnectionState.INTENTIONALLY_LEFT;
     }
 
     isConnected(): boolean {
-        return this.connection?.state === HubConnectionState.Connected;
+        return this.connection?.state === HubConnectionState.Connected && 
+               this.connectionState === ConnectionState.CONNECTED;
     }
 
     isReconnecting(): boolean {
-        return this.isReconnectingState;
+        return this.connectionState === ConnectionState.RECONNECTING;
     }
 
-    // ✅ ENHANCED: Check if player is properly identified in the game
     isPlayerIdentified(): boolean {
         return this.isConnected() && 
                this.currentJoinCode !== null && 
                this.currentPlayerName !== null &&
-               !this.isReconnectingState;
+               !this.leaveInProgress;
+    }
+
+    isIntentionallyLeaving(): boolean {
+        return this.leaveInProgress || this.connectionState === ConnectionState.INTENTIONALLY_LEFT;
     }
 
     isSubmitting(): boolean {
@@ -368,6 +469,12 @@ class SignalRService {
             joinCode: this.currentJoinCode,
             playerName: this.currentPlayerName
         };
+    }
+
+    // ✅ NEW: Safari detection for better connection handling
+    private isSafari(): boolean {
+        const userAgent = navigator.userAgent;
+        return /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
     }
 
     // ✅ NEW: Mobile Safari detection for better connection handling

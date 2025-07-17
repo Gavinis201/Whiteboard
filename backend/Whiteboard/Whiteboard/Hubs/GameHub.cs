@@ -394,6 +394,10 @@ public class GameHub : Hub
                     await _context.SaveChangesAsync();
                     _logger.LogInformation("Player {PlayerName} removed from database", playerName);
                     
+                    // ✅ NEW: Send PlayerKicked event for the leaving player (same as when host kicks)
+                    await Clients.Group(joinCode).SendAsync("PlayerKicked", player.PlayerId.ToString(), playerName);
+                    _logger.LogInformation("Sent PlayerKicked event for leaving player {PlayerName}", playerName);
+                    
                     // Update the player list for remaining players
                     var updatedPlayers = await _context.Players.Where(p => p.GameId == gameId).ToListAsync();
                     await Clients.Group(joinCode).SendAsync("PlayerListUpdated", updatedPlayers);

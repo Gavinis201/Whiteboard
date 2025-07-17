@@ -14,6 +14,13 @@ export const Game: React.FC = () => {
         judgingModeEnabled, toggleJudgingMode, roundsWithVotingEnabled,
         setSelectedTimerDuration, setTimeRemaining, setRoundStartTime, setIsTimerActive, setOnTimerExpire
     } = useGame();
+
+    // ✅ DEBUG: Log players array changes
+    useEffect(() => {
+        console.log('🎯 Game component - players array updated:', players);
+        console.log('🎯 Game component - players length:', players.length);
+        console.log('🎯 Game component - game?.players:', game?.players);
+    }, [players, game?.players]);
     const navigate = useNavigate();
 
      // ✅ NEW: show loading spinner if game is loading
@@ -616,13 +623,14 @@ export const Game: React.FC = () => {
                 throw new Error('No longer in game. Please refresh and try again.');
             }
             
-            // ✅ NEW: Check connection status before submitting
+            // ✅ ENHANCED: Check connection status before submitting
             if (connectionStatus === 'disconnected') {
                 console.log('Connection is disconnected, attempting to reconnect before submission');
                 setCompressionStatus('Reconnecting...');
                 
                 // Try to reconnect
                 try {
+                    await signalRService.forceReconnect();
                     await signalRService.joinGame(game.joinCode, player.name);
                     setCompressionStatus('Sending...');
                 } catch (reconnectError) {
@@ -636,7 +644,7 @@ export const Game: React.FC = () => {
         } catch (error: any) {
             console.error('Error submitting answer:', error);
             
-            // ✅ NEW: Better error messages for different scenarios
+            // ✅ ENHANCED: Better error messages for different scenarios
             let errorMessage = 'Failed to submit drawing. Please try again.';
             
             if (error.message?.includes('Connection lost')) {
@@ -686,8 +694,16 @@ export const Game: React.FC = () => {
             : 'Are you sure you want to leave the game?';
             
         if (window.confirm(message)) {
-            await leaveGame();
-            navigate('/');
+            console.log('🎯 Game component: User confirmed leaving game');
+            try {
+                await leaveGame();
+                console.log('🎯 Game component: Successfully left game, navigating to home');
+                navigate('/');
+            } catch (error) {
+                console.error('🎯 Game component: Error leaving game:', error);
+                // Even if there's an error, we should still navigate away
+                navigate('/');
+            }
         }
     };
 
@@ -742,8 +758,19 @@ export const Game: React.FC = () => {
             const isConnected = signalRService.isConnected();
             const isReconnecting = signalRService.isReconnecting();
             const isPlayerIdentified = signalRService.isPlayerIdentified();
+            const isIntentionallyLeaving = signalRService.isIntentionallyLeaving();
             
-            if (!isInGame) {
+            console.log('🎯 Connection status check:', {
+                isInGame,
+                isConnected,
+                isReconnecting,
+                isPlayerIdentified,
+                isIntentionallyLeaving
+            });
+            
+            if (isIntentionallyLeaving) {
+                setConnectionStatus('disconnected');
+            } else if (!isInGame) {
                 setConnectionStatus('disconnected');
             } else if (isReconnecting || !isConnected) {
                 setConnectionStatus('reconnecting');
@@ -756,7 +783,7 @@ export const Game: React.FC = () => {
         };
 
         // ✅ OPTIMIZED: Ultra-fast connection checks for maximum responsiveness
-        const interval = setInterval(checkConnection, 500); // Check every 500ms for instant feedback
+        const interval = setInterval(checkConnection, 1000); // Check every 1 second for instant feedback
         checkConnection(); // Initial check
 
         return () => clearInterval(interval);
@@ -1055,7 +1082,14 @@ export const Game: React.FC = () => {
                                             }
                                         });
                                         const votesSoFar = uniqueVoters.size;
-                                        const totalVoters = nonReaderPlayers.length;
+                                        
+                                        // ✅ FIX: Only count active players who are still in the game
+                                        // Filter out any voters who are no longer in the current player list
+                                        const activeVoters = Array.from(uniqueVoters).filter(voterName => 
+                                            nonReaderPlayers.some(player => player.name === voterName)
+                                        );
+                                        const activeVotesSoFar = activeVoters.length;
+                                        const totalActiveVoters = nonReaderPlayers.length;
                                         
                                         // Only show if there are votes or if judging mode is enabled
                                         if (votesSoFar > 0 || game?.judgingModeEnabled) {
@@ -1064,17 +1098,23 @@ export const Game: React.FC = () => {
                                                     <div className="flex justify-between items-center mb-2">
                                                         <span className="text-sm font-medium text-purple-700">Player Votes:</span>
                                                         <span className="text-sm text-purple-600">
-                                                            {votesSoFar} of {totalVoters} players
+                                                            {activeVotesSoFar} of {totalActiveVoters} active players
                                                         </span>
                                                     </div>
                                                     <div className="w-full bg-purple-200 rounded-full h-2">
                                                         <div 
-                                                            className={`h-2 rounded-full transition-all duration-300 ${votesSoFar === totalVoters ? 'bg-green-500' : 'bg-purple-500'}`}
+                                                            className={`h-2 rounded-full transition-all duration-300 ${activeVotesSoFar === totalActiveVoters && totalActiveVoters > 0 ? 'bg-green-500' : 'bg-purple-500'}`}
                                                             style={{ 
-                                                                width: `${(votesSoFar / totalVoters) * 100}%` 
+                                                                width: `${totalActiveVoters > 0 ? (activeVotesSoFar / totalActiveVoters) * 100 : 0}%` 
                                                             }}
                                                         ></div>
                                                     </div>
+                                                    {/* Show departed voters if any */}
+                                                    {votesSoFar > activeVotesSoFar && (
+                                                        <div className="mt-2 text-xs text-gray-500">
+                                                            {votesSoFar - activeVotesSoFar} vote{votesSoFar - activeVotesSoFar !== 1 ? 's' : ''} from departed player{votesSoFar - activeVotesSoFar !== 1 ? 's' : ''}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         }

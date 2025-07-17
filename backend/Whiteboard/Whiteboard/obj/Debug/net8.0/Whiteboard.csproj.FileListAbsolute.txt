@@ -131,8 +131,6 @@
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/bin/Debug/net8.0/runtimes/win-x86/native/e_sqlite3.dll
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/obj/Debug/net8.0/Whiteboard.csproj.AssemblyReference.cache
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/obj/Debug/net8.0/Whiteboard.GeneratedMSBuildEditorConfig.editorconfig
-/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/obj/Debug/net8.0/Whiteboard.AssemblyInfoInputs.cache
-/Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/obj/Debug/net8.0/Whiteboard.AssemblyInfo.cs
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/obj/Debug/net8.0/Whiteboard.csproj.CoreCompileInputs.cache
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/obj/Debug/net8.0/Whiteboard.MvcApplicationPartsAssemblyInfo.cs
 /Users/gavinsmith/Desktop/Whiteboard/backend/Whiteboard/Whiteboard/obj/Debug/net8.0/Whiteboard.MvcApplicationPartsAssemblyInfo.cache
