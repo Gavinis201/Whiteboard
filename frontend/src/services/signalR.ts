@@ -109,22 +109,23 @@ class SignalRService {
 
             // Safari-specific configuration
             const isSafari = this.isSafari();
-            const transportOptions = isSafari 
-                ? HttpTransportType.LongPolling | HttpTransportType.ServerSentEvents
+            const isMobile = this.isMobileSafari();
+            const transportOptions = isSafari || isMobile
+                ? HttpTransportType.LongPolling | HttpTransportType.ServerSentEvents // Mobile/Safari prefers these over WebSockets
                 : HttpTransportType.WebSockets | HttpTransportType.LongPolling | HttpTransportType.ServerSentEvents;
             
-            console.log(`🔧 SignalR Configuration - Safari: ${isSafari}, Transport: ${transportOptions}`);
+            console.log(`🔧 SignalR Configuration - Safari: ${isSafari}, Mobile: ${isMobile}, Transport: ${transportOptions}`);
             
             this.connection = new HubConnectionBuilder()
                 .withUrl('http://localhost:5164/gameHub', {
                     transport: transportOptions,
                     skipNegotiation: false,
-                    timeout: isSafari ? 60000 : 30000,
-                    keepAliveInterval: isSafari ? 15000 : 15000,
-                    serverTimeoutInMilliseconds: isSafari ? 30000 : 30000
+                    timeout: isSafari || isMobile ? 60000 : 30000, // Longer timeout for mobile/Safari
+                    keepAliveInterval: isSafari || isMobile ? 20000 : 15000, // More frequent keep-alive for mobile
+                    serverTimeoutInMilliseconds: isSafari || isMobile ? 40000 : 30000
                 })
                 .configureLogging(LogLevel.Information)
-                .withAutomaticReconnect(isSafari ? [0, 2000, 5000, 10000] : [0, 100, 200, 500, 1000])
+                .withAutomaticReconnect(isSafari || isMobile ? [0, 3000, 8000, 15000, 30000] : [0, 100, 200, 500, 1000]) // Slower reconnection for mobile
                 .build();
 
             // ✅ REFACTORED: Better connection lifecycle handling
@@ -272,7 +273,7 @@ class SignalRService {
         
         try {
             const timeoutPromise = new Promise((_, reject) => {
-                const timeout = this.isSafari() ? 15000 : 5000;
+                const timeout = this.isSafari() ? 20000 : 10000; // Longer timeout for mobile/Safari
                 setTimeout(() => reject(new Error('Join game timeout')), timeout);
             });
             const joinPromise = this.connection.invoke('JoinGame', joinCode, playerName);
@@ -280,16 +281,23 @@ class SignalRService {
             console.log('Successfully invoked JoinGame');
         } catch (error) {
             console.error('Error invoking JoinGame:', error);
-            // For Safari, try a force reconnect and retry once
-            if (this.isSafari() && error.message?.includes('timeout')) {
-                console.log('Safari timeout detected, attempting force reconnect and retry');
-                try {
-                    await this.forceReconnect();
-                    await this.joinGame(joinCode, playerName);
-                    return;
-                } catch (retryError) {
-                    console.error('Safari retry failed:', retryError);
-                    throw retryError;
+            // For Safari/mobile, try a force reconnect and retry multiple times
+            if ((this.isSafari() || this.isMobileSafari()) && error.message?.includes('timeout')) {
+                console.log('Mobile/Safari timeout detected, attempting multiple reconnection attempts');
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                    try {
+                        console.log(`Mobile reconnection attempt ${attempt}/3`);
+                        await this.forceReconnect();
+                        await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Progressive delay
+                        await this.joinGame(joinCode, playerName);
+                        console.log(`Mobile reconnection attempt ${attempt} successful`);
+                        return;
+                    } catch (retryError) {
+                        console.error(`Mobile reconnection attempt ${attempt} failed:`, retryError);
+                        if (attempt === 3) {
+                            throw retryError;
+                        }
+                    }
                 }
             }
             throw error;

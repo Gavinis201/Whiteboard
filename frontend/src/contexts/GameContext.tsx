@@ -125,11 +125,21 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                                 
                                 // ✅ CRITICAL: Wait for GameStateSynced to ensure player is properly identified
                                 console.log('⚡ Waiting for game state sync to complete...');
-                                await new Promise(resolve => setTimeout(resolve, 1000)); // Give time for GameStateSynced event
+                                await new Promise(resolve => setTimeout(resolve, 1500)); // Increased wait time for mobile
                                 
                             } catch (reconnectError) {
                                 console.error('⚡ Reconnection failed:', reconnectError);
-                                // Don't show user error - silent fail for background reconnection
+                                // ✅ ENHANCED: Retry once more for mobile scenarios
+                                try {
+                                    console.log('⚡ Retrying reconnection for mobile...');
+                                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait before retry
+                                    await signalRService.forceReconnect();
+                                    await signalRService.joinGame(game.joinCode, player.name);
+                                    console.log('⚡ Retry reconnection successful');
+                                } catch (retryError) {
+                                    console.error('⚡ Retry reconnection failed:', retryError);
+                                    // Don't show user error - silent fail for background reconnection
+                                }
                             }
                         } else {
                             console.log('⚡ Connection is already active, no reconnection needed');
@@ -193,6 +203,17 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                         return signalRService.joinGame(game.joinCode, player.name);
                     }).catch(err => {
                         console.error(`⚡ Failed to reconnect after network recovery`, err);
+                        // ✅ ENHANCED: Retry network reconnection for mobile
+                        setTimeout(() => {
+                            if (game?.joinCode && player?.name && !signalRService.isConnected()) {
+                                console.log('⚡ Retrying network reconnection...');
+                                signalRService.forceReconnect().then(() => {
+                                    return signalRService.joinGame(game.joinCode, player.name);
+                                }).catch(retryErr => {
+                                    console.error('⚡ Network reconnection retry failed:', retryErr);
+                                });
+                            }
+                        }, 3000);
                     });
                 } else {
                     console.log('⚡ Already connected, no reconnection needed');
@@ -234,10 +255,37 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             }
         };
 
+        // ✅ ENHANCED: Add mobile-specific events for better reconnection
+        const handleResume = () => {
+            console.log('⚡ App resumed (mobile), checking reconnection...');
+            if (game?.joinCode && player?.name && !signalRService.isIntentionallyLeaving()) {
+                // Force reconnection on mobile app resume
+                setTimeout(() => {
+                    if (!signalRService.isConnected()) {
+                        console.log('⚡ Mobile app resumed, forcing reconnection...');
+                        signalRService.forceReconnect().then(() => {
+                            return signalRService.joinGame(game.joinCode, player.name);
+                        }).catch(err => {
+                            console.error('⚡ Mobile reconnection failed:', err);
+                        });
+                    }
+                }, 1000); // Small delay to ensure app is fully resumed
+            }
+        };
+
         document.addEventListener('visibilitychange', handleVisibilityChange);
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
         window.addEventListener('beforeunload', handleBeforeUnload);
+        window.addEventListener('focus', handleFocus);
+        
+        // ✅ ENHANCED: Add mobile-specific event listeners
+        if ('onpageshow' in window) {
+            window.addEventListener('pageshow', handleResume);
+        }
+        if ('onresume' in window) {
+            (window as any).addEventListener('resume', handleResume);
+        }
         
         // ✅ ENHANCED: Periodic connection check with better logic
         const connectionCheckInterval = setInterval(() => {
@@ -251,16 +299,23 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     });
                 }
             }
-        }, 10000); // Check every 10 seconds instead of 5
+        }, 15000); // Check every 15 seconds for mobile battery optimization
 
-        window.addEventListener('focus', handleFocus);
-        
         return () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
             window.removeEventListener('beforeunload', handleBeforeUnload);
             window.removeEventListener('focus', handleFocus);
+            
+            // Remove mobile-specific event listeners
+            if ('onpageshow' in window) {
+                window.removeEventListener('pageshow', handleResume);
+            }
+            if ('onresume' in window) {
+                (window as any).removeEventListener('resume', handleResume);
+            }
+            
             clearInterval(connectionCheckInterval);
         };
     }, [isTimerActive, timeRemaining, onTimerExpire, game?.joinCode, player?.name, currentRound, playersWhoSubmitted, roundStartTime, selectedTimerDuration]);
@@ -345,7 +400,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         const savedGame = getCookie('currentGame');
         const savedPlayer = getCookie('currentPlayer');
         
-        // Don't auto-reconnect if we're in the process of joining a game
+        // Don't auto-reconnect if we're in the process of joining (this might happen during page refresh)
         if (isJoiningRef.current) {
             console.log('⚡ Auto-reconnection skipped - currently joining a game');
             return;
@@ -375,12 +430,25 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                             await signalRService.forceReconnect();
                             await signalRService.joinGame(game.joinCode, player.name);
                             console.log('⚡ Auto-reconnection successful');
+                            
+                            // ✅ ENHANCED: Wait for state sync to complete
+                            await new Promise(resolve => setTimeout(resolve, 2000));
                         } else {
                             console.log('⚡ Already connected, no auto-reconnection needed');
                         }
                     } catch (error) {
                         console.error('⚡ Auto-reconnection failed:', error);
-                        // Don't clear state on failure, just log it
+                        // ✅ ENHANCED: Retry auto-reconnection for mobile scenarios
+                        try {
+                            console.log('⚡ Retrying auto-reconnection...');
+                            await new Promise(resolve => setTimeout(resolve, 3000));
+                            await signalRService.forceReconnect();
+                            await signalRService.joinGame(game.joinCode, player.name);
+                            console.log('⚡ Auto-reconnection retry successful');
+                        } catch (retryError) {
+                            console.error('⚡ Auto-reconnection retry failed:', retryError);
+                            // Don't clear state on failure, just log it
+                        }
                     }
                 };
                 connectAndJoin();
