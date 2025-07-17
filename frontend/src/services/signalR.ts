@@ -194,21 +194,26 @@ class SignalRService {
         });
     }
     
-    async joinGame(joinCode: string, playerName: string) {
-        await this.ensureConnection();
-        if (!this.connection) throw new Error('No SignalR connection');
+    async ensureConnectionSafe(): Promise<boolean> {
+        try {
+            await this.ensureConnection();
+            return this.connection?.state === HubConnectionState.Connected;
+        } catch (err) {
+            console.error('Failed to ensure SignalR connection:', err);
+            return false;
+        }
+    }
 
+    async joinGame(joinCode: string, playerName: string) {
+        const connected = await this.ensureConnectionSafe();
+        if (!connected || !this.connection) throw new Error('No SignalR connection');
         this.currentJoinCode = joinCode;
         this.currentPlayerName = playerName;
-        
         try {
-            // ✅ ULTRA-FAST: Reduced timeout for instant feel
             const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('Join game timeout')), 5000); // 5 second timeout for instant feel
+                setTimeout(() => reject(new Error('Join game timeout')), 5000);
             });
-            
             const joinPromise = this.connection.invoke('JoinGame', joinCode, playerName);
-            
             await Promise.race([joinPromise, timeoutPromise]);
             console.log('Successfully invoked JoinGame');
         } catch (error) {
@@ -218,38 +223,28 @@ class SignalRService {
     }
 
     async startRound(joinCode: string, prompt: string, timerDuration?: number, votingMode?: boolean) {
-        await this.ensureConnection();
-        if (!this.connection) throw new Error('No SignalR connection');
+        const connected = await this.ensureConnectionSafe();
+        if (!connected || !this.connection) throw new Error('No SignalR connection');
         await this.connection.invoke('StartRound', joinCode, prompt, timerDuration, votingMode);
     }
 
     async sendAnswer(joinCode: string, answer: string) {
-        await this.ensureConnection();
-        if (!this.connection) throw new Error('No SignalR connection');
-        
-        // ✅ ENHANCED: Better reconnection logic for submit answer
+        const connected = await this.ensureConnectionSafe();
+        if (!connected || !this.connection) throw new Error('No SignalR connection');
         try {
             await this.connection.invoke('SubmitAnswer', joinCode, answer);
         } catch (error: any) {
             console.error('⚡ Error submitting answer via SignalR:', error);
-            
-            // ✅ ENHANCED: Handle all reconnection scenarios
             if (error.message?.includes('Player not identified') || 
                 error.message?.includes('Player not found') ||
                 error.message?.includes('No SignalR connection')) {
                 console.log('⚡ Player identification issue, attempting force reconnection before retry');
-                
-                // Try to force rejoin the game
                 if (this.currentJoinCode && this.currentPlayerName) {
                     try {
                         await this.forceReconnect();
                         await this.joinGame(this.currentJoinCode, this.currentPlayerName);
                         console.log('⚡ Successfully force reconnected, retrying answer submission');
-                        
-                        // Wait for proper identification
                         await new Promise(resolve => setTimeout(resolve, 1000));
-                        
-                        // Retry the submission
                         await this.connection.invoke('SubmitAnswer', joinCode, answer);
                         console.log('⚡ Answer submitted successfully after force reconnection');
                     } catch (rejoinError) {
@@ -267,52 +262,44 @@ class SignalRService {
     }
 
     async kickPlayer(joinCode: string, playerId: number) {
-        await this.ensureConnection();
-        if (!this.connection) throw new Error('No SignalR connection');
+        const connected = await this.ensureConnectionSafe();
+        if (!connected || !this.connection) throw new Error('No SignalR connection');
         await this.connection.invoke('KickPlayer', joinCode, playerId);
     }
 
     async toggleJudgingMode(joinCode: string, enabled: boolean) {
-        console.log('🔍 SignalR toggleJudgingMode called with:', { joinCode, enabled });
-        console.log('🔍 Connection state:', this.connection?.state);
-        
-        await this.ensureConnection();
-        if (!this.connection) throw new Error('No SignalR connection');
-        
-        console.log('🔍 About to invoke ToggleJudgingMode on backend...');
-        console.log('🔍 Parameters being sent:', { joinCode, enabled });
+        const connected = await this.ensureConnectionSafe();
+        if (!connected || !this.connection) throw new Error('No SignalR connection');
         await this.connection.invoke('ToggleJudgingMode', joinCode, enabled);
-        console.log('✅ Successfully invoked ToggleJudgingMode on backend');
     }
 
     async submitVote(joinCode: string, votedAnswerId: number) {
-        await this.ensureConnection();
-        if (!this.connection) throw new Error('No SignalR connection');
-        console.log('SignalR submitVote called with:', { joinCode, votedAnswerId });
-        
-        // Add timeout for vote submission
+        const connected = await this.ensureConnectionSafe();
+        if (!connected || !this.connection) throw new Error('No SignalR connection');
         const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Vote submission timeout')), 15000); // 15 second timeout
+            setTimeout(() => reject(new Error('Vote submission timeout')), 15000);
         });
-        
         const votePromise = this.connection.invoke('SubmitVote', joinCode, votedAnswerId);
-        
         await Promise.race([votePromise, timeoutPromise]);
     }
 
     async getMaxVotesForGame(joinCode: string): Promise<number> {
-        await this.ensureConnection();
-        if (!this.connection) throw new Error('No SignalR connection');
+        const connected = await this.ensureConnectionSafe();
+        if (!connected || !this.connection) throw new Error('No SignalR connection');
         return await this.connection.invoke('GetMaxVotesForGame', joinCode);
     }
     
     async leaveGame(joinCode: string) {
-        await this.ensureConnection();
-        if (!this.connection) throw new Error('No SignalR connection');
+        const connected = await this.ensureConnectionSafe();
+        if (!connected || !this.connection) {
+            console.warn('No SignalR connection when leaving game. Skipping backend call.');
+            this.currentJoinCode = null;
+            this.currentPlayerName = null;
+            return;
+        }
         try {
             await this.connection.invoke('LeaveGame', joinCode);
             console.log('Successfully left game');
-            // Clear the current game state so we don't try to rejoin
             this.currentJoinCode = null;
             this.currentPlayerName = null;
         } catch (error) {
