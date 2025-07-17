@@ -1113,9 +1113,9 @@ export const Game: React.FC = () => {
                                     <h4 className="text-lg font-semibold text-purple-700 mb-2">Current Prompt:</h4>
                                     <p className="text-lg text-gray-800">"{renderTextWithHiddenAnswers(currentRound.prompt)}"</p>
                                     {/* Debug info for reconnection issues */}
-                                    <div className="mt-2 text-xs text-gray-500">
+                                    {/* <div className="mt-2 text-xs text-gray-500">
                                         Round ID {currentRound.roundId}, Timer: {currentRound.timerDurationMinutes || 'none'}
-                                    </div>
+                                    </div> */}
                                 </div>
                                 {playersWhoSubmitted.has(player.playerId) ? (
                                     <div className="bg-green-50 border border-green-200 rounded-lg p-6">
