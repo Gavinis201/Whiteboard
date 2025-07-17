@@ -483,9 +483,28 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             
             if (isReconnecting) {
                 console.log("🔄 RECONNECTION DETECTED: Player returning to browser during active round");
-                console.log("🔄 Previous round ID:", currentRound.roundId);
-                console.log("🔄 Current active round ID:", payload.activeRound?.roundId);
-                console.log("🔄 Player will be synced to current game state");
+                
+                // ✅ FIX: Reset navigation flag for reconnecting players to allow auto-navigation
+                hasNavigatedToJudgingRef.current = false;
+                
+                // ✅ NEW: Check if this is a voting round and all players have submitted
+                if ((payload.activeRound as any)?.votingEnabled && payload.currentAnswers?.length > 0) {
+                    console.log("🔄 Reconnecting to voting round with existing answers");
+                    
+                    // Force a navigation check after state updates
+                    setTimeout(() => {
+                        const nonReaderPlayers = payload.players.filter((p: Player) => !p.isReader);
+                        const submittedPlayerIds = new Set(payload.currentAnswers.map((a: any) => a.playerId));
+                        const allNonReadersSubmitted = nonReaderPlayers.length > 0 && 
+                            nonReaderPlayers.every((p: Player) => submittedPlayerIds.has(p.playerId));
+                        
+                        if (allNonReadersSubmitted && !hasNavigatedToJudgingRef.current) {
+                            console.log("🔄 Reconnecting player - all players submitted in voting round, navigating to judging");
+                            hasNavigatedToJudgingRef.current = true;
+                            navigate('/judging');
+                        }
+                    }, 100); // Small delay to ensure state is updated
+                }
             }
             
             setGame(prevGame => {
@@ -823,44 +842,24 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
     // Auto-navigate to judging when everyone has submitted (only if judging mode is enabled)
     useEffect(() => {
-        console.log('🔄 Auto-navigate to judging effect triggered');
-        console.log('  - isInitialized:', isInitialized, 'game:', !!game, 'player:', !!player, 'currentRound:', !!currentRound);
-                    console.log('  - answers.length:', answers.length, 'judgingModeEnabled:', game?.judgingModeEnabled);
-            console.log('  - game?.judgingModeEnabled:', game?.judgingModeEnabled);
-        console.log('  - playersWhoSubmitted:', Array.from(playersWhoSubmitted));
-        console.log('  - hasNavigatedToJudgingRef.current:', hasNavigatedToJudgingRef.current);
-        
         if (!isInitialized || !game || !player || !currentRound) {
-            console.log('❌ Auto-navigate to judging early return - missing required data');
             return;
         }
 
         // Only auto-navigate for non-reader players (joined players, not the host)
         if (player.isReader) {
-            console.log('❌ Auto-navigate to judging early return - player is reader');
             return; // Host stays on the game page
         }
-
-        console.log('🔍 Auto-navigate debugging:');
-        console.log('  - player.isReader:', player.isReader);
-        console.log('  - currentRound:', currentRound);
-        console.log('  - answers.length:', answers.length);
-        console.log('  - playersWhoSubmitted:', Array.from(playersWhoSubmitted));
-        console.log('  - players:', players.map(p => ({ name: p.name, isReader: p.isReader, playerId: p.playerId })));
-        console.log('  - roundsWithVotingEnabled:', Array.from(roundsWithVotingEnabled));
-        console.log('  - hasNavigatedToJudgingRef.current:', hasNavigatedToJudgingRef.current);
 
         // Check if we're already on the judging page
         const isOnJudgingPage = window.location.pathname === '/judging';
         if (isOnJudgingPage) {
-            console.log('❌ Auto-navigate to judging early return - already on judging page');
             return; // Already on judging page, don't navigate
         }
 
         // ✅ FIX: Don't navigate to judging if we're in a new round (no answers yet)
         // This prevents the rapid back-and-forth when a new round starts
         if (answers.length === 0) {
-            console.log('❌ Auto-navigate to judging early return - no answers yet (likely new round)');
             return;
         }
 
@@ -869,33 +868,30 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         const allNonReadersSubmitted = nonReaderPlayers.length > 0 && 
             nonReaderPlayers.every(p => playersWhoSubmitted.has(p.playerId));
 
-        console.log('  - nonReaderPlayers:', nonReaderPlayers.map(p => p.name));
-        console.log('  - allNonReadersSubmitted:', allNonReadersSubmitted);
-
         if (allNonReadersSubmitted && !hasNavigatedToJudgingRef.current) {
             // ✅ FIX: Check if this specific round should have voting enabled
             const shouldVoteForThisRound = currentRound && roundsWithVotingEnabled.has(currentRound.roundId);
-            console.log('🔍 Voting check for round:', currentRound?.roundId);
-            console.log('  - roundsWithVotingEnabled:', Array.from(roundsWithVotingEnabled));
-            console.log('  - shouldVoteForThisRound:', shouldVoteForThisRound);
             
             if (shouldVoteForThisRound) {
-                console.log('✅ All players have submitted and this round has voting enabled, navigating to judging page');
-                console.log('  - roundId:', currentRound.roundId);
+                console.log('✅ All players submitted and voting enabled, navigating to judging');
                 hasNavigatedToJudgingRef.current = true;
-                
-                // ✅ OPTIMIZED: Use React Router navigation instead of window.location.href
-                console.log('🎯 Navigating to /judging using React Router');
                 navigate('/judging');
-            } else {
-                console.log('❌ All players have submitted but this round does not have voting enabled, staying on game page');
-                console.log('  - roundId:', currentRound?.roundId);
-                console.log('  - voting enabled for this round:', shouldVoteForThisRound);
             }
-        } else {
-            console.log('❌ Auto-navigate to judging conditions not met:');
-            console.log('  - allNonReadersSubmitted:', allNonReadersSubmitted);
-            console.log('  - !hasNavigatedToJudgingRef.current:', !hasNavigatedToJudgingRef.current);
+        }
+        
+        // ✅ NEW: Additional check for reconnecting players who might have missed the initial navigation
+        // This handles the case where a player reconnects after being away for >10 seconds
+        if (answers.length > 0 && !hasNavigatedToJudgingRef.current) {
+            const shouldVoteForThisRound = currentRound && roundsWithVotingEnabled.has(currentRound.roundId);
+            const nonReaderPlayers = players.filter(p => !p.isReader);
+            const allNonReadersSubmitted = nonReaderPlayers.length > 0 && 
+                nonReaderPlayers.every(p => playersWhoSubmitted.has(p.playerId));
+            
+            if (shouldVoteForThisRound && allNonReadersSubmitted) {
+                console.log('✅ Reconnecting player - all players submitted in voting round, navigating to judging');
+                hasNavigatedToJudgingRef.current = true;
+                navigate('/judging');
+            }
         }
     }, [isInitialized, game, player, currentRound, playersWhoSubmitted, roundsWithVotingEnabled, answers.length, navigate]);
 
@@ -915,25 +911,17 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
     // Auto-redirect players back to game page when a new round starts
     useEffect(() => {
-        console.log('🔄 Auto-redirect effect triggered');
-        console.log('isInitialized:', isInitialized, 'game:', !!game, 'player:', !!player, 'currentRound:', !!currentRound);
-        console.log('currentRound?.roundId:', currentRound?.roundId, 'previousRoundId:', previousRoundId);
-        console.log('📍 Current page:', window.location.pathname);
-        
         if (!isInitialized || !game || !player || !currentRound) {
-            console.log('❌ Auto-redirect effect early return - missing required data');
             return;
         }
 
         // Only redirect non-reader players (joined players, not the host)
         if (player.isReader) {
-            console.log('❌ Auto-redirect effect early return - player is reader');
             return; // Host stays on the game page
         }
 
         // Check if we're currently on the judging page and a new round has started
         const isOnJudgingPage = window.location.pathname === '/judging';
-        console.log('📍 isOnJudgingPage:', isOnJudgingPage);
         
         // ✅ FIX: Use the state variable to properly detect round changes
         // Only redirect if we're on judging page and there's a new round (not just navigating to judging)
@@ -941,40 +929,72 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         if (isOnJudgingPage && previousRoundId !== null && currentRound.roundId !== previousRoundId && 
             previousRoundIdRef.current && previousRoundIdRef.current === previousRoundId) {
             console.log('✅ New round started, redirecting player back to game page');
-            console.log('Current round ID:', currentRound.roundId, 'Previous round ID:', previousRoundId);
-            console.log('Previous round ID ref:', previousRoundIdRef.current);
-            
-            // ✅ OPTIMIZED: Use React Router navigation instead of window.location.href
-            console.log('🎯 Navigating to /game using React Router');
             navigate('/game');
         } else if (isOnJudgingPage && answers.length === 0 && !hasNavigatedToJudgingRef.current) {
             // Only redirect if there are no answers AND we haven't just navigated to judging
             // This prevents the conflict between auto-navigate and auto-redirect
-            console.log('✅ No answers for current round and not just navigated to judging, redirecting player back to game page');
-            console.log('Answers length:', answers.length, 'hasNavigatedToJudgingRef:', hasNavigatedToJudgingRef.current);
-            
-            // ✅ OPTIMIZED: Use React Router navigation instead of window.location.href
-            console.log('🎯 Navigating to /game using React Router');
+            console.log('✅ No answers for current round, redirecting player back to game page');
             navigate('/game');
         } else if (isOnJudgingPage && currentRound && !roundsWithVotingEnabled.has(currentRound.roundId)) {
             // Redirect players back to game page if this round doesn't have voting enabled
             console.log('✅ This round does not have voting enabled, redirecting player back to game page');
-            console.log('Round ID:', currentRound.roundId, 'Voting enabled for this round:', roundsWithVotingEnabled.has(currentRound.roundId));
-            
-            // ✅ OPTIMIZED: Use React Router navigation instead of window.location.href
-            console.log('🎯 Navigating to /game using React Router');
             navigate('/game');
-        } else {
-            console.log('❌ Auto-redirect conditions not met:');
-            console.log('  - isOnJudgingPage:', isOnJudgingPage);
-            console.log('  - previousRoundId !== null:', previousRoundId !== null);
-            console.log('  - currentRound.roundId !== previousRoundId:', currentRound.roundId !== previousRoundId);
-            console.log('  - previousRoundIdRef.current === previousRoundId:', previousRoundIdRef.current === previousRoundId);
-            console.log('  - answers.length === 0:', answers.length === 0);
-            console.log('  - judgingModeEnabled:', game?.judgingModeEnabled);
-            console.log('  - !hasNavigatedToJudgingRef.current:', !hasNavigatedToJudgingRef.current);
         }
     }, [isInitialized, game, player, currentRound?.roundId, previousRoundId, answers.length, roundsWithVotingEnabled, navigate, hasNavigatedToJudgingRef.current]);
+
+    // ✅ NEW: Trigger navigation immediately after answer submission
+    useEffect(() => {
+        if (!isInitialized || !game || !player || !currentRound || player.isReader) {
+            return;
+        }
+
+        // Check if this player just submitted their answer
+        const playerJustSubmitted = playersWhoSubmitted.has(player.playerId);
+        
+        if (playerJustSubmitted) {
+            // Check if all non-reader players have submitted
+            const nonReaderPlayers = players.filter(p => !p.isReader);
+            const allNonReadersSubmitted = nonReaderPlayers.length > 0 && 
+                nonReaderPlayers.every(p => playersWhoSubmitted.has(p.playerId));
+            
+            // Check if this round has voting enabled
+            const shouldVoteForThisRound = roundsWithVotingEnabled.has(currentRound.roundId);
+            
+            // If all players have submitted and voting is enabled, navigate immediately
+            if (allNonReadersSubmitted && shouldVoteForThisRound && !hasNavigatedToJudgingRef.current) {
+                console.log('🎯 All players submitted and voting enabled, navigating to judging immediately');
+                hasNavigatedToJudgingRef.current = true;
+                navigate('/judging');
+            }
+        }
+    }, [playersWhoSubmitted, isInitialized, game, player, currentRound, roundsWithVotingEnabled, players, navigate]);
+
+    // ✅ NEW: Handle reconnecting players who should be on judging page
+    useEffect(() => {
+        if (!isInitialized || !game || !player || !currentRound || player.isReader) {
+            return;
+        }
+
+        // Check if we're already on the judging page
+        const isOnJudgingPage = window.location.pathname === '/judging';
+        if (isOnJudgingPage) {
+            return;
+        }
+
+        // Check if this is a voting round with answers and all players have submitted
+        const shouldVoteForThisRound = roundsWithVotingEnabled.has(currentRound.roundId);
+        const hasAnswers = answers.length > 0;
+        const nonReaderPlayers = players.filter(p => !p.isReader);
+        const allNonReadersSubmitted = nonReaderPlayers.length > 0 && 
+            nonReaderPlayers.every(p => playersWhoSubmitted.has(p.playerId));
+
+        // If this is a voting round with answers and all players submitted, navigate to judging
+        if (shouldVoteForThisRound && hasAnswers && allNonReadersSubmitted && !hasNavigatedToJudgingRef.current) {
+            console.log('🔄 Reconnecting player detected - voting round with all submissions, navigating to judging');
+            hasNavigatedToJudgingRef.current = true;
+            navigate('/judging');
+        }
+    }, [isInitialized, game, player, currentRound, answers, playersWhoSubmitted, roundsWithVotingEnabled, players, navigate]);
 
     const createGame = async (playerName: string) => {
         console.log('🎯 GameContext: Starting createGame...');
