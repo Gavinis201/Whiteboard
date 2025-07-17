@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { Answer, VoteResult } from '../types/game';
 import { signalRService } from '../services/signalR';
-import { getDetailedVoteResults } from '../services/api';
 import './JudgingPage.css';
 import { useNavigate } from 'react-router-dom';
 
@@ -12,12 +11,7 @@ export const JudgingPage: React.FC = () => {
     const [voteResults, setVoteResults] = useState<VoteResult[]>([]);
     const [hasVoted, setHasVoted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [detailedVoteResults, setDetailedVoteResults] = useState<any[]>([]);
     const navigate = useNavigate();
-    
-    // ✅ NEW: Reconnection state tracking
-    const hasRehydratedRef = useRef<boolean>(false);
-    const previousRoundIdRef = useRef<number | null>(null);
 
     // Filter out the current player's own drawing and only show answers from the current round
     const otherPlayersAnswers = answers.filter(answer => 
@@ -30,23 +24,9 @@ export const JudgingPage: React.FC = () => {
     console.log('JudgingPage - All answers:', answers);
     console.log('JudgingPage - Filtered answers for current round:', otherPlayersAnswers);
     
-    // ✅ NEW: Fetch detailed vote results for reconnection
-    const fetchDetailedVoteResults = useCallback(async () => {
-        if (!currentRound) return;
-        try {
-            console.log('🎯 JudgingPage - Fetching detailed vote results for round:', currentRound.roundId);
-            const detailedResults = await getDetailedVoteResults(currentRound.roundId);
-            console.log('🎯 JudgingPage - Detailed vote results received:', detailedResults);
-            setDetailedVoteResults(detailedResults);
-        } catch (error) {
-            console.error('🎯 JudgingPage - Error fetching detailed vote results:', error);
-        }
-    }, [currentRound]);
-    
     useEffect(() => {
         // Set up vote results listener
         signalRService.onVoteResultsUpdated((results: VoteResult[], maxVotes: number) => {
-            console.log('🎯 JudgingPage - Vote results updated:', results);
             setVoteResults(results);
         });
 
@@ -63,14 +43,6 @@ export const JudgingPage: React.FC = () => {
             signalRService.onJudgingModeToggled(() => {});
         };
     }, []); // Empty dependency array - only run once
-
-    // ✅ NEW: Fetch detailed vote results when vote results are updated
-    useEffect(() => {
-        if (currentRound && voteResults.length > 0) {
-            console.log('🎯 JudgingPage - Vote results updated, fetching detailed results');
-            fetchDetailedVoteResults();
-        }
-    }, [currentRound, voteResults, fetchDetailedVoteResults]);
 
     const handleVoteSelect = (answerId: number | null) => {
         // If selecting the same answer, deselect it
@@ -118,64 +90,6 @@ export const JudgingPage: React.FC = () => {
 
     const canSubmit = selectedVote !== null && otherPlayersAnswers.length > 0;
 
-    // ✅ NEW: Reconnection logic to rehydrate voting state
-    useEffect(() => {
-        if (!currentRound || !player) return;
-        
-        const currentRoundId = currentRound.roundId;
-        const isNewRound = previousRoundIdRef.current !== currentRoundId;
-        
-        console.log('🎯 JudgingPage - Round change detected:', {
-            previousRoundId: previousRoundIdRef.current,
-            currentRoundId,
-            isNewRound,
-            hasRehydrated: hasRehydratedRef.current
-        });
-        
-        // Reset state for new rounds
-        if (isNewRound) {
-            console.log('🎯 JudgingPage - New round detected, resetting voting state');
-            setSelectedVote(null);
-            setHasVoted(false);
-            setVoteResults([]);
-            setDetailedVoteResults([]);
-            hasRehydratedRef.current = false;
-            previousRoundIdRef.current = currentRoundId;
-        }
-        
-        // ✅ NEW: Rehydrate voting state for reconnecting players
-        if (!hasRehydratedRef.current && currentRound && answers.length > 0) {
-            console.log('🎯 JudgingPage - Rehydrating voting state for reconnecting player');
-            
-            // Fetch detailed vote results to check if player has voted
-            fetchDetailedVoteResults();
-            
-            // Check if player has already voted by looking at detailed vote results
-            const playerHasVoted = detailedVoteResults.some(result => 
-                result.voters && result.voters.some((voter: any) => voter.voterName === player.name)
-            );
-            
-            if (playerHasVoted) {
-                console.log('🎯 JudgingPage - Player has already voted, setting hasVoted to true');
-                setHasVoted(true);
-                // Find which answer they voted for
-                const votedResult = detailedVoteResults.find(result => 
-                    result.voters && result.voters.some((voter: any) => voter.voterName === player.name)
-                );
-                if (votedResult) {
-                    setSelectedVote(votedResult.answerId);
-                }
-            } else {
-                console.log('🎯 JudgingPage - Player has not voted yet');
-                setHasVoted(false);
-                setSelectedVote(null);
-            }
-            
-            hasRehydratedRef.current = true;
-        }
-        
-    }, [currentRound, answers, detailedVoteResults, player, fetchDetailedVoteResults]);
-
     const handleLeaveGame = async () => {
         const message = isReader 
             ? 'Are you sure you want to leave? This will end the game for all players.'
@@ -193,19 +107,6 @@ export const JudgingPage: React.FC = () => {
                 <div className="loading-container">
                     <div className="loading-spinner"></div>
                     <p>Loading voting session...</p>
-                </div>
-            </div>
-        );
-    }
-
-    // ✅ NEW: Show rehydration state for reconnecting players
-    if (!hasRehydratedRef.current && currentRound && answers.length > 0) {
-        return (
-            <div className="judging-page">
-                <div className="loading-container">
-                    <div className="loading-spinner"></div>
-                    <p>Reconnecting to voting session...</p>
-                    <p className="text-sm text-gray-500">Syncing your voting status...</p>
                 </div>
             </div>
         );
