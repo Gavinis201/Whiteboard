@@ -154,6 +154,32 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                             }
                         }
                         
+                        // ✅ NEW: Special handling for mobile users returning to voting rounds
+                        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                        if (isMobile && currentRound && (currentRound as any)?.votingEnabled && player) {
+                            console.log('📱 Mobile user returning to voting round, checking submission status');
+                            
+                            // Check if this player has already submitted
+                            const hasSubmitted = playersWhoSubmitted.has(player.playerId);
+                            
+                            if (!hasSubmitted) {
+                                console.log('📱 Mobile user needs to submit drawing for voting round');
+                                // They'll stay on game page to submit their drawing
+                            } else {
+                                console.log('📱 Mobile user already submitted, checking if should navigate to judging');
+                                // Check if all players have submitted
+                                const nonReaderPlayers = players.filter(p => !p.isReader);
+                                const allNonReadersSubmitted = nonReaderPlayers.length > 0 && 
+                                    nonReaderPlayers.every(p => playersWhoSubmitted.has(p.playerId));
+                                
+                                if (allNonReadersSubmitted && !hasNavigatedToJudgingRef.current) {
+                                    console.log('📱 Mobile user already submitted and all players done, navigating to judging');
+                                    hasNavigatedToJudgingRef.current = true;
+                                    navigate('/judging');
+                                }
+                            }
+                        }
+                        
                     } catch (error) {
                         console.error('⚡ Reconnection failed:', error);
                         // ✅ ENHANCED: No user interruption, silent fail
@@ -576,24 +602,56 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                     }
                 }
                 
-                // ✅ NEW: Handle navigation for reconnecting players
-                if (isReconnecting || wasAwayDuringRoundStart) {
-                    // Check if this is a voting round and all players have submitted
-                    if ((payload.activeRound as any)?.votingEnabled && currentRoundAnswers.length > 0) {
-                        setTimeout(() => {
-                            const nonReaderPlayers = payload.players.filter((p: Player) => !p.isReader);
-                            const submittedPlayerIds = new Set(currentRoundAnswers.map((a: any) => a.playerId));
-                            const allNonReadersSubmitted = nonReaderPlayers.length > 0 && 
-                                nonReaderPlayers.every((p: Player) => submittedPlayerIds.has(p.playerId));
-                            
-                            if (allNonReadersSubmitted && !hasNavigatedToJudgingRef.current) {
-                                console.log("🔄 Reconnecting player - all players submitted in voting round, navigating to judging");
-                                hasNavigatedToJudgingRef.current = true;
-                                navigate('/judging');
-                            }
-                        }, 300); // Give state time to update
+                            // ✅ NEW: Handle navigation for reconnecting players
+            if (isReconnecting || wasAwayDuringRoundStart) {
+                // Check if this is a voting round and all players have submitted
+                if ((payload.activeRound as any)?.votingEnabled && currentRoundAnswers.length > 0) {
+                    setTimeout(() => {
+                        const nonReaderPlayers = payload.players.filter((p: Player) => !p.isReader);
+                        const submittedPlayerIds = new Set(currentRoundAnswers.map((a: any) => a.playerId));
+                        const allNonReadersSubmitted = nonReaderPlayers.length > 0 && 
+                            nonReaderPlayers.every((p: Player) => submittedPlayerIds.has(p.playerId));
+                        
+                        if (allNonReadersSubmitted && !hasNavigatedToJudgingRef.current) {
+                            console.log("🔄 Reconnecting player - all players submitted in voting round, navigating to judging");
+                            hasNavigatedToJudgingRef.current = true;
+                            navigate('/judging');
+                        }
+                    }, 300); // Give state time to update
+                }
+                
+                // ✅ NEW: Special handling for mobile users who were away during voting round start
+                if (wasAwayDuringRoundStart && (payload.activeRound as any)?.votingEnabled && player) {
+                    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                    if (isMobile) {
+                        console.log("📱 Mobile user was away during voting round start");
+                        
+                        // Check if this player has already submitted
+                        const hasSubmitted = currentRoundAnswers.some(a => a.playerId === player.playerId);
+                        
+                        if (!hasSubmitted) {
+                            console.log("📱 Mobile user needs to submit drawing for voting round");
+                            // They'll stay on game page to submit their drawing
+                            // The existing auto-navigation logic will handle taking them to judging after submission
+                        } else {
+                            console.log("📱 Mobile user already submitted, checking if should navigate to judging");
+                            // Check if all players have submitted
+                            setTimeout(() => {
+                                const nonReaderPlayers = payload.players.filter((p: Player) => !p.isReader);
+                                const submittedPlayerIds = new Set(currentRoundAnswers.map((a: any) => a.playerId));
+                                const allNonReadersSubmitted = nonReaderPlayers.length > 0 && 
+                                    nonReaderPlayers.every((p: Player) => submittedPlayerIds.has(p.playerId));
+                                
+                                if (allNonReadersSubmitted && !hasNavigatedToJudgingRef.current) {
+                                    console.log("📱 Mobile user already submitted and all players done, navigating to judging");
+                                    hasNavigatedToJudgingRef.current = true;
+                                    navigate('/judging');
+                                }
+                            }, 500); // Slightly longer delay for mobile
+                        }
                     }
                 }
+            }
                 
                 // ✅ FIX: Set previousRoundId when detecting a new round from GameStateSynced
                 if (currentRound?.roundId && currentRound.roundId !== payload.activeRound.roundId) {
@@ -856,6 +914,31 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 console.log('✅ Reconnecting player - all players submitted in voting round, navigating to judging');
                 hasNavigatedToJudgingRef.current = true;
                 navigate('/judging');
+            }
+        }
+        
+        // ✅ NEW: Enhanced mobile-specific navigation for voting rounds
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobile && currentRound && roundsWithVotingEnabled.has(currentRound.roundId) && answers.length > 0) {
+            console.log('📱 Mobile user in voting round, checking navigation status');
+            
+            // Check if this mobile user has already submitted
+            const hasSubmitted = playersWhoSubmitted.has(player.playerId);
+            
+            if (hasSubmitted) {
+                // Check if all players have submitted
+                const nonReaderPlayers = players.filter(p => !p.isReader);
+                const allNonReadersSubmitted = nonReaderPlayers.length > 0 && 
+                    nonReaderPlayers.every(p => playersWhoSubmitted.has(p.playerId));
+                
+                if (allNonReadersSubmitted && !hasNavigatedToJudgingRef.current) {
+                    console.log('📱 Mobile user submitted and all players done, navigating to judging');
+                    hasNavigatedToJudgingRef.current = true;
+                    navigate('/judging');
+                }
+            } else {
+                console.log('📱 Mobile user needs to submit drawing for voting round');
+                // They'll stay on game page to submit their drawing
             }
         }
     }, [isInitialized, game, player, currentRound, playersWhoSubmitted, roundsWithVotingEnabled, answers.length, navigate]);
