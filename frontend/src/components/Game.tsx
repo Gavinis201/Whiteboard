@@ -668,7 +668,7 @@ export const Game: React.FC = () => {
         // Reset fill mode when starting new round
         setIsFillMode(false);
         // Reset round voting mode after starting round
-        setRoundVotingMode(false);
+        // setRoundVotingMode(false);
         // setSelectedTimerDuration(null);
     };
     
@@ -726,7 +726,7 @@ export const Game: React.FC = () => {
                             </div>
                         ) : (
                             <div className="voter-list-below">
-                                <div className="text-sm text-gray-500 italic">No votes yet</div>
+                                {/* <div className="text-sm text-gray-500 italic">No votes yet</div> */}
                             </div>
                         )}
                     </div>
