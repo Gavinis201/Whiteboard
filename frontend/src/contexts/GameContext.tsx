@@ -123,16 +123,16 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                                 await signalRService.joinGame(game.joinCode, player.name);
                                 console.log(`⚡ Reconnection successful - Safari: ${isSafari()}`);
                                 
-                                                        // ✅ OPTIMIZED: Minimal wait for game state sync
+                                                        // ✅ OPTIMIZED: Balanced wait for game state sync
                         console.log('⚡ Waiting for game state sync to complete...');
-                        await new Promise(resolve => setTimeout(resolve, 300)); // Reduced wait time
+                        await new Promise(resolve => setTimeout(resolve, 800)); // Balanced wait time
                                 
                             } catch (reconnectError) {
                                 console.error('⚡ Reconnection failed:', reconnectError);
-                                // ✅ OPTIMIZED: Quick retry for mobile scenarios
+                                // ✅ OPTIMIZED: Balanced retry for mobile scenarios
                                 try {
                                     console.log('⚡ Retrying reconnection for mobile...');
-                                    await new Promise(resolve => setTimeout(resolve, 500)); // Reduced wait before retry
+                                    await new Promise(resolve => setTimeout(resolve, 1000)); // Balanced wait before retry
                                     await signalRService.forceReconnect();
                                     await signalRService.joinGame(game.joinCode, player.name);
                                     console.log('⚡ Retry reconnection successful');
@@ -203,7 +203,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                         return signalRService.joinGame(game.joinCode, player.name);
                     }).catch(err => {
                         console.error(`⚡ Failed to reconnect after network recovery`, err);
-                        // ✅ OPTIMIZED: Quick retry network reconnection
+                        // ✅ OPTIMIZED: Balanced retry network reconnection
                         setTimeout(() => {
                             if (game?.joinCode && player?.name && !signalRService.isConnected()) {
                                 console.log('⚡ Retrying network reconnection...');
@@ -213,7 +213,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                                     console.error('⚡ Network reconnection retry failed:', retryErr);
                                 });
                             }
-                        }, 1000);
+                        }, 1500);
                     });
                 } else {
                     console.log('⚡ Already connected, no reconnection needed');
@@ -269,7 +269,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                             console.error('⚡ Mobile reconnection failed:', err);
                         });
                     }
-                }, 200); // Minimal delay to ensure app is fully resumed
+                }, 500); // Balanced delay to ensure app is fully resumed
             }
         };
 
@@ -431,17 +431,17 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                             await signalRService.joinGame(game.joinCode, player.name);
                             console.log('⚡ Auto-reconnection successful');
                             
-                                                    // ✅ OPTIMIZED: Minimal wait for state sync
-                        await new Promise(resolve => setTimeout(resolve, 300));
+                                                    // ✅ OPTIMIZED: Balanced wait for state sync
+                        await new Promise(resolve => setTimeout(resolve, 800));
                         } else {
                             console.log('⚡ Already connected, no auto-reconnection needed');
                         }
                     } catch (error) {
                         console.error('⚡ Auto-reconnection failed:', error);
-                        // ✅ OPTIMIZED: Quick retry auto-reconnection
+                        // ✅ OPTIMIZED: Balanced retry auto-reconnection
                         try {
                             console.log('⚡ Retrying auto-reconnection...');
-                            await new Promise(resolve => setTimeout(resolve, 500));
+                            await new Promise(resolve => setTimeout(resolve, 1000));
                             await signalRService.forceReconnect();
                             await signalRService.joinGame(game.joinCode, player.name);
                             console.log('⚡ Auto-reconnection retry successful');
@@ -1189,7 +1189,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 await signalRService.joinGame(game.joinCode, player.name);
                 
                 // Wait for GameStateSynced to ensure player is properly identified
-                await new Promise(resolve => setTimeout(resolve, 300)); // Reduced wait time
+                await new Promise(resolve => setTimeout(resolve, 800)); // Balanced wait time
             }
             
             // ✅ OPTIMIZED: Double-check player identification before submitting
@@ -1197,7 +1197,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 console.log('⚡ Player not identified, forcing reconnection before submission');
                 await signalRService.forceReconnect();
                 await signalRService.joinGame(game.joinCode, player.name);
-                await new Promise(resolve => setTimeout(resolve, 300)); // Reduced wait time
+                await new Promise(resolve => setTimeout(resolve, 800)); // Balanced wait time
             }
             
             // ✅ NEW: Additional check for mobile reconnection scenarios
