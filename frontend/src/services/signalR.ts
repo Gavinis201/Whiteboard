@@ -117,12 +117,10 @@ class SignalRService {
             console.log(`🔧 SignalR Configuration - Safari: ${isSafari}, Mobile: ${isMobile}, Transport: ${transportOptions}`);
             
             this.connection = new HubConnectionBuilder()
-                .withUrl('http://localhost:5164/gameHub', {
+                .withUrl('https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/gameHub', {
                     transport: transportOptions,
                     skipNegotiation: false,
-                    timeout: isSafari || isMobile ? 60000 : 30000, // Longer timeout for mobile/Safari
-                    keepAliveInterval: isSafari || isMobile ? 20000 : 15000, // More frequent keep-alive for mobile
-                    serverTimeoutInMilliseconds: isSafari || isMobile ? 40000 : 30000
+                    timeout: isSafari || isMobile ? 60000 : 30000 // Longer timeout for mobile/Safari
                 })
                 .configureLogging(LogLevel.Information)
                 .withAutomaticReconnect(isSafari || isMobile ? [0, 3000, 8000, 15000, 30000] : [0, 100, 200, 500, 1000]) // Slower reconnection for mobile
@@ -282,7 +280,7 @@ class SignalRService {
         } catch (error) {
             console.error('Error invoking JoinGame:', error);
             // For Safari/mobile, try a force reconnect and retry multiple times
-            if ((this.isSafari() || this.isMobileSafari()) && error.message?.includes('timeout')) {
+            if ((this.isSafari() || this.isMobileSafari()) && error instanceof Error && error.message?.includes('timeout')) {
                 console.log('Mobile/Safari timeout detected, attempting multiple reconnection attempts');
                 for (let attempt = 1; attempt <= 3; attempt++) {
                     try {

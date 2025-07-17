@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 // Local development URL
-const API_URL = 'http://localhost:5164/api';
-// const API_URL = 'https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/api'; // Azure production URL
+// const API_URL = 'http://localhost:5164/api';
+const API_URL = 'https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/api'; // Azure production URL
 
 // ✅ OPTIMIZED: Configure axios for maximum speed
 axios.defaults.timeout = 5000; // 5 second timeout
