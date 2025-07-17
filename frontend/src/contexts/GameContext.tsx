@@ -507,6 +507,26 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 }
             }
             
+            // ✅ NEW: Handle case where player was away during previous judging round
+            // This catches players who reconnect and find themselves in a voting round
+            if (!isReconnecting && (payload.activeRound as any)?.votingEnabled && payload.currentAnswers?.length > 0) {
+                console.log("🔄 Player reconnected to active voting round");
+                
+                // Check if all players have submitted in this voting round
+                setTimeout(() => {
+                    const nonReaderPlayers = payload.players.filter((p: Player) => !p.isReader);
+                    const submittedPlayerIds = new Set(payload.currentAnswers.map((a: any) => a.playerId));
+                    const allNonReadersSubmitted = nonReaderPlayers.length > 0 && 
+                        nonReaderPlayers.every((p: Player) => submittedPlayerIds.has(p.playerId));
+                    
+                    if (allNonReadersSubmitted && !hasNavigatedToJudgingRef.current) {
+                        console.log("🔄 Player reconnected to completed voting round, navigating to judging");
+                        hasNavigatedToJudgingRef.current = true;
+                        navigate('/judging');
+                    }
+                }, 200); // Slightly longer delay for this case
+            }
+            
             setGame(prevGame => {
                 if (!prevGame) return null;
                 const newGame = {
@@ -969,7 +989,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [playersWhoSubmitted, isInitialized, game, player, currentRound, roundsWithVotingEnabled, players, navigate]);
 
-    // ✅ NEW: Handle reconnecting players who should be on judging page
+    // ✅ NEW: Periodic check for reconnecting players who should be on judging page
     useEffect(() => {
         if (!isInitialized || !game || !player || !currentRound || player.isReader) {
             return;
@@ -990,7 +1010,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
         // If this is a voting round with answers and all players submitted, navigate to judging
         if (shouldVoteForThisRound && hasAnswers && allNonReadersSubmitted && !hasNavigatedToJudgingRef.current) {
-            console.log('🔄 Reconnecting player detected - voting round with all submissions, navigating to judging');
+            console.log('🔄 Periodic check - reconnecting player should be on judging page, navigating');
             hasNavigatedToJudgingRef.current = true;
             navigate('/judging');
         }
