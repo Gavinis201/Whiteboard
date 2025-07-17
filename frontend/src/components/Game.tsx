@@ -154,7 +154,8 @@ export const Game: React.FC = () => {
             
             // Also test the debug endpoint
             try {
-                const response = await fetch(`${import.meta.env.VITE_API_URL}/votes/debug/all`);
+                const apiUrl = import.meta.env.VITE_API_URL || 'https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/api';
+                const response = await fetch(`${apiUrl}/votes/debug/all`);
                 const allVotes = await response.json();
                 console.log('🔍 MANUAL TEST: All votes in database:', allVotes);
             } catch (error) {

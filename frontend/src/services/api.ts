@@ -1,12 +1,41 @@
 import axios from 'axios';
 
-// Local development URL
-// const API_URL = 'http://localhost:5164/api';
-const API_URL = 'https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/api'; // Azure production URL
+// ✅ FIXED: Use environment variable with fallback to Azure production URL
+const API_URL = import.meta.env.VITE_API_URL || 'https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/api';
 
-// ✅ OPTIMIZED: Configure axios for maximum speed
-axios.defaults.timeout = 5000; // 5 second timeout
+console.log('🔧 API Configuration - API_URL:', API_URL);
+
+// ✅ ENHANCED: Configure axios for Safari/mobile compatibility
+axios.defaults.timeout = 15000; // Increased timeout for mobile/Safari
 axios.defaults.headers.common['Cache-Control'] = 'no-cache'; // Prevent caching delays
+
+// ✅ NEW: Add request interceptor for better error handling
+axios.interceptors.request.use(
+    (config) => {
+        console.log(`🔧 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+        return config;
+    },
+    (error) => {
+        console.error('🔧 API Request Error:', error);
+        return Promise.reject(error);
+    }
+);
+
+// ✅ NEW: Add response interceptor for better error handling
+axios.interceptors.response.use(
+    (response) => {
+        console.log(`🔧 API Response: ${response.status} ${response.config.url}`);
+        return response;
+    },
+    (error) => {
+        console.error('🔧 API Response Error:', error);
+        if (error.response) {
+            console.error('🔧 Error Status:', error.response.status);
+            console.error('🔧 Error Data:', error.response.data);
+        }
+        return Promise.reject(error);
+    }
+);
 
 export interface Game {
     gameId: number;

@@ -114,10 +114,14 @@ class SignalRService {
                 ? HttpTransportType.LongPolling | HttpTransportType.ServerSentEvents // Mobile/Safari prefers these over WebSockets
                 : HttpTransportType.WebSockets | HttpTransportType.LongPolling | HttpTransportType.ServerSentEvents;
             
+            // ✅ FIXED: Use environment variable with fallback to Azure production URL
+            const SIGNALR_URL = import.meta.env.VITE_SIGNALR_URL || 'https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/gameHub';
+
+            console.log('🔧 SignalR Configuration - SIGNALR_URL:', SIGNALR_URL);
             console.log(`🔧 SignalR Configuration - Safari: ${isSafari}, Mobile: ${isMobile}, Transport: ${transportOptions}`);
             
             this.connection = new HubConnectionBuilder()
-                .withUrl('https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/gameHub', {
+                .withUrl(SIGNALR_URL, {
                     transport: transportOptions,
                     skipNegotiation: false,
                     timeout: isSafari || isMobile ? 60000 : 30000 // Longer timeout for mobile/Safari
@@ -161,11 +165,37 @@ class SignalRService {
             });
 
             this.setupEventHandlers();
-            await this.connection.start();
-            this.connectionState = ConnectionState.CONNECTED;
-            console.log(`SignalR Connected - Safari: ${this.isSafari()}, State: ${this.connection.state}`);
+            
+            // ✅ ENHANCED: Better connection handling with retries for Safari/mobile
+            let connectionAttempts = 0;
+            const maxAttempts = isSafari || isMobile ? 3 : 1;
+            
+            while (connectionAttempts < maxAttempts) {
+                try {
+                    console.log(`🔧 SignalR connection attempt ${connectionAttempts + 1}/${maxAttempts}`);
+                    await this.connection.start();
+                    this.connectionState = ConnectionState.CONNECTED;
+                    console.log(`✅ SignalR Connected - Safari: ${this.isSafari()}, State: ${this.connection.state}`);
+                    break;
+                } catch (err) {
+                    connectionAttempts++;
+                    console.error(`❌ SignalR connection attempt ${connectionAttempts} failed:`, err);
+                    
+                    if (connectionAttempts >= maxAttempts) {
+                        console.error('❌ All SignalR connection attempts failed');
+                        this.connectionState = ConnectionState.DISCONNECTED;
+                        this.isConnecting = false;
+                        throw err;
+                    }
+                    
+                    // Wait before retry (progressive delay for mobile/Safari)
+                    const delay = isSafari || isMobile ? 2000 * connectionAttempts : 1000;
+                    console.log(`⏳ Waiting ${delay}ms before retry...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
         } catch (err) {
-            console.error('SignalR connection error:', err);
+            console.error('❌ SignalR connection error:', err);
             this.connectionState = ConnectionState.DISCONNECTED;
             this.isConnecting = false;
             throw err;
