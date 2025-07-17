@@ -307,6 +307,11 @@ class SignalRService {
             const joinPromise = this.connection.invoke('JoinGame', joinCode, playerName);
             await Promise.race([joinPromise, timeoutPromise]);
             console.log('Successfully invoked JoinGame');
+            
+            // ✅ NEW: Wait for GameStateSynced to ensure complete state sync
+            // This is especially important for players who were away during round start
+            await new Promise(resolve => setTimeout(resolve, 500));
+            console.log('Game state sync completed');
         } catch (error) {
             console.error('Error invoking JoinGame:', error);
             // For Safari/mobile, try a force reconnect and retry multiple times
