@@ -239,7 +239,7 @@ export const JudgingPage: React.FC = () => {
                                     </div>
                                     
                                     <div className="drawing-info">
-                                        <h3 className="artist-name">{answer.playerName}</h3>
+                                        {/* <h3 className="artist-name">{answer.playerName}</h3> */}
                                         
                                         <div className="vote-buttons">
                                             <button
@@ -257,7 +257,7 @@ export const JudgingPage: React.FC = () => {
                         {/* Vote Summary */}
                         <div className="vote-summary">
                             <div className="summary-card">
-                                <h3 className="summary-title">Your Vote</h3>
+                                {/* <h3 className="summary-title">Your Vote</h3>
                                 <div className="selected-votes">
                                     <div className="vote-item">
                                         <span className="vote-rank">💜 Favorite:</span>
@@ -265,7 +265,7 @@ export const JudgingPage: React.FC = () => {
                                             {selectedVote ? otherPlayersAnswers.find(a => a.answerId === selectedVote)?.playerName : 'Not selected'}
                                         </span>
                                     </div>
-                                </div>
+                                </div> */}
                                 <button
                                     className={`submit-votes-btn ${canSubmit ? 'enabled' : 'disabled'}`}
                                     onClick={handleSubmitVote}
