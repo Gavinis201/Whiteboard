@@ -114,8 +114,8 @@ class SignalRService {
                 ? HttpTransportType.LongPolling | HttpTransportType.ServerSentEvents // Mobile/Safari prefers these over WebSockets
                 : HttpTransportType.WebSockets | HttpTransportType.LongPolling | HttpTransportType.ServerSentEvents;
             
-            // ✅ FIXED: Use environment variable with fallback to localhost for development
-            const SIGNALR_URL = import.meta.env.VITE_SIGNALR_URL || 'http://localhost:5164/gameHub';
+            // ✅ FIXED: Use environment variable with fallback to Azure production URL
+            const SIGNALR_URL = import.meta.env.VITE_SIGNALR_URL || 'https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/gameHub';
 
             console.log('🔧 SignalR Configuration - SIGNALR_URL:', SIGNALR_URL);
             console.log(`🔧 SignalR Configuration - Safari: ${isSafari}, Mobile: ${isMobile}, Transport: ${transportOptions}`);
