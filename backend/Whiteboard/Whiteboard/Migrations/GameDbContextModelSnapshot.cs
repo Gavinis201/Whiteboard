@@ -74,6 +74,9 @@ namespace Whiteboard.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("ExcludeFromCurrentRound")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("GameId")
                         .HasColumnType("INTEGER");
 

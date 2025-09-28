@@ -50,6 +50,7 @@ export interface Player {
     name: string;
     isReader: boolean;
     gameId: number;
+    excludeFromCurrentRound?: boolean;
 }
 
 export interface Round {

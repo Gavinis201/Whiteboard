@@ -55,6 +55,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const [answers, setAnswers] = useState<Answer[]>([]);
     const [isReader, setIsReader] = useState(false);
     const [playersWhoSubmitted, setPlayersWhoSubmitted] = useState<Set<number>>(new Set());
+    const [isWaitingRoom, setIsWaitingRoom] = useState<boolean>(false);
     const [isInitialized, setIsInitialized] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [loadingMessage, setLoadingMessage] = useState('Initializing...');
@@ -502,6 +503,14 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 console.log('🎯 GameStateSynced - Updated game with players:', newGame.players);
                 return newGame;
             });
+
+            // Determine waiting room state for this player
+            if (player) {
+                const me = payload.players.find(p => p.playerId === player.playerId);
+                const active = !!payload.activeRound && !payload.activeRound.isCompleted;
+                const excluded = (me as any)?.excludeFromCurrentRound === true;
+                setIsWaitingRoom(active && excluded);
+            }
             
             // ✅ DIRECT: Update current round state
             if (payload.activeRound) {
@@ -710,6 +719,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             
             // Also reset submission flag
             submissionInProgressRef.current = false;
+
+            // Leaving waiting room at new round start
+            setIsWaitingRoom(false);
             
             // ✅ FIX: Use the voting mode from the round itself
             console.log("🎯 Checking voting mode for round", roundId, ":", votingEnabled);
@@ -796,6 +808,17 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             handlersSetupRef.current = false;
         };
     }, [isInitialized, game?.joinCode, player?.playerId, currentRound?.roundId]);
+
+    // Navigate to waiting room if flagged
+    useEffect(() => {
+        if (!isInitialized || !game || !player) return;
+        if (isWaitingRoom && window.location.pathname !== '/waiting') {
+            navigate('/waiting');
+        }
+        if (!isWaitingRoom && window.location.pathname === '/waiting') {
+            navigate('/game');
+        }
+    }, [isInitialized, isWaitingRoom, game, player, navigate]);
 
     useEffect(() => {
         if (!isInitialized) return;

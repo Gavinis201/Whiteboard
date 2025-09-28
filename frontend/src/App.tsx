@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate } f
 import { GameProvider, useGame } from './contexts/GameContext';
 import { JoinGame } from './components/JoinGame';
 import { Game } from './components/Game';
+import { WaitingRoom } from './components/WaitingRoom';
 import { CreateGame } from './components/CreateGame';
 import { JudgingPage } from './components/JudgingPage';
 import { LoadingSpinner } from './components/LoadingSpinner';
@@ -138,6 +139,7 @@ const AppRoutes = () => {
     return (
       <Routes>
         <Route path="/judging" element={<JudgingPage />} />
+        <Route path="/waiting" element={<WaitingRoom />} />
         <Route path="*" element={<Game />} />
       </Routes>
     );

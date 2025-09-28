@@ -24,6 +24,7 @@ public class PlayersController : ControllerBase
         
         var game = await _context.Games
             .Include(g => g.Players)
+            .Include(g => g.Rounds)
             .FirstOrDefaultAsync(g => g.JoinCode == request.JoinCode);
             
         if (game == null)
@@ -53,11 +54,15 @@ public class PlayersController : ControllerBase
         var isFirstPlayer = !game.Players.Any();
         _logger.LogInformation("Creating new player '{PlayerName}', isFirstPlayer: {IsFirstPlayer}", request.PlayerName, isFirstPlayer);
 
+        // If a round is currently active, exclude this new player from the current round
+        var hasActiveRound = game.Rounds.Any(r => !r.IsCompleted);
+
         var player = new Player
         {
             Name = request.PlayerName,
             IsReader = isFirstPlayer, // First player becomes the reader
-            GameId = game.GameId
+            GameId = game.GameId,
+            ExcludeFromCurrentRound = hasActiveRound
         };
 
         _context.Players.Add(player);

@@ -246,6 +246,14 @@ public class GameHub : Hub
         await Clients.Group(joinCode).SendAsync("RoundStarted", prompt, newRound.RoundId, timerDurationMinutes, newRound.VotingEnabled);
         _logger.LogInformation("🎯 Round started and saved successfully in game {JoinCode} with RoundId {RoundId} and voting mode {VotingEnabled}", joinCode, newRound.RoundId, newRound.VotingEnabled);
 
+        // After starting a round, clear the exclusion flag on all players so they become eligible for this new round
+        var players = await _context.Players.Where(p => p.GameId == game.GameId).ToListAsync();
+        foreach (var p in players)
+        {
+            p.ExcludeFromCurrentRound = false;
+        }
+        await _context.SaveChangesAsync();
+
         // Set up backend timer if duration is specified (after sending the event)
         if (timerDurationMinutes.HasValue && timerDurationMinutes.Value > 0)
         {
@@ -283,6 +291,12 @@ public class GameHub : Hub
             .FirstOrDefaultAsync(r => r.GameId == player.GameId && !r.IsCompleted);
             
         if (activeRound == null) throw new HubException("No active round to submit an answer to.");
+
+        // Prevent late joiners from participating in the current round
+        if (player.ExcludeFromCurrentRound)
+        {
+            throw new HubException("You joined mid-round. You'll be eligible next round.");
+        }
 
         // Check if player has already submitted an answer for this round
         var existingAnswer = await _context.Answers
@@ -543,6 +557,12 @@ public class GameHub : Hub
             {
                 _logger.LogError("No active round found for game: {JoinCode}", joinCode);
                 throw new HubException("No active round found");
+            }
+
+            // Block voting for late joiners in current round
+            if (voter.ExcludeFromCurrentRound)
+            {
+                throw new HubException("You joined mid-round. You'll be able to vote next round.");
             }
 
             _logger.LogInformation("Active round found - RoundId: {RoundId}", activeRound.RoundId);

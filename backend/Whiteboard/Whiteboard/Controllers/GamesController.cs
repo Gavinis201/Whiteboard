@@ -42,6 +42,12 @@ public class GamesController : ControllerBase
         return Ok(game);
     }
 
+    [HttpGet("test")]
+    public IActionResult Test()
+    {
+        return Ok(new { message = "API is working!", timestamp = DateTime.UtcNow });
+    }
+
     [HttpGet("{joinCode}")]
     public async Task<IActionResult> GetGame(string joinCode)
     {
