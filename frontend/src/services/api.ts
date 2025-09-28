@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// ✅ FIXED: Use environment variable with fallback to Azure production URL
-const API_URL = import.meta.env.VITE_API_URL || 'https://whiteboardv2-backend-ckf7efgxbxbjg0ft.eastus-01.azurewebsites.net/api';
+// ✅ FIXED: Use environment variable with fallback to localhost for development
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5164/api';
 
 console.log('🔧 API Configuration - API_URL:', API_URL);
 

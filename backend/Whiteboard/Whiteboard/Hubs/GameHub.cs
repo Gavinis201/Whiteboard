@@ -350,7 +350,15 @@ public class GameHub : Hub
                     await Clients.Group(joinCode).SendAsync("PlayerListUpdated", new List<Player>());
                     _logger.LogInformation("Sent empty player list to group {JoinCode} before kicking players", joinCode);
                     
-                    // Kick each player who is still in the database
+                    // Send PlayerKicked events to all players BEFORE removing them from the group
+                    foreach (var otherPlayer in otherPlayers)
+                    {
+                        // Notify the kicked player FIRST
+                        await Clients.Group(joinCode).SendAsync("PlayerKicked", otherPlayer.PlayerId.ToString(), otherPlayer.Name);
+                        _logger.LogInformation("Kicked player {PlayerName} because host left", otherPlayer.Name);
+                    }
+                    
+                    // Now remove players from tracking and groups
                     foreach (var otherPlayer in otherPlayers)
                     {
                         var otherDisconnectedKey = $"{joinCode}_{otherPlayer.Name}";
@@ -360,14 +368,10 @@ public class GameHub : Hub
                         var otherConnectionKey = $"{joinCode}_{otherPlayer.Name}";
                         if (_playerConnectionIds.TryRemove(otherConnectionKey, out var otherConnectionId))
                         {
-                            // Remove kicked player from SignalR group
+                            // Remove kicked player from SignalR group AFTER sending the message
                             await Groups.RemoveFromGroupAsync(otherConnectionId, joinCode);
                             _logger.LogInformation("Removed kicked player {PlayerName} from SignalR group", otherPlayer.Name);
                         }
-                        
-                        // Notify the kicked player
-                        await Clients.Group(joinCode).SendAsync("PlayerKicked", otherPlayer.PlayerId.ToString(), otherPlayer.Name);
-                        _logger.LogInformation("Kicked player {PlayerName} because host left", otherPlayer.Name);
                     }
                     
                     // Remove all players from the game

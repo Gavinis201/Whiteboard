@@ -746,9 +746,12 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         });
 
         signalRService.onPlayerKicked((kickedPlayerId, kickedPlayerName) => {
+            console.log('🎯 PlayerKicked event received in GameContext:', { kickedPlayerId, kickedPlayerName });
+            console.log('🎯 Current player:', player);
+            
             const numericKickedPlayerId = parseInt(kickedPlayerId, 10);
             if (player && player.playerId === numericKickedPlayerId) {
-                console.log('You have been kicked from the game');
+                console.log('🎯 You have been kicked from the game');
                 
                 // Clear all game state
                 setGame(null);
@@ -763,8 +766,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 removeCookie('playersWhoSubmitted');
                 
                 // Redirect to join page
-                console.log('Redirecting kicked player to join page');
+                console.log('🎯 Redirecting kicked player to join page');
                 navigate('/join');
+            } else {
+                console.log('🎯 PlayerKicked event was for a different player');
             }
         });
 
