@@ -8,6 +8,7 @@ import { JudgingPage } from './components/JudgingPage';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import './index.css';
 import Header from './components/Header';
+import { ThemeProvider } from './contexts/ThemeContext';
 import Footer from './components/Footer';
 
 const HomePage = () => {
@@ -160,17 +161,19 @@ const AppRoutes = () => {
 function App() {
   return (
     <Router>
-      <GameProvider>
-        <div className="flex flex-col min-h-screen">
-          <Header/>
-          <div className="flex-grow">
-            <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-              <AppRoutes />
-            </main>
+      <ThemeProvider>
+        <GameProvider>
+          <div className="flex flex-col min-h-screen">
+            <Header/>
+            <div className="flex-grow">
+              <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+                <AppRoutes />
+              </main>
+            </div>
+            <Footer />
           </div>
-          <Footer />
-        </div>
-      </GameProvider>
+        </GameProvider>
+      </ThemeProvider>
     </Router>
   );
 }

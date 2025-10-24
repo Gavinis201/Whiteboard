@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { useTheme } from '../contexts/ThemeContext';
 
 const Header: React.FC = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -64,6 +65,8 @@ const Header: React.FC = () => {
         }
     };
 
+    const { theme, setTheme, themes } = useTheme();
+
     return (
         <header className="bg-white shadow-md">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -87,8 +90,8 @@ const Header: React.FC = () => {
 
                             {/* Settings Dropdown */}
                             {showSettings && (
-                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
-                                    <div className="px-4 py-2">
+                                <div className="absolute right-0 mt-2 w-64 bg-white rounded-md shadow-lg py-2 z-50">
+                                    <div className="px-4 py-2 border-b border-gray-100">
                                         <div className="flex items-center space-x-3">
                                             <button
                                                 onClick={togglePlayPause}
@@ -114,7 +117,7 @@ const Header: React.FC = () => {
                                                     onChange={handleVolumeChange}
                                                     className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-500"
                                                     style={{
-                                                        background: `linear-gradient(to right, #9333ea 0%, #9333ea ${volume * 100}%, #e5e7eb ${volume * 100}%, #e5e7eb 100%)`
+                                                        background: `linear-gradient(to right, var(--brand-600) 0%, var(--brand-600) ${volume * 100}%, #e5e7eb ${volume * 100}%, #e5e7eb 100%)`
                                                     }}
                                                 />
                                                 <span className="text-xs text-gray-500">
@@ -122,6 +125,18 @@ const Header: React.FC = () => {
                                                 </span>
                                             </div>
                                         </div>
+                                    </div>
+                                    <div className="px-4 py-2">
+                                        <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">Theme</label>
+                                        <select
+                                            className="w-full border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                            value={theme}
+                                            onChange={e => setTheme(e.target.value as any)}
+                                        >
+                                            {themes.map(t => (
+                                                <option key={t.value} value={t.value}>{t.label}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                 </div>
                             )}

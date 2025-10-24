@@ -12,13 +12,111 @@
   }
 }
 
+/* Theme variables and decorative backgrounds */
+:root,[data-theme="default"] {
+  --brand: #9333ea; /* purple-600 default */
+  --brand-50: #faf5ff;
+  --brand-100: #f3e8ff;
+  --brand-200: #e9d5ff;
+  --brand-600: #9333ea;
+  --brand-700: #7e22ce;
+  --brand-800: #6b21a8;
+  --bg-accent: #f5f3ff; /* violet-50 */
+  --decor: none;
+}
+
+[data-theme="christmas"] {
+  --brand: #16a34a; /* green-600 */
+  --brand-50: #f0fdf4;
+  --brand-100: #dcfce7;
+  --brand-200: #bbf7d0;
+  --brand-600: #16a34a;
+  --brand-700: #15803d;
+  --brand-800: #166534;
+  --bg-accent: #f0fdf4; /* green-50 */
+  --decor: url('/assets/theme/christmas-lights.svg');
+}
+
+[data-theme="halloween"] {
+  --brand: #f59e0b; /* amber-500 */
+  --brand-50: #fffbeb;
+  --brand-100: #fef3c7;
+  --brand-200: #fde68a;
+  --brand-600: #d97706; /* darker for hover */
+  --brand-700: #b45309;
+  --brand-800: #92400e;
+  --bg-accent: #fffbeb; /* amber-50 */
+  --decor: url('/assets/theme/halloween-webs.svg');
+}
+
+[data-theme="newyear"] {
+  --brand: #2563eb; /* blue-600 */
+  --brand-50: #eff6ff;
+  --brand-100: #dbeafe;
+  --brand-200: #bfdbfe;
+  --brand-600: #2563eb;
+  --brand-700: #1d4ed8;
+  --brand-800: #1e40af;
+  --bg-accent: #eff6ff; /* blue-50 */
+  --decor: url('/assets/theme/newyear-confetti.svg');
+}
+
+[data-theme="valentines"] {
+  --brand: #e11d48; /* rose-600 */
+  --brand-50: #fff1f2;
+  --brand-100: #ffe4e6;
+  --brand-200: #fecdd3;
+  --brand-600: #e11d48;
+  --brand-700: #be123c;
+  --brand-800: #9f1239;
+  --bg-accent: #fff1f2; /* rose-50 */
+  --decor: url('/assets/theme/valentine-hearts.svg');
+}
+
+/* Hook brand into common Tailwind-colored elements by layering utility classes */
+.theme-brand {
+  color: var(--brand);
+}
+.theme-bg-brand {
+  background-color: var(--brand);
+}
+.theme-border-brand {
+  border-color: var(--brand);
+}
+
+/* Page-wide subtle decoration */
+body {
+  --decor-veil: 0.88;
+  background-image: linear-gradient(rgba(255,255,255,var(--decor-veil)), rgba(255,255,255,var(--decor-veil))), var(--decor);
+  background-repeat: no-repeat, repeat;
+  background-size: auto, 900px auto;
+  background-position: top left, center top;
+}
+
+/* Override common Tailwind purple utilities to follow active theme */
+[data-theme] .text-purple-600 { color: var(--brand-600) !important; }
+[data-theme] .text-purple-700 { color: var(--brand-700) !important; }
+[data-theme] .text-purple-800 { color: var(--brand-800) !important; }
+[data-theme] .bg-purple-600 { background-color: var(--brand-600) !important; }
+[data-theme] .hover\:bg-purple-700:hover { background-color: var(--brand-700) !important; }
+[data-theme] .bg-purple-50 { background-color: var(--brand-50) !important; }
+[data-theme] .bg-purple-100 { background-color: var(--brand-100) !important; }
+[data-theme] .bg-purple-200 { background-color: var(--brand-200) !important; }
+[data-theme] .accent-purple-500 { accent-color: var(--brand-600) !important; }
+[data-theme] .focus\:ring-purple-500:focus { --tw-ring-color: var(--brand-600) !important; }
+
 @layer components {
   .btn {
     @apply px-4 py-2 rounded-md font-medium transition-colors duration-200;
   }
   
   .btn-primary {
-    @apply bg-primary-600 text-white hover:bg-primary-700;
+    @apply text-white;
+    background-color: var(--brand);
+  }
+
+  .btn-primary:hover {
+    filter: brightness(0.95);
   }
   
   .btn-secondary {
