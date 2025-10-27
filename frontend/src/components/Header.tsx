@@ -8,6 +8,7 @@ const Header: React.FC = () => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [volume, setVolume] = useState(0.3);
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const settingsRef = useRef<HTMLDivElement | null>(null);
 
     // Initialize audio element only once
     useEffect(() => {
@@ -46,6 +47,21 @@ const Header: React.FC = () => {
         }
     }, [volume]);
 
+    // Close settings when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+                setShowSettings(false);
+            }
+        };
+        if (showSettings) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showSettings]);
+
     const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newVolume = parseFloat(e.target.value);
         setVolume(newVolume);
@@ -77,7 +93,7 @@ const Header: React.FC = () => {
                     
                     <div className="flex items-center space-x-4">
                         {/* Settings Button */}
-                        <div className="relative">
+                        <div className="relative" ref={settingsRef}>
                             <button
                                 onClick={() => setShowSettings(!showSettings)}
                                 className="p-2 rounded-md text-gray-600 hover:text-purple-600 hover:bg-purple-50 focus:outline-none"
