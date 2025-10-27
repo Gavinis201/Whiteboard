@@ -13,9 +13,25 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const THEME_STORAGE_KEY = 'wb_theme';
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Pick a seasonal default based on month unless a user-selected theme exists
+  const getDefaultThemeForMonth = (monthIndex: number): HolidayTheme => {
+    // monthIndex: 0=Jan ... 11=Dec
+    if (monthIndex === 0) return 'newyear'; // January
+    if (monthIndex === 1) return 'valentines'; // February
+    if (monthIndex >= 2 && monthIndex <= 7) return 'default'; // March–August
+    if (monthIndex >= 8 && monthIndex <= 10) return 'halloween'; // September–November
+    return 'christmas'; // December (assumption)
+  };
+
   const [theme, setThemeState] = useState<HolidayTheme>(() => {
     const saved = typeof window !== 'undefined' ? (localStorage.getItem(THEME_STORAGE_KEY) as HolidayTheme | null) : null;
-    return saved || 'default';
+    if (saved) return saved;
+    try {
+      const month = new Date().getMonth();
+      return getDefaultThemeForMonth(month);
+    } catch {
+      return 'default';
+    }
   });
 
   useEffect(() => {
