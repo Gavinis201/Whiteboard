@@ -43,6 +43,10 @@ class SignalRService {
     private isConnecting = false;
     private autoReconnectEnabled = true; // ✅ NEW: Control auto-reconnection
     private leaveInProgress = false; // ✅ NEW: Track if leave operation is in progress
+    // ✅ NEW: Throttle/coalesce join attempts to avoid duplicate joins during reconnection bursts
+    private lastJoinAttemptKey: string | null = null; // `${joinCode}:${playerName}`
+    private lastJoinAttemptAt: number = 0;
+    private ongoingJoinPromise: Promise<void> | null = null;
 
     constructor() {
         // Don't auto-connect on instantiation - let the app control when to connect
@@ -297,45 +301,88 @@ class SignalRService {
         this.currentJoinCode = joinCode;
         this.currentPlayerName = playerName;
         
+        // ✅ NEW: Coalesce duplicate join attempts for the same player/game
+        const joinKey = `${joinCode}:${playerName}`;
+        if (this.ongoingJoinPromise && this.lastJoinAttemptKey === joinKey) {
+            console.log('🔄 Returning existing ongoing join attempt for same player/game');
+            return this.ongoingJoinPromise;
+        }
+        const now = Date.now();
+        if (this.lastJoinAttemptKey === joinKey && (now - this.lastJoinAttemptAt) < 1500 && this.connection?.state === HubConnectionState.Connected) {
+            console.log('⏳ Throttling duplicate join attempt within 1500ms window');
+            return;
+        }
+        this.lastJoinAttemptKey = joinKey;
+        this.lastJoinAttemptAt = now;
+        
         const connected = await this.ensureConnectionSafe();
         if (!connected || !this.connection) throw new Error('No SignalR connection');
         
-        try {
-            const timeoutPromise = new Promise((_, reject) => {
-                const timeout = this.isSafari() ? 20000 : 10000; // Longer timeout for mobile/Safari
-                setTimeout(() => reject(new Error('Join game timeout')), timeout);
-            });
-            const joinPromise = this.connection.invoke('JoinGame', joinCode, playerName);
-            await Promise.race([joinPromise, timeoutPromise]);
-            console.log('Successfully invoked JoinGame');
-            
-            // ✅ NEW: Wait for GameStateSynced to ensure complete state sync
-            // This is especially important for players who were away during round start
-            await new Promise(resolve => setTimeout(resolve, 500));
-            console.log('Game state sync completed');
-        } catch (error) {
-            console.error('Error invoking JoinGame:', error);
-            // For Safari/mobile, try a force reconnect and retry multiple times
-            if ((this.isSafari() || this.isMobileSafari()) && error instanceof Error && error.message?.includes('timeout')) {
-                console.log('Mobile/Safari timeout detected, attempting multiple reconnection attempts');
-                for (let attempt = 1; attempt <= 3; attempt++) {
-                    try {
-                        console.log(`Mobile reconnection attempt ${attempt}/3`);
-                        await this.forceReconnect();
-                        await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Progressive delay
-                        await this.joinGame(joinCode, playerName);
-                        console.log(`Mobile reconnection attempt ${attempt} successful`);
-                        return;
-                    } catch (retryError) {
-                        console.error(`Mobile reconnection attempt ${attempt} failed:`, retryError);
-                        if (attempt === 3) {
-                            throw retryError;
+        this.ongoingJoinPromise = (async () => {
+            try {
+                const timeoutPromise = new Promise((_, reject) => {
+                    const timeout = this.isSafari() ? 20000 : 10000; // Longer timeout for mobile/Safari
+                    setTimeout(() => reject(new Error('Join game timeout')), timeout);
+                });
+                const joinPromise = this.connection!.invoke('JoinGame', joinCode, playerName);
+                await Promise.race([joinPromise, timeoutPromise]);
+                console.log('Successfully invoked JoinGame');
+                
+                // ✅ NEW: Wait for GameStateSynced to ensure complete state sync
+                // This is especially important for players who were away during round start
+                await new Promise(resolve => setTimeout(resolve, 500));
+                console.log('Game state sync completed');
+            } catch (error) {
+                console.error('Error invoking JoinGame:', error);
+                // For Safari/mobile, try a force reconnect and retry multiple times
+                if ((this.isSafari() || this.isMobileSafari()) && error instanceof Error && (error as any).message?.includes('timeout')) {
+                    console.log('Mobile/Safari timeout detected, attempting multiple reconnection attempts');
+                    for (let attempt = 1; attempt <= 3; attempt++) {
+                        try {
+                            console.log(`Mobile reconnection attempt ${attempt}/3`);
+                            await this.forceReconnect();
+                            await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Progressive delay
+                            // Important: do not recurse into coalescing again, invoke directly
+                            const innerTimeout = new Promise((_, reject) => {
+                                const t = this.isSafari() ? 20000 : 10000;
+                                setTimeout(() => reject(new Error('Join game timeout')), t);
+                            });
+                            const innerJoin = this.connection!.invoke('JoinGame', joinCode, playerName);
+                            await Promise.race([innerJoin, innerTimeout]);
+                            console.log(`Mobile reconnection attempt ${attempt} successful`);
+                            // Wait a bit for state sync
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                            return;
+                        } catch (retryError) {
+                            console.error(`Mobile reconnection attempt ${attempt} failed:`, retryError);
+                            if (attempt === 3) {
+                                throw retryError;
+                            }
                         }
                     }
                 }
+                throw error;
+            } finally {
+                this.ongoingJoinPromise = null;
             }
-            throw error;
+        })();
+        
+        return this.ongoingJoinPromise;
+    }
+
+    // ✅ NEW: Convenience helper to ensure we are connected and joined to the game
+    async reconnectIfNeeded(joinCode: string, playerName: string) {
+        if (this.isIntentionallyLeaving()) {
+            console.log('Skipping reconnectIfNeeded - intentionally leaving');
+            return;
         }
+        const needsReconnect = !this.isConnected() || !this.isPlayerIdentified();
+        if (!needsReconnect) {
+            return;
+        }
+        console.log('reconnectIfNeeded: attempting to restore connection and join game');
+        await this.forceReconnect();
+        await this.joinGame(joinCode, playerName);
     }
 
     async startRound(joinCode: string, prompt: string, timerDuration?: number, votingMode?: boolean) {

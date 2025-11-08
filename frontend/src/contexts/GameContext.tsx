@@ -76,6 +76,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const previousRoundIdRef = useRef<number | null>(null);
     const pageVisibilityRef = useRef<boolean>(true); // ✅ NEW: Track page visibility
     const autoSubmissionAttemptedRef = useRef<boolean>(false); // ✅ NEW: Prevent multiple auto-submissions
+    const lastGameStateSyncedRef = useRef<number>(0); // ✅ NEW: Track when we last received GameStateSynced
 
     // ✅ NEW: Safari detection for debugging
     const isSafari = () => {
@@ -120,8 +121,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                         if (!signalRService.isConnected()) {
                             console.log('⚡ Connection lost, attempting reconnection...');
                             try {
-                                await signalRService.forceReconnect();
-                                await signalRService.joinGame(game.joinCode, player.name);
+                                await signalRService.reconnectIfNeeded(game.joinCode, player.name);
                                 console.log(`⚡ Reconnection successful - Safari: ${isSafari()}`);
                                 
                                                         // ✅ OPTIMIZED: Balanced wait for game state sync
@@ -134,8 +134,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                                 try {
                                     console.log('⚡ Retrying reconnection for mobile...');
                                     await new Promise(resolve => setTimeout(resolve, 1000)); // Balanced wait before retry
-                                    await signalRService.forceReconnect();
-                                    await signalRService.joinGame(game.joinCode, player.name);
+                                    await signalRService.reconnectIfNeeded(game.joinCode, player.name);
                                     console.log('⚡ Retry reconnection successful');
                                 } catch (retryError) {
                                     console.error('⚡ Retry reconnection failed:', retryError);
@@ -200,17 +199,13 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 // Only reconnect if we're not connected
                 if (!signalRService.isConnected()) {
                     console.log(`⚡ Network recovered, attempting reconnection`);
-                    signalRService.forceReconnect().then(() => {
-                        return signalRService.joinGame(game.joinCode, player.name);
-                    }).catch(err => {
+                    signalRService.reconnectIfNeeded(game.joinCode, player.name).catch(err => {
                         console.error(`⚡ Failed to reconnect after network recovery`, err);
                         // ✅ OPTIMIZED: Balanced retry network reconnection
                         setTimeout(() => {
                             if (game?.joinCode && player?.name && !signalRService.isConnected()) {
                                 console.log('⚡ Retrying network reconnection...');
-                                signalRService.forceReconnect().then(() => {
-                                    return signalRService.joinGame(game.joinCode, player.name);
-                                }).catch(retryErr => {
+                                signalRService.reconnectIfNeeded(game.joinCode, player.name).catch(retryErr => {
                                     console.error('⚡ Network reconnection retry failed:', retryErr);
                                 });
                             }
@@ -228,13 +223,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log('⚡ Network went offline');
         };
 
-        // ✅ FIX: Don't call leaveGame() on page refresh - let the backend's grace period handle reconnection
-        // Only leaveGame() should be called when user explicitly clicks "Leave Game" button
-        // On page refresh, the connection will drop naturally and OnDisconnectedAsync will give a grace period
-        const handleBeforeUnload = () => {
-            console.log('⚡ Page unloading - connection will drop naturally, backend will handle reconnection grace period');
-            // Don't call leaveGame() here - it would immediately remove the player and prevent reconnection
-        };
+        // ✅ FIX: Removed beforeunload handler that was calling leaveGame()
+        // This was causing players to be kicked on page refresh
+        // The backend's OnDisconnectedAsync provides a grace period for reconnection
 
         // ✅ ENHANCED: Add focus event for reconnection
         const handleFocus = () => {
@@ -242,9 +233,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             if (game?.joinCode && player?.name && !signalRService.isIntentionallyLeaving()) {
                 if (!signalRService.isConnected()) {
                     console.log('⚡ Connection lost, attempting reconnection on focus');
-                    signalRService.forceReconnect().then(() => {
-                        return signalRService.joinGame(game.joinCode, player.name);
-                    }).catch(err => {
+                    signalRService.reconnectIfNeeded(game.joinCode, player.name).catch(err => {
                         console.error('⚡ Failed to reconnect on focus:', err);
                     });
                 } else {
@@ -261,9 +250,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 setTimeout(() => {
                     if (!signalRService.isConnected()) {
                         console.log('⚡ Mobile app resumed, forcing reconnection...');
-                        signalRService.forceReconnect().then(() => {
-                            return signalRService.joinGame(game.joinCode, player.name);
-                        }).catch(err => {
+                        signalRService.reconnectIfNeeded(game.joinCode, player.name).catch(err => {
                             console.error('⚡ Mobile reconnection failed:', err);
                         });
                     }
@@ -291,9 +278,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             if (game?.joinCode && player?.name && !signalRService.isIntentionallyLeaving()) {
                 if (!signalRService.isConnected()) {
                     console.log('⚡ Periodic check: Connection lost, attempting reconnection...');
-                    signalRService.forceReconnect().then(() => {
-                        return signalRService.joinGame(game.joinCode, player.name);
-                    }).catch(err => {
+                    signalRService.reconnectIfNeeded(game.joinCode, player.name).catch(err => {
                         console.error('⚡ Periodic reconnection failed:', err);
                     });
                 }
@@ -475,6 +460,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log("Previous round ID:", currentRound?.roundId);
             console.log("Judging mode enabled:", payload.judgingModeEnabled);
             
+            // ✅ FIX: Track when we received GameStateSynced to ignore stale PlayerListUpdated events
+            lastGameStateSyncedRef.current = Date.now();
+            
             // ✅ ENHANCED: Check if this is a reconnection scenario
             const isReconnecting = currentRound?.roundId && payload.activeRound?.roundId && 
                                  currentRound.roundId !== payload.activeRound.roundId;
@@ -624,6 +612,19 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         signalRService.onPlayerListUpdated((updatedPlayers: Player[]) => {
             console.log('🎯 PlayerListUpdated event received:', updatedPlayers);
             console.log('🎯 Current game players before update:', game?.players);
+            
+            // ✅ FIX: Don't process empty player list if we're in the middle of reconnecting
+            // This prevents false kicks during page refresh when reconnecting
+            const isReconnecting = !signalRService.isConnected() || isJoiningRef.current;
+            const timeSinceLastStateSync = Date.now() - lastGameStateSyncedRef.current;
+            const recentlySynced = timeSinceLastStateSync < 3000; // Within last 3 seconds
+            
+            if (updatedPlayers.length === 0 && (isReconnecting || recentlySynced)) {
+                console.log('🔄 Ignoring empty player list - player is reconnecting or just synced state');
+                console.log('🔄 Reconnecting:', isReconnecting, 'Recently synced:', recentlySynced, 'Time since sync:', timeSinceLastStateSync);
+                return;
+            }
+            
             setGame(prevGame => {
                 if (!prevGame) return null;
                 const newGame = {
@@ -634,19 +635,37 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 return newGame;
             });
             
-            // ✅ FIX: Add delay before showing "host left" message to allow for reconnection
-            // Only show alert if user is in this specific game and host left
+            // ✅ FIX: Only check for host leaving if we're connected and not reconnecting
+            // Also only check for non-host players (host can't kick themselves)
             const currentGameInfo = signalRService.getCurrentGameInfo();
-            if (updatedPlayers.length === 0 && player && !isReader && 
-                currentGameInfo.joinCode && game?.joinCode === currentGameInfo.joinCode) {
+            if (updatedPlayers.length === 0 && 
+                player && 
+                !isReader && 
+                !isReconnecting &&
+                signalRService.isConnected() &&
+                currentGameInfo.joinCode && 
+                game?.joinCode === currentGameInfo.joinCode) {
                 
                 console.log('⚠️ Empty player list received - host may have disconnected');
                 console.log('⏳ Waiting 5 seconds before showing "host left" message to allow for reconnection...');
                 
-                // ✅ FIX: Add delay to allow host to reconnect during page refresh
+                // ✅ FIX: Only redirect if host actually left (not just reconnecting)
+                // Use setTimeout to check again after delay, but verify conditions are still true
+                const emptyListPlayerCount = updatedPlayers.length;
                 setTimeout(() => {
-                    // Check if we still have an empty player list after the delay
-                    if (game?.players.length === 0) {
+                    // Get fresh state - check if we're still connected and game state
+                    const stillConnected = signalRService.isConnected();
+                    const stillInGame = signalRService.isInGame() && game?.joinCode && player?.name;
+                    
+                    // Only redirect if:
+                    // 1. We received an empty player list (host left scenario)
+                    // 2. We're still connected (not in middle of reconnection)
+                    // 3. We're still in the game (have game state)
+                    // 4. The player list is still empty (host didn't reconnect)
+                    if (emptyListPlayerCount === 0 && 
+                        stillConnected && 
+                        stillInGame && 
+                        game?.players?.length === 0) {
                         console.log('⏰ 5 seconds elapsed, host did not reconnect - redirecting to join page');
                         
                         // Clear all game state
@@ -665,9 +684,17 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                         console.log('Redirecting to join page because host left');
                         navigate('/join');
                     } else {
-                        console.log('✅ Host reconnected within 5 seconds, not redirecting');
+                        console.log('✅ Host reconnected or player reconnected - not redirecting');
+                        console.log('✅ Check results:', { 
+                            emptyListPlayerCount, 
+                            stillConnected, 
+                            stillInGame, 
+                            currentPlayerCount: game?.players?.length 
+                        });
                     }
                 }, 5000); // Wait 5 seconds before showing the message
+            } else if (updatedPlayers.length > 0 && player && !isReader) {
+                console.log('✅ Player list updated with players - host is still present');
             }
         });
 
