@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Game, Player, Answer, getGame, joinGame as joinGameApi, createGame as createGameApi } from '../services/api';
 import { Round } from '../types/game';
@@ -78,113 +78,68 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const autoSubmissionAttemptedRef = useRef<boolean>(false); // ✅ NEW: Prevent multiple auto-submissions
     const lastGameStateSyncedRef = useRef<number>(0); // ✅ NEW: Track when we last received GameStateSynced
 
-    // ✅ NEW: Safari detection for debugging
-    const isSafari = () => {
-        const userAgent = navigator.userAgent;
-        return /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
-    };
-
     const players = game?.players || [];
     
     // ✅ NEW: Filter answers to only show current round drawings
     // Always show only the current round drawings, regardless of voting mode
     const filteredAnswers = answers.filter(answer => answer.roundId === currentRound?.roundId);
 
-    // ✅ ENHANCED: Comprehensive reconnection system for all scenarios
+    // ✅ REFACTORED: Simplified reconnection helper
+    const attemptReconnection = async () => {
+        try {
+            // Check if we have valid game state
+            if (!game?.joinCode || !player?.name) {
+                console.log('⚡ No valid game state for reconnection');
+                return false;
+            }
+            
+            // Check if player is intentionally leaving
+            if (signalRService.isIntentionallyLeaving()) {
+                console.log('⚡ Player is intentionally leaving, skipping reconnection');
+                return false;
+            }
+
+            console.log(`⚡ Attempting reconnection for game: ${game.joinCode}, player: ${player.name}`);
+            
+            // Only reconnect if needed
+            if (!signalRService.isConnected()) {
+                console.log('⚡ Connection lost, attempting reconnection...');
+                await signalRService.reconnectIfNeeded(game.joinCode, player.name);
+                console.log('⚡ Reconnection successful');
+                
+                // Wait for game state sync
+                await new Promise(resolve => setTimeout(resolve, 800));
+                return true;
+            } else {
+                console.log('⚡ Already connected, no reconnection needed');
+                return true;
+            }
+        } catch (error) {
+            console.error('⚡ Reconnection failed:', error);
+            return false;
+        }
+    };
+
+    // ✅ REFACTORED: Consolidated reconnection system
     useEffect(() => {
-        const handleVisibilityChange = () => {
+        const handleVisibilityChange = async () => {
             const isVisible = !document.hidden;
             pageVisibilityRef.current = isVisible;
             console.log('🔄 Page visibility changed:', isVisible);
             
             if (isVisible) {
                 console.log('⚡ Page became visible, checking reconnection...');
-                
-                // ✅ ENHANCED: Only attempt reconnection if we should
-                const performReconnection = async () => {
-                    try {
-                        // Check if we have valid game state and not intentionally leaving
-                        if (!game?.joinCode || !player?.name) {
-                            console.log('⚡ No valid game state for reconnection');
-                            return;
-                        }
-                        
-                        // ✅ NEW: Check if player is intentionally leaving
-                        if (signalRService.isIntentionallyLeaving()) {
-                            console.log('⚡ Player is intentionally leaving, skipping reconnection');
-                            return;
-                        }
-
-                        console.log(`⚡ Attempting reconnection for game: ${game.joinCode}, player: ${player.name}, Safari: ${isSafari()}`);
-                        
-                        // Check if we need to reconnect
-                        if (!signalRService.isConnected()) {
-                            console.log('⚡ Connection lost, attempting reconnection...');
-                            try {
-                                await signalRService.reconnectIfNeeded(game.joinCode, player.name);
-                                console.log(`⚡ Reconnection successful - Safari: ${isSafari()}`);
-                                
-                                                        // ✅ OPTIMIZED: Balanced wait for game state sync
-                        console.log('⚡ Waiting for game state sync to complete...');
-                        await new Promise(resolve => setTimeout(resolve, 800)); // Balanced wait time
-                                
-                            } catch (reconnectError) {
-                                console.error('⚡ Reconnection failed:', reconnectError);
-                                // ✅ OPTIMIZED: Balanced retry for mobile scenarios
-                                try {
-                                    console.log('⚡ Retrying reconnection for mobile...');
-                                    await new Promise(resolve => setTimeout(resolve, 1000)); // Balanced wait before retry
-                                    await signalRService.reconnectIfNeeded(game.joinCode, player.name);
-                                    console.log('⚡ Retry reconnection successful');
-                                } catch (retryError) {
-                                    console.error('⚡ Retry reconnection failed:', retryError);
-                                    // Don't show user error - silent fail for background reconnection
-                                }
-                            }
-                        } else {
-                            console.log('⚡ Connection is already active, no reconnection needed');
-                        }
-                        
-                        // ✅ ENHANCED: Handle timer state for reconnecting players
-                        if (isTimerActive && timeRemaining !== null && timeRemaining <= 0 && !autoSubmissionAttemptedRef.current) {
-                            console.log('⚡ Timer expired while away, instant auto-submission');
-                            if (onTimerExpire) {
-                                autoSubmissionAttemptedRef.current = true;
-                                onTimerExpire();
-                            }
-                        }
-                        
-                    } catch (error) {
-                        console.error('⚡ Reconnection failed:', error);
-                        // ✅ ENHANCED: No user interruption, silent fail
-                    }
-                };
-                
-                // ✅ ENHANCED: Immediate reconnection with no delay
-                performReconnection();
+                await attemptReconnection();
                 
             } else {
-                console.log('🔄 Page went to background, saving comprehensive state');
+                console.log('🔄 Page went to background, saving state');
                 
-                // ✅ ENHANCED: Save comprehensive state when going to background
+                // Save minimal state for page refresh scenarios
                 if (game && player) {
                     try {
                         setCookie('currentGame', JSON.stringify(game));
                         setCookie('currentPlayer', JSON.stringify(player));
-                        
-                        // Don't save round state - let backend sync handle it
-                        
-                        // Save timer state
-                        if (isTimerActive && timeRemaining !== null) {
-                            setCookie('timerState', JSON.stringify({
-                                isActive: isTimerActive,
-                                timeRemaining,
-                                startTime: roundStartTime?.toISOString(),
-                                duration: selectedTimerDuration
-                            }));
-                        }
-                        
-                        console.log('🔄 State saved successfully for background');
+                        console.log('🔄 State saved successfully');
                     } catch (error) {
                         console.error('🔄 Error saving state:', error);
                     }
@@ -192,80 +147,35 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             }
         };
 
-        // ✅ ENHANCED: Handle network connectivity changes
-        const handleOnline = () => {
-            console.log(`⚡ Network came online, checking reconnection...`);
-            if (game?.joinCode && player?.name && !signalRService.isIntentionallyLeaving()) {
-                // Only reconnect if we're not connected
-                if (!signalRService.isConnected()) {
-                    console.log(`⚡ Network recovered, attempting reconnection`);
-                    signalRService.reconnectIfNeeded(game.joinCode, player.name).catch(err => {
-                        console.error(`⚡ Failed to reconnect after network recovery`, err);
-                        // ✅ OPTIMIZED: Balanced retry network reconnection
-                        setTimeout(() => {
-                            if (game?.joinCode && player?.name && !signalRService.isConnected()) {
-                                console.log('⚡ Retrying network reconnection...');
-                                signalRService.reconnectIfNeeded(game.joinCode, player.name).catch(retryErr => {
-                                    console.error('⚡ Network reconnection retry failed:', retryErr);
-                                });
-                            }
-                        }, 1500);
-                    });
-                } else {
-                    console.log('⚡ Already connected, no reconnection needed');
-                }
-            } else if (signalRService.isIntentionallyLeaving()) {
-                console.log('⚡ Player is intentionally leaving, skipping network reconnection');
-            }
+        // ✅ REFACTORED: Simplified network reconnection
+        const handleOnline = async () => {
+            console.log('⚡ Network came online, checking reconnection...');
+            await attemptReconnection();
         };
 
         const handleOffline = () => {
             console.log('⚡ Network went offline');
         };
 
-        // ✅ FIX: Removed beforeunload handler that was calling leaveGame()
-        // This was causing players to be kicked on page refresh
-        // The backend's OnDisconnectedAsync provides a grace period for reconnection
-
-        // ✅ ENHANCED: Add focus event for reconnection
-        const handleFocus = () => {
+        // ✅ REFACTORED: Simplified focus event
+        const handleFocus = async () => {
             console.log('⚡ Window focused, checking reconnection...');
-            if (game?.joinCode && player?.name && !signalRService.isIntentionallyLeaving()) {
-                if (!signalRService.isConnected()) {
-                    console.log('⚡ Connection lost, attempting reconnection on focus');
-                    signalRService.reconnectIfNeeded(game.joinCode, player.name).catch(err => {
-                        console.error('⚡ Failed to reconnect on focus:', err);
-                    });
-                } else {
-                    console.log('⚡ Already connected, no reconnection needed on focus');
-                }
-            }
+            await attemptReconnection();
         };
 
-        // ✅ ENHANCED: Add mobile-specific events for better reconnection
-        const handleResume = () => {
+        // ✅ REFACTORED: Simplified mobile resume event
+        const handleResume = async () => {
             console.log('⚡ App resumed (mobile), checking reconnection...');
-            if (game?.joinCode && player?.name && !signalRService.isIntentionallyLeaving()) {
-                // Force reconnection on mobile app resume
-                setTimeout(() => {
-                    if (!signalRService.isConnected()) {
-                        console.log('⚡ Mobile app resumed, forcing reconnection...');
-                        signalRService.reconnectIfNeeded(game.joinCode, player.name).catch(err => {
-                            console.error('⚡ Mobile reconnection failed:', err);
-                        });
-                    }
-                }, 500); // Balanced delay to ensure app is fully resumed
-            }
+            // Small delay to ensure app is fully resumed
+            setTimeout(() => attemptReconnection(), 500);
         };
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
-        // ✅ FIX: Removed beforeunload handler - it was causing players to be kicked on page refresh
-        // The backend's OnDisconnectedAsync provides a grace period for reconnection
         window.addEventListener('focus', handleFocus);
         
-        // ✅ ENHANCED: Add mobile-specific event listeners
+        // Mobile-specific event listeners
         if ('onpageshow' in window) {
             window.addEventListener('pageshow', handleResume);
         }
@@ -273,26 +183,19 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             (window as any).addEventListener('resume', handleResume);
         }
         
-        // ✅ ENHANCED: Periodic connection check with better logic
+        // ✅ REFACTORED: Simplified periodic connection check
         const connectionCheckInterval = setInterval(() => {
-            if (game?.joinCode && player?.name && !signalRService.isIntentionallyLeaving()) {
-                if (!signalRService.isConnected()) {
-                    console.log('⚡ Periodic check: Connection lost, attempting reconnection...');
-                    signalRService.reconnectIfNeeded(game.joinCode, player.name).catch(err => {
-                        console.error('⚡ Periodic reconnection failed:', err);
-                    });
-                }
+            if (!signalRService.isConnected() && !signalRService.isIntentionallyLeaving()) {
+                attemptReconnection();
             }
-        }, 8000); // Check every 8 seconds for faster reconnection
+        }, 8000);
 
         return () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
-            // ✅ FIX: Removed beforeunload handler cleanup
             window.removeEventListener('focus', handleFocus);
             
-            // Remove mobile-specific event listeners
             if ('onpageshow' in window) {
                 window.removeEventListener('pageshow', handleResume);
             }
@@ -302,18 +205,16 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             
             clearInterval(connectionCheckInterval);
         };
-    }, [isTimerActive, timeRemaining, onTimerExpire, game?.joinCode, player?.name, currentRound, playersWhoSubmitted, roundStartTime, selectedTimerDuration]);
+    }, [game?.joinCode, player?.name]);
 
+    // ✅ REFACTORED: Simplified initialization with minimal cookie restoration
     useEffect(() => {
         const initializeApp = async () => {
             setLoadingMessage('Loading saved game state...');
             const savedGame = getCookie('currentGame');
             const savedPlayer = getCookie('currentPlayer');
-            const savedRound = getCookie('currentRound');
-            const savedPlayersWhoSubmitted = getCookie('playersWhoSubmitted');
-            const savedTimerState = getCookie('timerState');
             
-            // Check if we're in the process of joining (this might happen during page refresh)
+            // Skip if we're in the process of joining
             if (isJoiningRef.current) {
                 console.log('Skipping initialization - currently joining a game');
                 setIsInitialized(true);
@@ -322,56 +223,23 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 return;
             }
             
+            // Only restore basic game/player info - let backend sync handle everything else
             if (savedGame && savedPlayer) {
                 try {
                     const parsedGame = JSON.parse(savedGame);
                     const parsedPlayer = JSON.parse(savedPlayer);
-                    console.log('🔄 Restoring game state from cookies:', parsedGame.joinCode, parsedPlayer.name);
+                    console.log('🔄 Restoring game state:', parsedGame.joinCode, parsedPlayer.name);
                     setGame(convertToExtendedGame(parsedGame));
                     setPlayer(parsedPlayer);
                     setIsReader(parsedPlayer.isReader);
-                    
-                    // ✅ ENHANCED: Restore comprehensive state
-                    // ✅ FIX: Don't restore round state from cookies - let backend sync handle it
-                    // This prevents stale round state when reconnecting to a new round
-                    console.log('🔄 Skipping restoration of round state from cookies - will be synced from backend');
-                    
-                    // ✅ FIX: Don't restore playersWhoSubmitted from cookies - let backend sync handle it
-                    // This prevents stale submission state when reconnecting to a new round
-                    console.log('🔄 Skipping restoration of playersWhoSubmitted from cookies - will be synced from backend');
-                    
-                    // ✅ NEW: Restore timer state if available
-                    if (savedTimerState) {
-                        try {
-                            const parsedTimerState = JSON.parse(savedTimerState);
-                            console.log('🔄 Restoring timer state from cookies:', parsedTimerState);
-                            
-                            if (parsedTimerState.isActive && parsedTimerState.timeRemaining > 0) {
-                                setSelectedTimerDuration(parsedTimerState.duration);
-                                setTimeRemaining(parsedTimerState.timeRemaining);
-                                setIsTimerActive(true);
-                                
-                                if (parsedTimerState.startTime) {
-                                    setRoundStartTime(new Date(parsedTimerState.startTime));
-                                }
-                                
-                                console.log('🔄 Timer state restored successfully');
-                            }
-                        } catch (error) {
-                            console.error('🔄 Error parsing saved timer state:', error);
-                        }
-                    }
-                    
-                    console.log('🔄 Game state restored successfully');
+                    console.log('🔄 Basic game state restored - backend sync will provide the rest');
                 } catch (error) {
                     console.error('🔄 Error parsing saved game state:', error);
                     removeCookie('currentGame');
                     removeCookie('currentPlayer');
-                    removeCookie('currentRound');
-                    removeCookie('playersWhoSubmitted');
-                    removeCookie('timerState');
                 }
             }
+            
             setIsInitialized(true);
             setIsLoading(false);
             setLoadingMessage('');
@@ -380,72 +248,19 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         initializeApp();
     }, []);
 
+    // ✅ REFACTORED: Simplified auto-reconnection on app startup
     useEffect(() => {
-        const savedGame = getCookie('currentGame');
-        const savedPlayer = getCookie('currentPlayer');
-        
-        // Don't auto-reconnect if we're in the process of joining (this might happen during page refresh)
-        if (isJoiningRef.current) {
-            console.log('⚡ Auto-reconnection skipped - currently joining a game');
+        // Skip if we're in the process of joining
+        if (isJoiningRef.current || !isInitialized) {
             return;
         }
         
-        if (savedGame && savedPlayer && game?.joinCode && player?.name) {
-            const parsedSavedGame = JSON.parse(savedGame);
-            const parsedSavedPlayer = JSON.parse(savedPlayer);
-            
-            console.log('⚡ Checking auto-reconnection:');
-            console.log('⚡ Saved game join code:', parsedSavedGame.joinCode);
-            console.log('⚡ Current game join code:', game.joinCode);
-            console.log('⚡ Saved player name:', parsedSavedPlayer.name);
-            console.log('⚡ Current player name:', player.name);
-            
-            // ✅ ENHANCED: Only attempt reconnection if we have valid game state and should reconnect
-            if (parsedSavedGame.joinCode === game.joinCode && 
-                parsedSavedPlayer.name === player.name &&
-                !signalRService.isIntentionallyLeaving()) {
-                
-                const connectAndJoin = async () => {
-                    try {
-                        console.log('⚡ Auto-reconnecting to restored game:', game.joinCode, 'as player:', player.name);
-                        
-                        // Check if we need to reconnect
-                        if (!signalRService.isConnected()) {
-                            await signalRService.forceReconnect();
-                            await signalRService.joinGame(game.joinCode, player.name);
-                            console.log('⚡ Auto-reconnection successful');
-                            
-                                                    // ✅ OPTIMIZED: Balanced wait for state sync
-                        await new Promise(resolve => setTimeout(resolve, 800));
-                        } else {
-                            console.log('⚡ Already connected, no auto-reconnection needed');
-                        }
-                    } catch (error) {
-                        console.error('⚡ Auto-reconnection failed:', error);
-                        // ✅ OPTIMIZED: Balanced retry auto-reconnection
-                        try {
-                            console.log('⚡ Retrying auto-reconnection...');
-                            await new Promise(resolve => setTimeout(resolve, 1000));
-                            await signalRService.forceReconnect();
-                            await signalRService.joinGame(game.joinCode, player.name);
-                            console.log('⚡ Auto-reconnection retry successful');
-                        } catch (retryError) {
-                            console.error('⚡ Auto-reconnection retry failed:', retryError);
-                            // Don't clear state on failure, just log it
-                        }
-                    }
-                };
-                connectAndJoin();
-            } else {
-                console.log('⚡ Auto-reconnection skipped - player details do not match or intentionally leaving');
-                // Clear stale cookies if they don't match
-                if (parsedSavedGame.joinCode !== game.joinCode || parsedSavedPlayer.name !== player.name) {
-                    removeCookie('currentGame');
-                    removeCookie('currentPlayer');
-                }
-            }
+        // Only reconnect if we have both restored state and should reconnect
+        if (game?.joinCode && player?.name && !signalRService.isConnected()) {
+            console.log('⚡ Auto-reconnecting to restored game on startup');
+            attemptReconnection();
         }
-    }, [game?.joinCode, player?.name, player?.isReader]);
+    }, [game?.joinCode, player?.name, isInitialized]);
 
     useEffect(() => {
         if (!isInitialized || !game?.joinCode || handlersSetupRef.current) return;
@@ -718,7 +533,6 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log("🎯 New hasNavigatedToJudgingRef value:", hasNavigatedToJudgingRef.current);
             
             // Store the previous round ID before updating to the new one
-            const oldRoundId = previousRoundIdRef.current;
             previousRoundIdRef.current = roundId;
             
             // ✅ OPTIMIZED: Immediate state updates for faster round transitions
@@ -783,24 +597,44 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         });
 
         signalRService.onPlayerKicked((kickedPlayerId, kickedPlayerName) => {
-            console.log('🎯 PlayerKicked event received in GameContext:', { kickedPlayerId, kickedPlayerName });
+            console.log('🎯 PlayerKicked event received:', { kickedPlayerId, kickedPlayerName });
             console.log('🎯 Current player:', player);
             
             const numericKickedPlayerId = parseInt(kickedPlayerId, 10);
             if (player && player.playerId === numericKickedPlayerId) {
-                console.log('🎯 You have been kicked from the game');
+                console.log('🎯 You have been kicked from the game by the host');
                 
-                // Clear all game state
+                // ✅ REFACTORED: Use leaveGame for consistent cleanup
+                // Note: We don't call signalRService.leaveGame() since backend already removed us
+                // Just clear local state
                 setGame(null);
                 setPlayer(null);
                 setCurrentRound(null);
                 setAnswers([]);
                 setPlayersWhoSubmitted(new Set());
+                setRoundsWithVotingEnabled(new Set());
+                setIsReader(false);
+                setPreviousRoundId(null);
+                previousRoundIdRef.current = null;
                 handlersSetupRef.current = false;
+                lastSyncedTimerRef.current = null;
+                submissionInProgressRef.current = false;
+                autoSubmissionAttemptedRef.current = false;
+                hasNavigatedToJudgingRef.current = false;
+                
+                // Clear timer
+                if (timerIntervalRef.current) {
+                    clearInterval(timerIntervalRef.current);
+                    timerIntervalRef.current = null;
+                }
+                setSelectedTimerDuration(null);
+                setTimeRemaining(null);
+                setIsTimerActive(false);
+                setRoundStartTime(null);
+                
+                // Clear cookies
                 removeCookie('currentGame');
                 removeCookie('currentPlayer');
-                removeCookie('currentRound');
-                removeCookie('playersWhoSubmitted');
                 
                 // Redirect to join page
                 console.log('🎯 Redirecting kicked player to join page');
@@ -845,18 +679,19 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [isInitialized, isWaitingRoom, game, player, navigate]);
 
+    // ✅ REFACTORED: Simplified cookie management
     useEffect(() => {
         if (!isInitialized) return;
+        
         if (game && player) {
             setCookie('currentGame', JSON.stringify(game));
             setCookie('currentPlayer', JSON.stringify(player));
-            // Don't save round state - let backend sync handle it
         } else {
+            // Clear all game-related cookies when no active game
             removeCookie('currentGame');
             removeCookie('currentPlayer');
-            removeCookie('currentRound');
         }
-    }, [game, player, isInitialized, currentRound]);
+    }, [game, player, isInitialized]);
 
     // Auto-navigate to judging when everyone has submitted (only if judging mode is enabled)
     useEffect(() => {
@@ -1014,31 +849,17 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [isInitialized, game, player, currentRound, answers, playersWhoSubmitted, roundsWithVotingEnabled, players, navigate]);
 
+    // ✅ REFACTORED: Simplified createGame with proper cleanup
     const createGame = async (playerName: string) => {
         console.log('🎯 GameContext: Starting createGame...');
         setIsLoading(true);
         setLoadingMessage('Creating game...');
         isJoiningRef.current = true;
+        
         try {
-            console.log('🎯 GameContext: Calling leaveGame to clear any existing state...');
+            // Clear any existing game state first
+            console.log('🎯 GameContext: Clearing any existing game state...');
             await leaveGame();
-            
-            // Clear any existing cookies before creating to prevent session conflicts
-            console.log('🎯 GameContext: Clearing existing cookies before creating new game');
-            removeCookie('currentGame');
-            removeCookie('currentPlayer');
-            removeCookie('timerState');
-            
-            // Clear any existing state to ensure clean start
-            setGame(null);
-            setPlayer(null);
-            setCurrentRound(null);
-            setAnswers([]);
-            setPlayersWhoSubmitted(new Set());
-            setRoundsWithVotingEnabled(new Set());
-            setIsReader(false);
-            setPreviousRoundId(null);
-            previousRoundIdRef.current = null;
             
             // ✅ OPTIMIZED: Sequential API calls for game creation (needed for dependency)
             const gameData = await createGameApi();
@@ -1071,31 +892,17 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    // ✅ REFACTORED: Simplified joinGame with proper cleanup
     const joinGame = async (joinCode: string, playerName: string) => {
         console.log('🎯 GameContext: Starting joinGame...');
         setIsLoading(true);
         setLoadingMessage('Joining game...');
         isJoiningRef.current = true;
+        
         try {
-            console.log('🎯 GameContext: Calling leaveGame to clear any existing state...');
+            // Clear any existing game state first
+            console.log('🎯 GameContext: Clearing any existing game state...');
             await leaveGame();
-            
-            // Clear any existing cookies before joining to prevent session conflicts
-            console.log('🎯 GameContext: Clearing existing cookies before joining new game');
-            removeCookie('currentGame');
-            removeCookie('currentPlayer');
-            removeCookie('timerState');
-            
-            // Clear any existing state to ensure clean start
-            setGame(null);
-            setPlayer(null);
-            setCurrentRound(null);
-            setAnswers([]);
-            setPlayersWhoSubmitted(new Set());
-            setRoundsWithVotingEnabled(new Set());
-            setIsReader(false);
-            setPreviousRoundId(null);
-            previousRoundIdRef.current = null;
             
             // ✅ OPTIMIZED: Parallel API calls for faster game joining
             const [playerData, gameData] = await Promise.all([
@@ -1352,43 +1159,53 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    // ✅ REFACTORED: Cleaner leave game with better state management
     const leaveGame = async () => {
         console.log('🎯 GameContext: Leaving game...');
         
+        // Notify backend via SignalR if we have a game
         if (game?.joinCode) {
             try {
                 await signalRService.leaveGame(game.joinCode);
                 console.log('🎯 GameContext: Successfully left game via SignalR');
             } catch (error) {
                 console.error('🎯 GameContext: Error leaving game via SignalR:', error);
-                // Even if SignalR fails, we should still clear local state
+                // Continue with cleanup even if backend call fails
             }
         }
          
-        // ✅ ENHANCED: Clear all local state regardless of SignalR success
+        // Clear all local state
+        console.log('🎯 GameContext: Clearing all local state...');
         setGame(null);
         setPlayer(null);
         setCurrentRound(null);
         setAnswers([]);
         setPlayersWhoSubmitted(new Set());
         setRoundsWithVotingEnabled(new Set());
+        setIsReader(false);
+        setPreviousRoundId(null);
+        previousRoundIdRef.current = null;
         handlersSetupRef.current = false;
         lastSyncedTimerRef.current = null;
         submissionInProgressRef.current = false;
         autoSubmissionAttemptedRef.current = false;
+        hasNavigatedToJudgingRef.current = false;
+        
+        // Clear timer
         if (timerIntervalRef.current) {
             clearInterval(timerIntervalRef.current);
             timerIntervalRef.current = null;
         }
+        setSelectedTimerDuration(null);
+        setTimeRemaining(null);
+        setIsTimerActive(false);
+        setRoundStartTime(null);
         
         // Clear all cookies
         removeCookie('currentGame');
         removeCookie('currentPlayer');
-        removeCookie('currentRound');
-        removeCookie('playersWhoSubmitted');
-        removeCookie('timerState');
         
-        console.log('🎯 GameContext: Local state cleared');
+        console.log('🎯 GameContext: Leave game completed');
     };
 
     return (

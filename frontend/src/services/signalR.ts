@@ -14,13 +14,14 @@ export interface GameStatePayload {
     } | null;
 }
 
-// ✅ NEW: Connection state enum for better state management
+// ✅ REFACTORED: Simplified connection state management
 enum ConnectionState {
     DISCONNECTED = 'disconnected',
     CONNECTING = 'connecting',
     CONNECTED = 'connected',
     RECONNECTING = 'reconnecting',
-    INTENTIONALLY_LEFT = 'intentionally_left'
+    LEAVING = 'leaving',           // Intentionally leaving the game
+    LEFT = 'left'                   // Successfully left the game
 }
 
 class SignalRService {
@@ -36,15 +37,14 @@ class SignalRService {
     private judgingModeToggledCallback: ((enabled: boolean) => void) | null = null;
     private voteResultsUpdatedCallback: ((results: any[], maxVotes: number) => void) | null = null;
     
-    // ✅ REFACTORED: Better state management
+    // ✅ REFACTORED: Cleaner state management
     private connectionState: ConnectionState = ConnectionState.DISCONNECTED;
     private currentJoinCode: string | null = null;
     private currentPlayerName: string | null = null;
     private isConnecting = false;
-    private autoReconnectEnabled = true; // ✅ NEW: Control auto-reconnection
-    private leaveInProgress = false; // ✅ NEW: Track if leave operation is in progress
-    // ✅ NEW: Throttle/coalesce join attempts to avoid duplicate joins during reconnection bursts
-    private lastJoinAttemptKey: string | null = null; // `${joinCode}:${playerName}`
+    
+    // ✅ REFACTORED: Throttle duplicate join attempts
+    private lastJoinAttemptKey: string | null = null;
     private lastJoinAttemptAt: number = 0;
     private ongoingJoinPromise: Promise<void> | null = null;
 
@@ -53,18 +53,34 @@ class SignalRService {
         console.log('SignalR Service initialized');
     }
 
-    // ✅ NEW: Get current connection state
+    // ✅ REFACTORED: Get current connection state
     getConnectionState(): ConnectionState {
         return this.connectionState;
     }
 
-    // ✅ NEW: Check if we should attempt reconnection
+    // ✅ REFACTORED: Check if we should attempt reconnection
     private shouldAttemptReconnection(): boolean {
-        return this.autoReconnectEnabled && 
-               !this.leaveInProgress && 
-               this.currentJoinCode !== null && 
-               this.currentPlayerName !== null &&
-               this.connectionState !== ConnectionState.INTENTIONALLY_LEFT;
+        // Don't reconnect if we're leaving or have left
+        if (this.connectionState === ConnectionState.LEAVING || 
+            this.connectionState === ConnectionState.LEFT) {
+            return false;
+        }
+        
+        // Only reconnect if we have valid game info
+        return this.currentJoinCode !== null && this.currentPlayerName !== null;
+    }
+    
+    // ✅ NEW: Reset to disconnected state (called after leaving game successfully)
+    private resetConnectionState(): void {
+        this.connectionState = ConnectionState.DISCONNECTED;
+        this.currentJoinCode = null;
+        this.currentPlayerName = null;
+        this.connection = null;
+        this.connectionPromise = null;
+        this.isConnecting = false;
+        this.lastJoinAttemptKey = null;
+        this.lastJoinAttemptAt = 0;
+        this.ongoingJoinPromise = null;
     }
 
     private async ensureConnection() {
@@ -97,9 +113,10 @@ class SignalRService {
             return;
         }
         
-        // ✅ NEW: Don't connect if we're intentionally leaving
-        if (this.leaveInProgress || this.connectionState === ConnectionState.INTENTIONALLY_LEFT) {
-            console.log('Skipping connection - leave operation in progress or intentionally left');
+        // ✅ REFACTORED: Don't connect if we're leaving or have left
+        if (this.connectionState === ConnectionState.LEAVING || 
+            this.connectionState === ConnectionState.LEFT) {
+            console.log('Skipping connection - leave operation in progress or already left');
             return;
         }
         
@@ -209,13 +226,14 @@ class SignalRService {
         }
     }
 
-    // ✅ REFACTORED: Force reconnection with better state management
+    // ✅ REFACTORED: Force reconnection with cleaner state management
     async forceReconnect() {
         console.log('⚡ Force reconnecting SignalR...');
         
-        // Don't force reconnect if we're intentionally leaving
-        if (this.leaveInProgress || this.connectionState === ConnectionState.INTENTIONALLY_LEFT) {
-            console.log('Skipping force reconnect - leave operation in progress or intentionally left');
+        // Don't force reconnect if we're leaving or have left
+        if (this.connectionState === ConnectionState.LEAVING || 
+            this.connectionState === ConnectionState.LEFT) {
+            console.log('Skipping force reconnect - leave operation in progress or already left');
             return;
         }
         
@@ -228,7 +246,7 @@ class SignalRService {
             }
         }
         
-        // Reset connection state
+        // Reset connection state (but keep game info for rejoin)
         this.connection = null;
         this.connectionPromise = null;
         this.isConnecting = false;
@@ -294,13 +312,14 @@ class SignalRService {
     async joinGame(joinCode: string, playerName: string) {
         console.log(`🎯 Joining game: ${joinCode} as ${playerName}`);
         
-        // ✅ NEW: Reset leave state when joining a game
-        this.leaveInProgress = false;
-        this.connectionState = ConnectionState.CONNECTED;
-        this.autoReconnectEnabled = true;
-        
+        // ✅ REFACTORED: Update state for new game join
         this.currentJoinCode = joinCode;
         this.currentPlayerName = playerName;
+        
+        // If we were in LEFT state, reset to allow reconnection
+        if (this.connectionState === ConnectionState.LEFT) {
+            this.connectionState = ConnectionState.DISCONNECTED;
+        }
         
         // ✅ NEW: Coalesce duplicate join attempts for the same player/game
         const joinKey = `${joinCode}:${playerName}`;
@@ -371,16 +390,22 @@ class SignalRService {
         return this.ongoingJoinPromise;
     }
 
-    // ✅ NEW: Convenience helper to ensure we are connected and joined to the game
+    // ✅ REFACTORED: Simplified reconnection helper
     async reconnectIfNeeded(joinCode: string, playerName: string) {
-        if (this.isIntentionallyLeaving()) {
-            console.log('Skipping reconnectIfNeeded - intentionally leaving');
+        // Don't reconnect if we're leaving or have left
+        if (this.connectionState === ConnectionState.LEAVING || 
+            this.connectionState === ConnectionState.LEFT) {
+            console.log('Skipping reconnectIfNeeded - leaving or left game');
             return;
         }
+        
+        // Check if we need to reconnect
         const needsReconnect = !this.isConnected() || !this.isPlayerIdentified();
         if (!needsReconnect) {
+            console.log('reconnectIfNeeded: already connected and identified');
             return;
         }
+        
         console.log('reconnectIfNeeded: attempting to restore connection and join game');
         await this.forceReconnect();
         await this.joinGame(joinCode, playerName);
@@ -453,43 +478,34 @@ class SignalRService {
         return await this.connection.invoke('GetMaxVotesForGame', joinCode);
     }
     
-    // ✅ REFACTORED: Better leave game logic
+    // ✅ REFACTORED: Cleaner leave game logic with proper state management
     async leaveGame(joinCode: string) {
-        console.log('🎯 Leaving game:', joinCode);
+        console.log('🎯 SignalR: Leaving game:', joinCode);
         
-        // ✅ NEW: Set leave state to prevent reconnection
-        this.leaveInProgress = true;
-        this.autoReconnectEnabled = false;
-        this.connectionState = ConnectionState.INTENTIONALLY_LEFT;
+        // ✅ Set leaving state to prevent reconnection attempts
+        this.connectionState = ConnectionState.LEAVING;
         
-        const connected = await this.ensureConnectionSafe();
-        if (!connected || !this.connection) {
-            console.warn('No SignalR connection when leaving game. Skipping backend call.');
-            this.clearGameState();
-            return;
+        // Try to notify backend if we're connected
+        if (this.connection?.state === HubConnectionState.Connected) {
+            try {
+                console.log('🎯 SignalR: Invoking LeaveGame on backend...');
+                await this.connection.invoke('LeaveGame', joinCode);
+                console.log('🎯 SignalR: Successfully invoked LeaveGame on backend');
+            } catch (error) {
+                console.error('🎯 SignalR: Error invoking LeaveGame on backend:', error);
+                // Continue with cleanup even if backend call fails
+            }
+        } else {
+            console.warn('🎯 SignalR: Not connected when leaving game, skipping backend call');
         }
         
-        try {
-            await this.connection.invoke('LeaveGame', joinCode);
-            console.log('Successfully left game');
-            this.clearGameState();
-        } catch (error) {
-            console.error('Error leaving game:', error);
-            // Reset state on error so reconnection can still work
-            this.leaveInProgress = false;
-            this.autoReconnectEnabled = true;
-            this.connectionState = ConnectionState.CONNECTED;
-            throw error;
-        }
-    }
-
-    // ✅ NEW: Clear game state helper
-    private clearGameState() {
-        this.currentJoinCode = null;
-        this.currentPlayerName = null;
-        this.leaveInProgress = false;
-        this.autoReconnectEnabled = true;
-        this.connectionState = ConnectionState.DISCONNECTED;
+        // Always clean up local state
+        console.log('🎯 SignalR: Cleaning up local connection state...');
+        this.resetConnectionState();
+        
+        // Mark as successfully left
+        this.connectionState = ConnectionState.LEFT;
+        console.log('🎯 SignalR: Leave game completed');
     }
 
     // Callback Registration
@@ -523,11 +539,12 @@ class SignalRService {
         this.voteResultsUpdatedCallback = callback;
     }
 
-    // ✅ REFACTORED: Better status checking methods
+    // ✅ REFACTORED: Simplified status checking methods
     isInGame(): boolean {
         return this.currentJoinCode !== null && 
                this.currentPlayerName !== null && 
-               this.connectionState !== ConnectionState.INTENTIONALLY_LEFT;
+               this.connectionState !== ConnectionState.LEAVING &&
+               this.connectionState !== ConnectionState.LEFT;
     }
 
     isConnected(): boolean {
@@ -543,15 +560,13 @@ class SignalRService {
         return this.isConnected() && 
                this.currentJoinCode !== null && 
                this.currentPlayerName !== null &&
-               !this.leaveInProgress;
+               this.connectionState !== ConnectionState.LEAVING &&
+               this.connectionState !== ConnectionState.LEFT;
     }
 
     isIntentionallyLeaving(): boolean {
-        return this.leaveInProgress || this.connectionState === ConnectionState.INTENTIONALLY_LEFT;
-    }
-
-    isSubmitting(): boolean {
-        return false; // Placeholder for future implementation
+        return this.connectionState === ConnectionState.LEAVING || 
+               this.connectionState === ConnectionState.LEFT;
     }
 
     getCurrentGameInfo(): { joinCode: string | null; playerName: string | null } {
