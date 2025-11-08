@@ -228,15 +228,12 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log('⚡ Network went offline');
         };
 
-        // ✅ ENHANCED: Handle beforeunload event for clean disconnection
+        // ✅ FIX: Don't call leaveGame() on page refresh - let the backend's grace period handle reconnection
+        // Only leaveGame() should be called when user explicitly clicks "Leave Game" button
+        // On page refresh, the connection will drop naturally and OnDisconnectedAsync will give a grace period
         const handleBeforeUnload = () => {
-            console.log('⚡ Page unloading, attempting clean disconnection');
-            if (game?.joinCode && signalRService.isConnected() && !signalRService.isIntentionallyLeaving()) {
-                // Note: We can't await this in beforeunload, but we can try to send it
-                signalRService.leaveGame(game.joinCode).catch(() => {
-                    // Ignore errors during page unload
-                });
-            }
+            console.log('⚡ Page unloading - connection will drop naturally, backend will handle reconnection grace period');
+            // Don't call leaveGame() here - it would immediately remove the player and prevent reconnection
         };
 
         // ✅ ENHANCED: Add focus event for reconnection
@@ -277,7 +274,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         document.addEventListener('visibilitychange', handleVisibilityChange);
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
-        window.addEventListener('beforeunload', handleBeforeUnload);
+        // ✅ FIX: Removed beforeunload handler - it was causing players to be kicked on page refresh
+        // The backend's OnDisconnectedAsync provides a grace period for reconnection
         window.addEventListener('focus', handleFocus);
         
         // ✅ ENHANCED: Add mobile-specific event listeners
@@ -306,7 +304,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
-            window.removeEventListener('beforeunload', handleBeforeUnload);
+            // ✅ FIX: Removed beforeunload handler cleanup
             window.removeEventListener('focus', handleFocus);
             
             // Remove mobile-specific event listeners
