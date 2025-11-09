@@ -58,6 +58,12 @@ export const Game: React.FC = () => {
     const [lastPointerId, setLastPointerId] = useState<number | null>(null);
     // Add per-round voting mode state
     const [roundVotingMode, setRoundVotingMode] = useState(false);
+    // ✅ NEW: Add input mode state (drawing or text)
+    const [inputMode, setInputMode] = useState<'drawing' | 'text'>('drawing');
+    // ✅ NEW: Add text answer state
+    const [textAnswer, setTextAnswer] = useState('');
+    // ✅ NEW: Character limit for text answers
+    const TEXT_ANSWER_LIMIT = 500;
     const triviaCategories = [
       'American History',
       'Harry Potter',
@@ -594,30 +600,45 @@ export const Game: React.FC = () => {
 
     const handleSubmitAnswer = async () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
-        const canvas = canvasRef.current;
-        if (!canvas) return;
         
         setCompressionStatus('Sending...');
         try {
-            // Create a temporary canvas to ensure white background
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            if (!tempCtx) return;
+            let contentToSubmit: string;
             
-            // Set temp canvas to same size
-            tempCanvas.width = canvas.width;
-            tempCanvas.height = canvas.height;
-            
-            // Fill with white background first
-            tempCtx.fillStyle = 'white';
-            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-            
-            // Draw the original canvas content on top
-            tempCtx.drawImage(canvas, 0, 0);
-            
-            const quality = isIPhone() ? 0.8 : 0.9;
-            const base64Image = tempCanvas.toDataURL('image/jpeg', quality);
-            if (base64Image.length > 1500000) { throw new Error('Drawing is too large.'); }
+            // ✅ NEW: Handle both drawing and text submissions
+            if (inputMode === 'text') {
+                // Text mode - submit text with a prefix to identify it
+                if (!textAnswer.trim()) {
+                    throw new Error('Please enter a text answer before submitting.');
+                }
+                contentToSubmit = `TEXT:${textAnswer.trim()}`;
+            } else {
+                // Drawing mode - submit drawing as base64 image
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+                
+                // Create a temporary canvas to ensure white background
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                if (!tempCtx) return;
+                
+                // Set temp canvas to same size
+                tempCanvas.width = canvas.width;
+                tempCanvas.height = canvas.height;
+                
+                // Fill with white background first
+                tempCtx.fillStyle = 'white';
+                tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                
+                // Draw the original canvas content on top
+                tempCtx.drawImage(canvas, 0, 0);
+                
+                const quality = isIPhone() ? 0.8 : 0.9;
+                const base64Image = tempCanvas.toDataURL('image/jpeg', quality);
+                if (base64Image.length > 1500000) { throw new Error('Drawing is too large.'); }
+                
+                contentToSubmit = base64Image;
+            }
             
             // Check if we're still in the game before submitting
             if (!game?.joinCode || !player?.playerId) {
@@ -640,13 +661,19 @@ export const Game: React.FC = () => {
                 }
             }
             
-            await submitAnswer(base64Image);
-            clearCanvasWithoutConfirmation(); // Use the version without confirmation
+            await submitAnswer(contentToSubmit);
+            
+            // Clear the input after submission
+            if (inputMode === 'text') {
+                setTextAnswer('');
+            } else {
+                clearCanvasWithoutConfirmation();
+            }
         } catch (error: any) {
             console.error('Error submitting answer:', error);
             
             // ✅ ENHANCED: Better error messages for different scenarios
-            let errorMessage = 'Failed to submit drawing. Please try again.';
+            let errorMessage = `Failed to submit ${inputMode === 'text' ? 'text' : 'drawing'}. Please try again.`;
             
             if (error.message?.includes('Connection lost')) {
                 errorMessage = 'Connection lost. Please refresh the page and try again.';
@@ -655,7 +682,9 @@ export const Game: React.FC = () => {
             } else if (error.message?.includes('Player not identified')) {
                 errorMessage = 'Connection issue. Please refresh the page and try again.';
             } else if (error.message?.includes('already submitted')) {
-                errorMessage = 'You have already submitted a drawing for this round.';
+                errorMessage = `You have already submitted ${inputMode === 'text' ? 'a text answer' : 'a drawing'} for this round.`;
+            } else if (error.message?.includes('enter a text answer')) {
+                errorMessage = error.message;
             }
             
             alert(errorMessage);
@@ -676,6 +705,9 @@ export const Game: React.FC = () => {
         setCurrentAnswer('');
         // Reset fill mode when starting new round
         setIsFillMode(false);
+        // ✅ NEW: Reset input mode to drawing when starting new round
+        setInputMode('drawing');
+        setTextAnswer('');
         // Reset round voting mode after starting round
         // setRoundVotingMode(false);
         // setSelectedTimerDuration(null);
@@ -708,10 +740,14 @@ export const Game: React.FC = () => {
         }
     };
 
-    // FIX: Simplified the JSX inside .card-back to remove the problematic nested div.
+    // ✅ UPDATED: Handle both drawing and text answers
     const renderAnswerCard = (answer: Answer) => {
         const voteResult = voteResults.find(r => r.answerId === answer.answerId);
         const detailedVoteResult = detailedVoteResults.find(r => r.answerId === answer.answerId);
+        
+        // Check if this is a text answer
+        const isTextAnswer = answer.content.startsWith('TEXT:');
+        const textContent = isTextAnswer ? answer.content.substring(5) : ''; // Remove 'TEXT:' prefix
         
         return (
             <div key={answer.answerId} className="answer-card" onClick={() => handleCardClick(answer.answerId)}>
@@ -729,7 +765,33 @@ export const Game: React.FC = () => {
                     <div className="card-back">
                         <h3 className="player-name-back">{answer.playerName || 'Unknown'}</h3>
                         <div className="drawing-container">
-                            <img src={answer.content} alt={`Drawing by ${answer.playerName}`} />
+                            {isTextAnswer ? (
+                                <div className="text-answer-display" style={{
+                                    padding: '1.5rem',
+                                    backgroundColor: '#f9fafb',
+                                    borderRadius: '8px',
+                                    minHeight: '150px',
+                                    maxHeight: '300px',
+                                    overflow: 'auto',
+                                    display: 'flex',
+                                    alignItems: textContent.length < 100 ? 'center' : 'flex-start',
+                                    justifyContent: 'center'
+                                }}>
+                                    <p style={{
+                                        fontSize: textContent.length < 50 ? '1.25rem' : textContent.length < 150 ? '1.125rem' : '1rem',
+                                        lineHeight: '1.75rem',
+                                        color: '#374151',
+                                        whiteSpace: 'pre-wrap',
+                                        wordBreak: 'break-word',
+                                        textAlign: 'center',
+                                        margin: 0
+                                    }}>
+                                        {textContent}
+                                    </p>
+                                </div>
+                            ) : (
+                                <img src={answer.content} alt={`Drawing by ${answer.playerName}`} />
+                            )}
                         </div>
                         {detailedVoteResult && detailedVoteResult.voters && detailedVoteResult.voters.length > 0 ? (
                             <div className="voter-list-below">
@@ -1174,16 +1236,56 @@ export const Game: React.FC = () => {
                                             </div>
                                         </div>
                                         
-                                        {/* Show the submitted drawing */}
+                                        {/* Show the submitted answer (drawing or text) */}
                                         <div className="mb-4">
-                                            <h4 className="text-sm font-medium text-green-800 mb-2">Your Drawing:</h4>
-                                            <div className="bg-white border border-green-200 rounded-lg p-3">
-                                                <img 
-                                                    src={answers.find(a => a.playerId === player.playerId)?.content} 
-                                                    alt="Your submitted drawing"
-                                                    className="w-full h-48 object-contain bg-white rounded"
-                                                />
-                                            </div>
+                                            {(() => {
+                                                const myAnswer = answers.find(a => a.playerId === player.playerId);
+                                                if (!myAnswer) return null;
+                                                
+                                                const isTextAnswer = myAnswer.content.startsWith('TEXT:');
+                                                const textContent = isTextAnswer ? myAnswer.content.substring(5) : '';
+                                                
+                                                return (
+                                                    <>
+                                                        <h4 className="text-sm font-medium text-green-800 mb-2">
+                                                            {isTextAnswer ? 'Your Text Answer:' : 'Your Drawing:'}
+                                                        </h4>
+                                                        <div className="bg-white border border-green-200 rounded-lg p-3">
+                                                            {isTextAnswer ? (
+                                                                <div className="text-answer-display" style={{
+                                                                    padding: '1.5rem',
+                                                                    backgroundColor: '#f9fafb',
+                                                                    borderRadius: '8px',
+                                                                    minHeight: '8rem',
+                                                                    maxHeight: '16rem',
+                                                                    overflow: 'auto',
+                                                                    display: 'flex',
+                                                                    alignItems: textContent.length < 100 ? 'center' : 'flex-start',
+                                                                    justifyContent: 'center'
+                                                                }}>
+                                                                    <p style={{
+                                                                        fontSize: textContent.length < 50 ? '1.25rem' : textContent.length < 150 ? '1.125rem' : '1rem',
+                                                                        lineHeight: '1.75rem',
+                                                                        color: '#374151',
+                                                                        whiteSpace: 'pre-wrap',
+                                                                        wordBreak: 'break-word',
+                                                                        textAlign: 'center',
+                                                                        margin: 0
+                                                                    }}>
+                                                                        {textContent}
+                                                                    </p>
+                                                                </div>
+                                                            ) : (
+                                                                <img 
+                                                                    src={myAnswer?.content} 
+                                                                    alt="Your submitted drawing"
+                                                                    className="w-full h-48 object-contain bg-white rounded"
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    </>
+                                                );
+                                            })()}
                                         </div>
                                         
                                         {/* Show submission progress */}
@@ -1326,42 +1428,97 @@ export const Game: React.FC = () => {
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                     </svg>
                                                 </button>
+                                                {/* ✅ NEW: Toggle between drawing and text mode */}
+                                                <button 
+                                                    onClick={() => {
+                                                        const newMode = inputMode === 'drawing' ? 'text' : 'drawing';
+                                                        setInputMode(newMode);
+                                                        console.log('Switched to', newMode, 'mode');
+                                                    }}
+                                                    className={`p-2 rounded-full transition-colors ${inputMode === 'text' ? 'bg-purple-200 hover:bg-purple-300' : 'bg-gray-200 hover:bg-gray-300'}`}
+                                                    title={inputMode === 'drawing' ? 'Switch to text mode' : 'Switch to drawing mode'}
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                    </svg>
+                                                </button>
                                             </div>
                                         </div>
-                                        <div className="canvas-container select-none" style={{ 
-                                            userSelect: 'none', 
-                                            WebkitUserSelect: 'none', 
-                                            MozUserSelect: 'none', 
-                                            msUserSelect: 'none',
-                                            touchAction: 'none',
-                                            WebkitTouchCallout: 'none',
-                                            WebkitTapHighlightColor: 'transparent',
-                                            WebkitUserModify: 'read-only',
-                                            WebkitOverflowScrolling: 'touch'
-                                        }}>
-                                            <canvas
-                                                ref={canvasRef}
-                                                onPointerDown={startDrawing}
-                                                onPointerMove={draw}
-                                                onPointerUp={stopDrawing}
-                                                onPointerLeave={stopDrawing}
-                                                onPointerCancel={stopDrawing}
-                                                onTouchStart={(e) => e.preventDefault()}
-                                                onTouchMove={(e) => e.preventDefault()}
-                                                onTouchEnd={(e) => e.preventDefault()}
-                                                style={{ 
-                                                    userSelect: 'none', 
-                                                    WebkitUserSelect: 'none', 
-                                                    MozUserSelect: 'none', 
-                                                    msUserSelect: 'none',
-                                                    touchAction: 'none',
-                                                    WebkitTouchCallout: 'none',
-                                                    WebkitTapHighlightColor: 'transparent',
-                                                    WebkitUserModify: 'read-only',
-                                                    WebkitOverflowScrolling: 'touch'
-                                                }}
-                                            />
-                                        </div>
+                                        {/* ✅ NEW: Conditional rendering based on input mode */}
+                                        {inputMode === 'drawing' ? (
+                                            <div className="canvas-container select-none" style={{ 
+                                                userSelect: 'none', 
+                                                WebkitUserSelect: 'none', 
+                                                MozUserSelect: 'none', 
+                                                msUserSelect: 'none',
+                                                touchAction: 'none',
+                                                WebkitTouchCallout: 'none',
+                                                WebkitTapHighlightColor: 'transparent',
+                                                WebkitUserModify: 'read-only',
+                                                WebkitOverflowScrolling: 'touch'
+                                            }}>
+                                                <canvas
+                                                    ref={canvasRef}
+                                                    onPointerDown={startDrawing}
+                                                    onPointerMove={draw}
+                                                    onPointerUp={stopDrawing}
+                                                    onPointerLeave={stopDrawing}
+                                                    onPointerCancel={stopDrawing}
+                                                    onTouchStart={(e) => e.preventDefault()}
+                                                    onTouchMove={(e) => e.preventDefault()}
+                                                    onTouchEnd={(e) => e.preventDefault()}
+                                                    style={{ 
+                                                        userSelect: 'none', 
+                                                        WebkitUserSelect: 'none', 
+                                                        MozUserSelect: 'none', 
+                                                        msUserSelect: 'none',
+                                                        touchAction: 'none',
+                                                        WebkitTouchCallout: 'none',
+                                                        WebkitTapHighlightColor: 'transparent',
+                                                        WebkitUserModify: 'read-only',
+                                                        WebkitOverflowScrolling: 'touch'
+                                                    }}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="text-area-container" style={{
+                                                width: '300px',
+                                                margin: '0 auto',
+                                                border: '2px solid #9333ea',
+                                                borderRadius: '8px',
+                                                overflow: 'hidden',
+                                                backgroundColor: 'white',
+                                                position: 'relative'
+                                            }}>
+                                                <textarea
+                                                    value={textAnswer}
+                                                    onChange={(e) => {
+                                                        const newValue = e.target.value;
+                                                        if (newValue.length <= TEXT_ANSWER_LIMIT) {
+                                                            setTextAnswer(newValue);
+                                                        }
+                                                    }}
+                                                    placeholder="Type your answer here..."
+                                                    className="w-full h-96 p-4 pb-8 text-gray-800 text-base resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                                    style={{
+                                                        fontFamily: 'inherit',
+                                                        fontSize: '14px',
+                                                        lineHeight: '1.5'
+                                                    }}
+                                                    maxLength={TEXT_ANSWER_LIMIT}
+                                                />
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    bottom: '8px',
+                                                    right: '12px',
+                                                    fontSize: '12px',
+                                                    color: textAnswer.length >= TEXT_ANSWER_LIMIT ? '#dc2626' : '#9ca3af',
+                                                    fontWeight: textAnswer.length >= TEXT_ANSWER_LIMIT ? 'bold' : 'normal'
+                                                }}>
+                                                    {textAnswer.length}/{TEXT_ANSWER_LIMIT}
+                                                </div>
+                                            </div>
+                                        )}
                                         <div className="flex flex-col sm:flex-row items-center gap-4 mt-2 select-none" style={{ userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none', msUserSelect: 'none' }}>
                                             {isFillMode && (
                                                 <div className="bg-purple-100 border border-purple-300 rounded-lg px-3 py-1 text-sm text-purple-700 font-medium">
@@ -1391,7 +1548,7 @@ export const Game: React.FC = () => {
                                                     msUserSelect: 'none'
                                                 }}
                                             >
-                                                {compressionStatus || 'Submit Drawing'}
+                                                {compressionStatus || (inputMode === 'text' ? 'Submit Text' : 'Submit Drawing')}
                                             </button>
                                         </div>
                                         {compressionStatus && (

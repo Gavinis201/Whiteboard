@@ -228,30 +228,64 @@ export const JudgingPage: React.FC = () => {
                     <div className="voting-section">
                         {/* Drawings Grid */}
                         <div className="drawings-grid">
-                            {otherPlayersAnswers.map((answer) => (
-                                <div key={answer.answerId} className="drawing-card">
-                                    <div className="drawing-image-container">
-                                        <img 
-                                            src={answer.content} 
-                                            alt={`Drawing by ${answer.playerName}`}
-                                            className="drawing-image"
-                                        />
-                                    </div>
-                                    
-                                    <div className="drawing-info">
-                                        {/* <h3 className="artist-name">{answer.playerName}</h3> */}
+                            {otherPlayersAnswers.map((answer) => {
+                                // ✅ NEW: Check if this is a text answer
+                                const isTextAnswer = answer.content.startsWith('TEXT:');
+                                const textContent = isTextAnswer ? answer.content.substring(5) : '';
+                                
+                                return (
+                                    <div key={answer.answerId} className="drawing-card">
+                                        <div className="drawing-image-container">
+                                            {isTextAnswer ? (
+                                                <div className="text-answer-display" style={{
+                                                    padding: '1.5rem',
+                                                    backgroundColor: '#f9fafb',
+                                                    borderRadius: '8px',
+                                                    minHeight: '200px',
+                                                    maxHeight: '350px',
+                                                    overflow: 'auto',
+                                                    display: 'flex',
+                                                    alignItems: textContent.length < 100 ? 'center' : 'flex-start',
+                                                    justifyContent: 'center',
+                                                    width: '100%',
+                                                    height: '100%'
+                                                }}>
+                                                    <p style={{
+                                                        fontSize: textContent.length < 50 ? '1.5rem' : textContent.length < 150 ? '1.25rem' : '1.125rem',
+                                                        lineHeight: '1.75rem',
+                                                        color: '#374151',
+                                                        whiteSpace: 'pre-wrap',
+                                                        wordBreak: 'break-word',
+                                                        textAlign: 'center',
+                                                        margin: 0
+                                                    }}>
+                                                        {textContent}
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <img 
+                                                    src={answer.content} 
+                                                    alt={`Drawing by ${answer.playerName}`}
+                                                    className="drawing-image"
+                                                />
+                                            )}
+                                        </div>
                                         
-                                        <div className="vote-buttons">
-                                            <button
-                                                className={`vote-btn ${selectedVote === answer.answerId ? 'selected first' : ''}`}
-                                                onClick={() => handleVoteSelect(answer.answerId)}
-                                            >
-                                                💜 Vote
-                                            </button>
+                                        <div className="drawing-info">
+                                            {/* <h3 className="artist-name">{answer.playerName}</h3> */}
+                                            
+                                            <div className="vote-buttons">
+                                                <button
+                                                    className={`vote-btn ${selectedVote === answer.answerId ? 'selected first' : ''}`}
+                                                    onClick={() => handleVoteSelect(answer.answerId)}
+                                                >
+                                                    💜 Vote
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
 
                         {/* Vote Summary */}
