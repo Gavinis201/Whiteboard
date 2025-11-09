@@ -118,7 +118,8 @@ export const Game: React.FC = () => {
                             console.log('Page not visible, but attempting auto-submission anyway');
                         }
                         
-                        await handleSubmitAnswer();
+                        // ✅ Pass isAutoSubmit=true to allow empty text submissions (like blank drawings)
+                        await handleSubmitAnswer(true);
                     } else {
                         console.log('Player already submitted, skipping auto-submission');
                     }
@@ -126,7 +127,7 @@ export const Game: React.FC = () => {
                     console.error('Auto-submission failed:', error);
                     // Show a user-friendly message only if page is visible
                     if (!document.hidden) {
-                    alert('Timer expired but submission failed. Please try submitting manually.');
+                        alert('Timer expired but submission failed. Please try submitting manually.');
                     }
                 }
             });
@@ -135,7 +136,7 @@ export const Game: React.FC = () => {
         }
          
         return () => setOnTimerExpire(null);
-    }, [currentRound, isReader, playersWhoSubmitted, player?.playerId, setOnTimerExpire]);
+    }, [currentRound, isReader, playersWhoSubmitted, player?.playerId, setOnTimerExpire, inputMode, textAnswer]);
 
     // Fetch prompts from database
     useEffect(() => {
@@ -598,7 +599,7 @@ export const Game: React.FC = () => {
         setHasMoved(false);
     };
 
-    const handleSubmitAnswer = async () => {
+    const handleSubmitAnswer = async (isAutoSubmit = false) => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
         
         setCompressionStatus('Sending...');
@@ -608,10 +609,11 @@ export const Game: React.FC = () => {
             // ✅ NEW: Handle both drawing and text submissions
             if (inputMode === 'text') {
                 // Text mode - submit text with a prefix to identify it
-                if (!textAnswer.trim()) {
+                // For auto-submit (timer expired), allow empty text just like blank drawings
+                if (!isAutoSubmit && !textAnswer.trim()) {
                     throw new Error('Please enter a text answer before submitting.');
                 }
-                contentToSubmit = `TEXT:${textAnswer.trim()}`;
+                contentToSubmit = `TEXT:${textAnswer.trim() || '(No answer provided)'}`;
             } else {
                 // Drawing mode - submit drawing as base64 image
                 const canvas = canvasRef.current;
@@ -1538,7 +1540,7 @@ export const Game: React.FC = () => {
                                                 />
                                             </div>
                                             <button 
-                                                onClick={handleSubmitAnswer} 
+                                                onClick={() => handleSubmitAnswer(false)} 
                                                 disabled={!!compressionStatus} 
                                                 className="bg-purple-600 text-white px-8 py-3 rounded-lg hover:bg-purple-700 w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed select-none user-select-none"
                                                 style={{ 
