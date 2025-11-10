@@ -133,6 +133,25 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
     // ✅ REFACTORED: Consolidated reconnection system
     useEffect(() => {
+        // ✅ NEW: Check connection immediately when this effect runs
+        // This catches cases where user navigates back without triggering visibility change
+        const checkInitialConnection = async () => {
+            if (!document.hidden && game?.joinCode && player?.name) {
+                const isConnected = signalRService.isConnected();
+                const needsReconnect = !isConnected || !signalRService.isPlayerIdentified();
+                
+                if (needsReconnect) {
+                    console.log('🔄 Component mounted/updated while visible but not connected, reconnecting...');
+                    await reconnectAndSync();
+                }
+            }
+        };
+        
+        // Run initial check after a brief delay to let everything settle
+        const initialCheckTimer = setTimeout(() => {
+            checkInitialConnection();
+        }, 200);
+        
         const handleVisibilityChange = async () => {
             const isVisible = !document.hidden;
             pageVisibilityRef.current = isVisible;
@@ -181,10 +200,14 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             reconnectAndSync();
         };
 
-        const handleResume = () => {
-            console.log('⚡ App resumed (mobile), reconnecting...');
-            // Small delay for app resume
-            setTimeout(() => reconnectAndSync(), 500);
+        const handleResume = (event: Event) => {
+            console.log('⚡ Page show/resume event triggered');
+            // Check if this is a back/forward cache restore
+            if ('persisted' in event && (event as any).persisted) {
+                console.log('⚡ Page restored from bfcache, forcing reconnection...');
+            }
+            // Small delay for mobile resume
+            setTimeout(() => reconnectAndSync(), 300);
         };
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -193,9 +216,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         window.addEventListener('focus', handleFocus);
         
         // Mobile-specific event listeners
-        if ('onpageshow' in window) {
-            window.addEventListener('pageshow', handleResume);
-        }
+        window.addEventListener('pageshow', handleResume);
         if ('onresume' in window) {
             (window as any).addEventListener('resume', handleResume);
         }
@@ -208,21 +229,18 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         }, 8000);
 
         return () => {
+            clearTimeout(initialCheckTimer);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
             window.removeEventListener('focus', handleFocus);
-            
-            if ('onpageshow' in window) {
-                window.removeEventListener('pageshow', handleResume);
-            }
+            window.removeEventListener('pageshow', handleResume);
             if ('onresume' in window) {
                 (window as any).removeEventListener('resume', handleResume);
             }
-            
             clearInterval(connectionCheckInterval);
         };
-    }, [game?.joinCode, player?.name]);
+    }, [game?.joinCode, player?.name, currentRound?.roundId]);
 
     // ✅ REFACTORED: Simplified initialization with minimal cookie restoration
     useEffect(() => {
