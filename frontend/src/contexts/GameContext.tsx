@@ -716,7 +716,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         return () => {
             handlersSetupRef.current = false;
         };
-    }, [isInitialized, game?.joinCode, player?.playerId, currentRound?.roundId]);
+    }, [isInitialized, game?.joinCode, player?.playerId]);
 
     // Navigate to waiting room if flagged
     useEffect(() => {
@@ -1297,6 +1297,42 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 export const useGame = (): GameContextType => {
     const context = useContext(GameContext);
     if (context === undefined) {
+        // During Vite HMR, the context module can be re-evaluated causing a transient mismatch
+        // Provide a safe fallback in dev to avoid crashing the UI while the provider remounts
+        if (import.meta.env?.DEV) {
+            console.warn('useGame used outside of GameProvider during HMR; returning fallback context');
+            const noop = async () => {};
+            return {
+                game: null,
+                player: null,
+                currentRound: null,
+                answers: [],
+                players: [],
+                isReader: false,
+                playersWhoSubmitted: new Set<number>(),
+                isInitialized: false,
+                isLoading: true,
+                loadingMessage: 'Initializing...',
+                selectedTimerDuration: null,
+                timeRemaining: null,
+                roundStartTime: null,
+                isTimerActive: false,
+                judgingModeEnabled: false,
+                roundsWithVotingEnabled: new Set<number>(),
+                setSelectedTimerDuration: () => {},
+                setTimeRemaining: () => {},
+                setRoundStartTime: () => {},
+                setIsTimerActive: () => {},
+                setOnTimerExpire: () => {},
+                createGame: noop,
+                joinGame: async () => {},
+                startNewRound: noop,
+                submitAnswer: async () => {},
+                kickPlayer: async () => {},
+                toggleJudgingMode: async () => {},
+                leaveGame: async () => {}
+            };
+        }
         throw new Error('useGame must be used within a GameProvider');
     }
     return context;

@@ -27,6 +27,7 @@ enum ConnectionState {
 class SignalRService {
     private connection: HubConnection | null = null;
     private connectionPromise: Promise<void> | null = null;
+    private ongoingReconnectPromise: Promise<void> | null = null;
     
     // Callbacks
     private gameStateSyncedCallback: ((payload: GameStatePayload) => void) | null = null;
@@ -109,6 +110,11 @@ class SignalRService {
     }
  
     async connect() {
+        // If we're already connecting or connected, reuse existing promise or bail
+        if (this.connectionPromise) {
+            await this.connectionPromise;
+            return;
+        }
         if (this.isConnecting || this.connection?.state === HubConnectionState.Connected) {
             return;
         }
@@ -124,8 +130,16 @@ class SignalRService {
         this.connectionState = ConnectionState.CONNECTING;
 
         try {
-            if (this.connection) {
-                await this.connection.stop();
+            // If we already have a connection object that is starting or reconnecting, wait for it to settle
+            if (this.connection && (this.connection.state === HubConnectionState.Connecting || this.connection.state === HubConnectionState.Reconnecting)) {
+                console.log('Connection is in transitional state, waiting before starting a new one');
+                await this.waitForStableState();
+            }
+            // After waiting, if we're already connected, no need to build/start again
+            // @ts-expect-error State may transition to Connected after awaiting; allow runtime check
+            if (this.connection?.state === HubConnectionState.Connected) {
+                this.connectionState = ConnectionState.CONNECTED;
+                return;
             }
 
             // Safari-specific configuration
@@ -195,7 +209,8 @@ class SignalRService {
             while (connectionAttempts < maxAttempts) {
                 try {
                     console.log(`🔧 SignalR connection attempt ${connectionAttempts + 1}/${maxAttempts}`);
-                    await this.connection.start();
+                    this.connectionPromise = this.connection.start();
+                    await this.connectionPromise;
                     this.connectionState = ConnectionState.CONNECTED;
                     console.log(`✅ SignalR Connected - Safari: ${this.isSafari()}, State: ${this.connection.state}`);
                     break;
@@ -223,12 +238,16 @@ class SignalRService {
             throw err;
         } finally {
             this.isConnecting = false;
+            this.connectionPromise = null;
         }
     }
 
     // ✅ REFACTORED: Force reconnection with cleaner state management
     async forceReconnect() {
         console.log('⚡ Force reconnecting SignalR...');
+        if (this.ongoingReconnectPromise) {
+            return this.ongoingReconnectPromise;
+        }
         
         // Don't force reconnect if we're leaving or have left
         if (this.connectionState === ConnectionState.LEAVING || 
@@ -240,33 +259,53 @@ class SignalRService {
         // Set reconnecting state immediately so UI can show status
         this.connectionState = ConnectionState.RECONNECTING;
         
-        // Close existing connection if any
-        if (this.connection) {
-            try {
-                await this.connection.stop();
-            } catch (error) {
-                console.log('⚡ Error stopping existing connection:', error);
+        this.ongoingReconnectPromise = (async () => {
+            // If current connection is in a transitional state, wait a bit
+            if (this.connection && (this.connection.state === HubConnectionState.Connecting || this.connection.state === HubConnectionState.Reconnecting)) {
+                await this.waitForStableState();
             }
-        }
-        
-        // Reset connection (but keep game info for rejoin)
-        this.connection = null;
-        this.connectionPromise = null;
-        this.isConnecting = false;
-        
-        // Attempt to reconnect
-        try {
-            await this.connect();
-            console.log('⚡ Force reconnection successful');
-        } catch (error) {
-            console.error('⚡ Force reconnection failed:', error);
-            this.connectionState = ConnectionState.DISCONNECTED;
-            throw error;
-        }
+
+            // Close existing connection if any and stable
+            if (this.connection) {
+                try {
+                    await this.connection.stop();
+                } catch (error) {
+                    console.log('⚡ Error stopping existing connection:', error);
+                }
+            }
+            
+            // Reset connection (but keep game info for rejoin)
+            this.connection = null;
+            this.connectionPromise = null;
+            this.isConnecting = false;
+            
+            // Attempt to reconnect
+            try {
+                await this.connect();
+                console.log('⚡ Force reconnection successful');
+            } catch (error) {
+                console.error('⚡ Force reconnection failed:', error);
+                this.connectionState = ConnectionState.DISCONNECTED;
+                throw error;
+            } finally {
+                this.ongoingReconnectPromise = null;
+            }
+        })();
+
+        return this.ongoingReconnectPromise;
     }
 
     private setupEventHandlers() {
         if (!this.connection) return;
+
+        // Ensure we don't duplicate handlers when rebuilding the connection
+        this.connection.off('GameStateSynced');
+        this.connection.off('PlayerListUpdated');
+        this.connection.off('AnswerReceived');
+        this.connection.off('RoundStarted');
+        this.connection.off('PlayerKicked');
+        this.connection.off('JudgingModeToggled');
+        this.connection.off('VoteResultsUpdated');
 
         this.connection.on('GameStateSynced', (payload: GameStatePayload) => {
             console.log('GameStateSynced event received:', payload);
@@ -300,6 +339,18 @@ class SignalRService {
         this.connection.on('VoteResultsUpdated', (results: any[], maxVotes: number) => {
             this.voteResultsUpdatedCallback?.(results, maxVotes);
         });
+    }
+    
+    // Wait until the connection is no longer in the Connecting state
+    private async waitForStableState(timeoutMs: number = 5000): Promise<void> {
+        const start = Date.now();
+        while (this.connection && (this.connection.state === HubConnectionState.Connecting || this.connection.state === HubConnectionState.Reconnecting)) {
+            if (Date.now() - start > timeoutMs) {
+                console.warn('Timeout waiting for stable connection state');
+                return;
+            }
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
     }
     
     async ensureConnectionSafe(): Promise<boolean> {
@@ -592,4 +643,16 @@ class SignalRService {
     }
 }
 
-export const signalRService = new SignalRService();
+// Preserve singleton across Vite HMR to avoid duplicate instances and callbacks
+let signalRServiceInstance: SignalRService;
+if (typeof window !== 'undefined') {
+    const w = window as unknown as { __signalRServiceSingleton?: SignalRService };
+    if (!w.__signalRServiceSingleton) {
+        w.__signalRServiceSingleton = new SignalRService();
+    }
+    signalRServiceInstance = w.__signalRServiceSingleton;
+} else {
+    signalRServiceInstance = new SignalRService();
+}
+
+export const signalRService = signalRServiceInstance;
