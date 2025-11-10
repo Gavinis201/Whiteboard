@@ -382,12 +382,12 @@ class SignalRService {
             return this.ongoingJoinPromise;
         }
         const now = Date.now();
-        if (this.lastJoinAttemptKey === joinKey && (now - this.lastJoinAttemptAt) < 1500 && this.connection?.state === HubConnectionState.Connected) {
+        // Only throttle if we recently completed a successful join
+        if (this.lastJoinAttemptKey === joinKey && this.lastJoinAttemptAt > 0 && (now - this.lastJoinAttemptAt) < 1500 && this.connection?.state === HubConnectionState.Connected) {
             console.log('⏳ Throttling duplicate join attempt within 1500ms window');
             return;
         }
         this.lastJoinAttemptKey = joinKey;
-        this.lastJoinAttemptAt = now;
         
         const connected = await this.ensureConnectionSafe();
         if (!connected || !this.connection) throw new Error('No SignalR connection');
@@ -401,6 +401,8 @@ class SignalRService {
                 const joinPromise = this.connection!.invoke('JoinGame', joinCode, playerName);
                 await Promise.race([joinPromise, timeoutPromise]);
                 console.log('Successfully invoked JoinGame');
+                // Mark the time of the last successful join to enable short throttle for immediate duplicates
+                this.lastJoinAttemptAt = Date.now();
                 
                 // ✅ NEW: Wait for GameStateSynced to ensure complete state sync
                 // This is especially important for players who were away during round start
@@ -408,6 +410,28 @@ class SignalRService {
                 console.log('Game state sync completed');
             } catch (error) {
                 console.error('Error invoking JoinGame:', error);
+                // Clear last successful join time so rejoin is not throttled after a failure
+                this.lastJoinAttemptAt = 0;
+                
+                // Generic retry when the connection closed mid-invoke (not just Safari)
+                const msg = (error as any)?.message || '';
+                if (msg.includes('Invocation canceled due to the underlying connection being closed') ||
+                    this.connection?.state !== HubConnectionState.Connected) {
+                    try {
+                        console.log('Join failed due to connection close; forcing reconnect and retrying once');
+                        await this.forceReconnect();
+                        // small settle delay
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                        await this.connection!.invoke('JoinGame', joinCode, playerName);
+                        console.log('Join retry after reconnect succeeded');
+                        this.lastJoinAttemptAt = Date.now();
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        return;
+                    } catch (retryErr) {
+                        console.error('Join retry after reconnect failed:', retryErr);
+                        throw retryErr;
+                    }
+                }
                 // For Safari/mobile, try a force reconnect and retry multiple times
                 if ((this.isSafari() || this.isMobileSafari()) && error instanceof Error && (error as any).message?.includes('timeout')) {
                     console.log('Mobile/Safari timeout detected, attempting multiple reconnection attempts');
@@ -424,6 +448,7 @@ class SignalRService {
                             const innerJoin = this.connection!.invoke('JoinGame', joinCode, playerName);
                             await Promise.race([innerJoin, innerTimeout]);
                             console.log(`Mobile reconnection attempt ${attempt} successful`);
+                            this.lastJoinAttemptAt = Date.now();
                             // Wait a bit for state sync
                             await new Promise(resolve => setTimeout(resolve, 500));
                             return;
