@@ -28,6 +28,7 @@ class SignalRService {
     private connection: HubConnection | null = null;
     private connectionPromise: Promise<void> | null = null;
     private ongoingReconnectPromise: Promise<void> | null = null;
+    private identified: boolean = false;
     
     // Callbacks
     private gameStateSyncedCallback: ((payload: GameStatePayload) => void) | null = null;
@@ -48,6 +49,7 @@ class SignalRService {
     private lastJoinAttemptKey: string | null = null;
     private lastJoinAttemptAt: number = 0;
     private ongoingJoinPromise: Promise<void> | null = null;
+    private ongoingConnectAndJoinPromise: Promise<void> | null = null;
 
     constructor() {
         // Don't auto-connect on instantiation - let the app control when to connect
@@ -170,6 +172,7 @@ class SignalRService {
             this.connection.onclose(e => {
                 console.log('SignalR connection closed:', e);
                 this.connectionState = ConnectionState.DISCONNECTED;
+                this.identified = false;
                 
                 // Only attempt reconnection if we should
                 if (this.shouldAttemptReconnection()) {
@@ -191,8 +194,8 @@ class SignalRService {
                 
                 // Only try to rejoin if we have valid game info and should reconnect
                 if (this.shouldAttemptReconnection()) {
-                    console.log('Re-joining game after reconnection...');
-                    this.joinGame(this.currentJoinCode!, this.currentPlayerName!).catch(err => {
+                    console.log('Re-joining game after reconnection with connectAndJoin...');
+                    this.connectAndJoin(this.currentJoinCode!, this.currentPlayerName!).catch(err => {
                         console.error('Failed to auto-rejoin game after reconnection:', err);
                     });
                 } else {
@@ -403,6 +406,7 @@ class SignalRService {
                 console.log('Successfully invoked JoinGame');
                 // Mark the time of the last successful join to enable short throttle for immediate duplicates
                 this.lastJoinAttemptAt = Date.now();
+                this.identified = true;
                 
                 // ✅ NEW: Wait for GameStateSynced to ensure complete state sync
                 // This is especially important for players who were away during round start
@@ -412,6 +416,7 @@ class SignalRService {
                 console.error('Error invoking JoinGame:', error);
                 // Clear last successful join time so rejoin is not throttled after a failure
                 this.lastJoinAttemptAt = 0;
+                this.identified = false;
                 
                 // Generic retry when the connection closed mid-invoke (not just Safari)
                 const msg = (error as any)?.message || '';
@@ -425,6 +430,7 @@ class SignalRService {
                         await this.connection!.invoke('JoinGame', joinCode, playerName);
                         console.log('Join retry after reconnect succeeded');
                         this.lastJoinAttemptAt = Date.now();
+                        this.identified = true;
                         await new Promise(resolve => setTimeout(resolve, 500));
                         return;
                     } catch (retryErr) {
@@ -449,6 +455,7 @@ class SignalRService {
                             await Promise.race([innerJoin, innerTimeout]);
                             console.log(`Mobile reconnection attempt ${attempt} successful`);
                             this.lastJoinAttemptAt = Date.now();
+                            this.identified = true;
                             // Wait a bit for state sync
                             await new Promise(resolve => setTimeout(resolve, 500));
                             return;
@@ -467,6 +474,25 @@ class SignalRService {
         })();
         
         return this.ongoingJoinPromise;
+    }
+
+    // ✅ NEW: Unified helper to ensure connection and join, coalesced across callers
+    async connectAndJoin(joinCode: string, playerName: string): Promise<void> {
+        if (this.ongoingConnectAndJoinPromise) {
+            return this.ongoingConnectAndJoinPromise;
+        }
+        this.ongoingConnectAndJoinPromise = (async () => {
+            // If already fully identified, nothing to do
+            if (this.isConnected() && this.isPlayerIdentified() &&
+                this.currentJoinCode === joinCode && this.currentPlayerName === playerName) {
+                return;
+            }
+            await this.ensureConnectionSafe();
+            await this.joinGame(joinCode, playerName);
+        })().finally(() => {
+            this.ongoingConnectAndJoinPromise = null;
+        });
+        return this.ongoingConnectAndJoinPromise;
     }
 
     // ✅ REFACTORED: Simplified reconnection helper
@@ -636,9 +662,10 @@ class SignalRService {
     }
 
     isPlayerIdentified(): boolean {
-        return this.isConnected() && 
-               this.currentJoinCode !== null && 
+        return this.isConnected() &&
+               this.currentJoinCode !== null &&
                this.currentPlayerName !== null &&
+               this.identified === true &&
                this.connectionState !== ConnectionState.LEAVING &&
                this.connectionState !== ConnectionState.LEFT;
     }

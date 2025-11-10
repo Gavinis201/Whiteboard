@@ -74,7 +74,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     const isJoiningRef = useRef<boolean>(false);
     const hasNavigatedToJudgingRef = useRef<boolean>(false);
     const previousRoundIdRef = useRef<number | null>(null);
-    const pageVisibilityRef = useRef<boolean>(true); // ✅ NEW: Track page visibility
+    // Removed: page visibility ref (no longer used for reconnection)
     const autoSubmissionAttemptedRef = useRef<boolean>(false); // ✅ NEW: Prevent multiple auto-submissions
     const lastGameStateSyncedRef = useRef<number>(0); // ✅ NEW: Track when we last received GameStateSynced
 
@@ -84,163 +84,11 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     // Always show only the current round drawings, regardless of voting mode
     const filteredAnswers = answers.filter(answer => answer.roundId === currentRound?.roundId);
 
-    // ✅ REFACTORED: Unified reconnection and state sync with adaptive timing
-    const reconnectAndSync = async (): Promise<boolean> => {
-        try {
-            // Validate prerequisites
-            if (!game?.joinCode || !player?.name) {
-                console.log('⚡ No valid game state for reconnection');
-                return false;
-            }
-            
-            if (signalRService.isIntentionallyLeaving()) {
-                console.log('⚡ Player intentionally leaving, skip reconnection');
-                return false;
-            }
-
-            const isConnected = signalRService.isConnected();
-            const needsStateSync = !currentRound || (Date.now() - lastGameStateSyncedRef.current) > 2000;
-            
-            console.log(`⚡ Reconnect: connected=${isConnected}, needsSync=${needsStateSync}, hasRound=${!!currentRound}`);
-
-            // Handle disconnection
-            if (!isConnected) {
-                console.log('⚡ Reconnecting to SignalR...');
-                await signalRService.reconnectIfNeeded(game.joinCode, player.name);
-                // Quick wait for reconnection + GameStateSynced
-                await new Promise(resolve => setTimeout(resolve, 400));
-                console.log('⚡ Reconnection complete, checking state...');
-                return true;
-            }
-            
-            // Handle state desync (already connected but missing round or stale state)
-            if (needsStateSync) {
-                console.log('⚡ Requesting fresh game state from server...');
-                await signalRService.joinGame(game.joinCode, player.name);
-                // Quick wait for GameStateSynced to process and UI to update
-                await new Promise(resolve => setTimeout(resolve, 400));
-                console.log('⚡ State sync complete');
-                return true;
-            }
-            
-            console.log('⚡ Already connected and synced');
-            return true;
-        } catch (error) {
-            console.error('⚡ Reconnection/sync failed:', error);
-            return false;
-        }
-    };
-
-    // ✅ REFACTORED: Consolidated reconnection system
+    // ✅ SIMPLIFIED: Single connect-and-join trigger; no window/focus/interval handlers
     useEffect(() => {
-        // ✅ NEW: Check connection immediately when this effect runs
-        // This catches cases where user navigates back without triggering visibility change
-        const checkInitialConnection = async () => {
-            if (!document.hidden && game?.joinCode && player?.name) {
-                const isConnected = signalRService.isConnected();
-                const needsReconnect = !isConnected || !signalRService.isPlayerIdentified();
-                
-                if (needsReconnect) {
-                    console.log('🔄 Component mounted/updated while visible but not connected, reconnecting...');
-                    await reconnectAndSync();
-                }
-            }
-        };
-        
-        // Run initial check after a brief delay to let everything settle
-        const initialCheckTimer = setTimeout(() => {
-            checkInitialConnection();
-        }, 200);
-        
-        const handleVisibilityChange = async () => {
-            const isVisible = !document.hidden;
-            pageVisibilityRef.current = isVisible;
-            console.log('🔄 Page visibility changed:', isVisible);
-            
-            if (isVisible) {
-                console.log('⚡ Page became visible, reconnecting and syncing...');
-                await reconnectAndSync();
-                
-                // Quick double-check: if we still don't have round after sync, try one more time
-                setTimeout(async () => {
-                    if (!currentRound && game?.joinCode && player?.name && signalRService.isConnected()) {
-                        console.log('⚡ Round still missing after sync, attempting fallback sync...');
-                        await signalRService.joinGame(game.joinCode, player.name);
-                    }
-                }, 300);
-                
-            } else {
-                console.log('🔄 Page went to background, saving state');
-                
-                // Save minimal state for page refresh scenarios
-                if (game && player) {
-                    try {
-                        setCookie('currentGame', JSON.stringify(game));
-                        setCookie('currentPlayer', JSON.stringify(player));
-                        console.log('🔄 State saved successfully');
-                    } catch (error) {
-                        console.error('🔄 Error saving state:', error);
-                    }
-                }
-            }
-        };
-
-        // Network, focus, and mobile resume handlers
-        const handleOnline = () => {
-            console.log('⚡ Network online, reconnecting...');
-            reconnectAndSync();
-        };
-
-        const handleOffline = () => {
-            console.log('⚡ Network offline');
-        };
-
-        const handleFocus = () => {
-            console.log('⚡ Window focused, reconnecting...');
-            reconnectAndSync();
-        };
-
-        const handleResume = (event: Event) => {
-            console.log('⚡ Page show/resume event triggered');
-            // Check if this is a back/forward cache restore
-            if ('persisted' in event && (event as any).persisted) {
-                console.log('⚡ Page restored from bfcache, forcing reconnection...');
-            }
-            // Small delay for mobile resume
-            setTimeout(() => reconnectAndSync(), 300);
-        };
-
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
-        window.addEventListener('focus', handleFocus);
-        
-        // Mobile-specific event listeners
-        window.addEventListener('pageshow', handleResume);
-        if ('onresume' in window) {
-            (window as any).addEventListener('resume', handleResume);
-        }
-        
-        // Periodic connection check (every 8s)
-        const connectionCheckInterval = setInterval(() => {
-            if (!signalRService.isConnected() && !signalRService.isIntentionallyLeaving()) {
-                reconnectAndSync();
-            }
-        }, 8000);
-
-        return () => {
-            clearTimeout(initialCheckTimer);
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-            window.removeEventListener('focus', handleFocus);
-            window.removeEventListener('pageshow', handleResume);
-            if ('onresume' in window) {
-                (window as any).removeEventListener('resume', handleResume);
-            }
-            clearInterval(connectionCheckInterval);
-        };
-    }, [game?.joinCode, player?.name, currentRound?.roundId]);
+        if (!isInitialized || !game?.joinCode || !player?.name) return;
+        signalRService.connectAndJoin(game.joinCode, player.name).catch(() => {});
+    }, [isInitialized, game?.joinCode, player?.name]);
 
     // ✅ REFACTORED: Simplified initialization with minimal cookie restoration
     useEffect(() => {
@@ -283,34 +131,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         initializeApp();
     }, []);
 
-    // ✅ REFACTORED: Auto-reconnection on startup with retry
-    useEffect(() => {
-        if (isJoiningRef.current || !isInitialized) return;
-        
-        if (game?.joinCode && player?.name && !signalRService.isConnected()) {
-            console.log('⚡ Auto-reconnecting on startup...');
-            
-            const reconnectWithRetry = async () => {
-                for (let attempt = 1; attempt <= 3; attempt++) {
-                    console.log(`⚡ Attempt ${attempt}/3`);
-                    
-                    const success = await reconnectAndSync();
-                    if (success) {
-                        console.log('⚡ Startup reconnection successful');
-                        return;
-                    }
-                    
-                    if (attempt < 3) {
-                        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
-                    }
-                }
-                
-                console.error('⚡ All startup reconnection attempts failed');
-            };
-            
-            reconnectWithRetry();
-        }
-    }, [game?.joinCode, player?.name, isInitialized]);
+    // (Removed) Auto-reconnect loops; handled by SignalR automatic reconnect + onreconnected rejoin
 
     useEffect(() => {
         if (!isInitialized || !game?.joinCode || handlersSetupRef.current) return;
