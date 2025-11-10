@@ -29,6 +29,8 @@ class SignalRService {
     private connectionPromise: Promise<void> | null = null;
     private ongoingReconnectPromise: Promise<void> | null = null;
     private identified: boolean = false;
+    private foregroundReconnectTimer: number | null = null;
+    private lastForegroundReconnectAt: number = 0;
     
     // Callbacks
     private gameStateSyncedCallback: ((payload: GameStatePayload) => void) | null = null;
@@ -54,6 +56,21 @@ class SignalRService {
     constructor() {
         // Don't auto-connect on instantiation - let the app control when to connect
         console.log('SignalR Service initialized');
+        // Lightweight mobile-friendly resume handlers to restore connection on foreground
+        if (typeof window !== 'undefined') {
+            const schedule = () => this.scheduleForegroundReconnect(300);
+            const scheduleImmediate = () => this.scheduleForegroundReconnect(0);
+            if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden) {
+                        schedule();
+                    }
+                });
+            }
+            window.addEventListener('pageshow', () => schedule());
+            window.addEventListener('focus', () => scheduleImmediate());
+            window.addEventListener('online', () => scheduleImmediate());
+        }
     }
 
     // ✅ REFACTORED: Get current connection state
@@ -493,6 +510,30 @@ class SignalRService {
             this.ongoingConnectAndJoinPromise = null;
         });
         return this.ongoingConnectAndJoinPromise;
+    }
+    
+    // Trigger a debounced reconnect-and-join when app returns to foreground or network returns
+    private scheduleForegroundReconnect(delayMs: number) {
+        // Only act if we have enough info to rejoin
+        if (!this.shouldAttemptReconnection()) return;
+        
+        // If we're already connected and identified, nothing to do
+        if (this.isConnected() && this.isPlayerIdentified()) return;
+        
+        // Debounce rapid events
+        const now = Date.now();
+        if (now - this.lastForegroundReconnectAt < 500) return;
+        
+        this.lastForegroundReconnectAt = now;
+        if (this.foregroundReconnectTimer) {
+            clearTimeout(this.foregroundReconnectTimer);
+            this.foregroundReconnectTimer = null;
+        }
+        this.foregroundReconnectTimer = window.setTimeout(() => {
+            if (this.currentJoinCode && this.currentPlayerName) {
+                this.connectAndJoin(this.currentJoinCode, this.currentPlayerName).catch(() => {});
+            }
+        }, Math.max(0, delayMs));
     }
 
     // ✅ REFACTORED: Simplified reconnection helper
