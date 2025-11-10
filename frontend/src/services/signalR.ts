@@ -237,6 +237,9 @@ class SignalRService {
             return;
         }
         
+        // Set reconnecting state immediately so UI can show status
+        this.connectionState = ConnectionState.RECONNECTING;
+        
         // Close existing connection if any
         if (this.connection) {
             try {
@@ -246,11 +249,10 @@ class SignalRService {
             }
         }
         
-        // Reset connection state (but keep game info for rejoin)
+        // Reset connection (but keep game info for rejoin)
         this.connection = null;
         this.connectionPromise = null;
         this.isConnecting = false;
-        this.connectionState = ConnectionState.DISCONNECTED;
         
         // Attempt to reconnect
         try {
@@ -258,6 +260,7 @@ class SignalRService {
             console.log('⚡ Force reconnection successful');
         } catch (error) {
             console.error('⚡ Force reconnection failed:', error);
+            this.connectionState = ConnectionState.DISCONNECTED;
             throw error;
         }
     }
