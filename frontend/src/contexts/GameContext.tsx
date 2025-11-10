@@ -120,6 +120,31 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    // ✅ NEW: Proactively re-sync full game state when app returns to foreground
+    // This covers cases where the connection stayed up but events were missed while backgrounded
+    const resyncStateIfConnected = async () => {
+        try {
+            if (!game?.joinCode || !player?.name) return;
+            if (!signalRService.isConnected()) return;
+            
+            // Throttle: if we recently received GameStateSynced, skip redundant resync
+            const elapsedMsSinceLastSync = Date.now() - lastGameStateSyncedRef.current;
+            const shouldForceResync =
+                elapsedMsSinceLastSync > 2000 // more than 2s since last sync
+                || !currentRound; // or we don't have an active round locally
+            
+            if (shouldForceResync) {
+                console.log('🔄 Forcing state re-sync from server (joinGame invoke)');
+                await signalRService.joinGame(game.joinCode, player.name);
+                // joinGame triggers GameStateSynced which fully rehydrates state
+            } else {
+                console.log('🔄 Skipping resync - recently synced state');
+            }
+        } catch (err) {
+            console.error('🔄 Error during state re-sync:', err);
+        }
+    };
+
     // ✅ REFACTORED: Consolidated reconnection system
     useEffect(() => {
         const handleVisibilityChange = async () => {
@@ -130,6 +155,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             if (isVisible) {
                 console.log('⚡ Page became visible, checking reconnection...');
                 await attemptReconnection();
+                // Even if already connected, proactively ask server for full state (in case we missed events)
+                await resyncStateIfConnected();
                 
             } else {
                 console.log('🔄 Page went to background, saving state');
@@ -151,6 +178,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         const handleOnline = async () => {
             console.log('⚡ Network came online, checking reconnection...');
             await attemptReconnection();
+            await resyncStateIfConnected();
         };
 
         const handleOffline = () => {
@@ -161,13 +189,17 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         const handleFocus = async () => {
             console.log('⚡ Window focused, checking reconnection...');
             await attemptReconnection();
+            await resyncStateIfConnected();
         };
 
         // ✅ REFACTORED: Simplified mobile resume event
         const handleResume = async () => {
             console.log('⚡ App resumed (mobile), checking reconnection...');
             // Small delay to ensure app is fully resumed
-            setTimeout(() => attemptReconnection(), 500);
+            setTimeout(async () => {
+                await attemptReconnection();
+                await resyncStateIfConnected();
+            }, 500);
         };
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
