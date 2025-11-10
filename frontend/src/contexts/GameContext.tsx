@@ -84,7 +84,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     // Always show only the current round drawings, regardless of voting mode
     const filteredAnswers = answers.filter(answer => answer.roundId === currentRound?.roundId);
 
-    // ✅ REFACTORED: Unified reconnection and state sync
+    // ✅ REFACTORED: Unified reconnection and state sync with adaptive timing
     const reconnectAndSync = async (): Promise<boolean> => {
         try {
             // Validate prerequisites
@@ -101,14 +101,15 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             const isConnected = signalRService.isConnected();
             const needsStateSync = !currentRound || (Date.now() - lastGameStateSyncedRef.current) > 3000;
             
-            console.log(`⚡ Reconnect status: connected=${isConnected}, needsSync=${needsStateSync}`);
+            console.log(`⚡ Reconnect: connected=${isConnected}, needsSync=${needsStateSync}, hasRound=${!!currentRound}`);
 
             // Handle disconnection
             if (!isConnected) {
                 console.log('⚡ Reconnecting to SignalR...');
                 await signalRService.reconnectIfNeeded(game.joinCode, player.name);
-                // Wait for GameStateSynced event to process
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // Longer wait for full reconnection + GameStateSynced
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                console.log('⚡ Reconnection complete, checking state...');
                 return true;
             }
             
@@ -116,7 +117,9 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             if (needsStateSync) {
                 console.log('⚡ Requesting fresh game state from server...');
                 await signalRService.joinGame(game.joinCode, player.name);
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // Wait for GameStateSynced to process and UI to update
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                console.log('⚡ State sync complete');
                 return true;
             }
             
@@ -138,6 +141,14 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             if (isVisible) {
                 console.log('⚡ Page became visible, reconnecting and syncing...');
                 await reconnectAndSync();
+                
+                // Double-check: if we still don't have round after sync, try one more time
+                setTimeout(async () => {
+                    if (!currentRound && game?.joinCode && player?.name && signalRService.isConnected()) {
+                        console.log('⚡ Round still missing after sync, attempting fallback sync...');
+                        await signalRService.joinGame(game.joinCode, player.name);
+                    }
+                }, 500);
                 
             } else {
                 console.log('🔄 Page went to background, saving state');

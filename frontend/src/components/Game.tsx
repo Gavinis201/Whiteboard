@@ -104,28 +104,35 @@ export const Game: React.FC = () => {
     // ✅ REFACTORED: Reset canvas and input state when round changes (especially after reconnection)
     useEffect(() => {
         if (currentRound && !isReader && !playersWhoSubmitted.has(player?.playerId || 0)) {
-            console.log('🎨 New round detected, resetting canvas/input state');
+            console.log('🎨 New round detected, resetting canvas/input state for round:', currentRound.roundId);
             
-            // Reset input mode and text answer
+            // Reset input mode and text answer immediately
             setInputMode('drawing');
             setTextAnswer('');
             setIsFillMode(false);
             
-            // Clear canvas if it exists
-            if (canvasRef.current) {
-                const ctx = canvasRef.current.getContext('2d');
-                if (ctx) {
-                    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-                    ctx.fillStyle = '#FFFFFF';
-                    ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+            // Small delay to ensure canvas is mounted in DOM (especially after reconnection)
+            const resetTimer = setTimeout(() => {
+                if (canvasRef.current) {
+                    const ctx = canvasRef.current.getContext('2d');
+                    if (ctx && canvasRef.current.width > 0 && canvasRef.current.height > 0) {
+                        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+                        console.log('🎨 Canvas cleared and ready for drawing');
+                    } else {
+                        console.warn('🎨 Canvas context not ready, skipping clear');
+                    }
+                } else {
+                    console.warn('🎨 Canvas ref not available, will initialize on first draw');
                 }
-            }
+                
+                // Reset drawing history
+                setDrawingHistory([]);
+                setUndoneStrokes([]);
+            }, 100); // Small delay to ensure canvas is mounted
             
-            // Reset drawing history
-            setDrawingHistory([]);
-            setUndoneStrokes([]);
-            
-            console.log('🎨 Canvas and input state reset complete');
+            return () => clearTimeout(resetTimer);
         }
     }, [currentRound?.roundId, isReader, playersWhoSubmitted, player?.playerId]);
 
