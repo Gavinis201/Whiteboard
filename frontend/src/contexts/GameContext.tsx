@@ -84,8 +84,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     // Always show only the current round drawings, regardless of voting mode
     const filteredAnswers = answers.filter(answer => answer.roundId === currentRound?.roundId);
 
-    // ✅ REFACTORED: Simplified reconnection helper
-    const attemptReconnection = async () => {
+    // ✅ REFACTORED: Simplified reconnection helper with return value
+    const attemptReconnection = async (): Promise<boolean> => {
         try {
             // Check if we have valid game state
             if (!game?.joinCode || !player?.name) {
@@ -248,7 +248,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         initializeApp();
     }, []);
 
-    // ✅ REFACTORED: Simplified auto-reconnection on app startup
+    // ✅ REFACTORED: Improved auto-reconnection with retry logic
     useEffect(() => {
         // Skip if we're in the process of joining
         if (isJoiningRef.current || !isInitialized) {
@@ -258,7 +258,33 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         // Only reconnect if we have both restored state and should reconnect
         if (game?.joinCode && player?.name && !signalRService.isConnected()) {
             console.log('⚡ Auto-reconnecting to restored game on startup');
-            attemptReconnection();
+            
+            // Try reconnection with retries for more reliability
+            const reconnectWithRetry = async () => {
+                let attempts = 0;
+                const maxAttempts = 3;
+                
+                while (attempts < maxAttempts) {
+                    attempts++;
+                    console.log(`⚡ Reconnection attempt ${attempts}/${maxAttempts}`);
+                    
+                    const success = await attemptReconnection();
+                    if (success) {
+                        console.log('⚡ Reconnection successful');
+                        return;
+                    }
+                    
+                    // Wait before retry (progressive backoff)
+                    if (attempts < maxAttempts) {
+                        await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+                    }
+                }
+                
+                console.error('⚡ All reconnection attempts failed');
+                // Don't clear state - let the user manually leave or retry
+            };
+            
+            reconnectWithRetry();
         }
     }, [game?.joinCode, player?.name, isInitialized]);
 
@@ -679,17 +705,17 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [isInitialized, isWaitingRoom, game, player, navigate]);
 
-    // ✅ REFACTORED: Simplified cookie management
+    // ✅ REFACTORED: Cookie management - only save, never auto-clear
+    // Cookies are only cleared explicitly in leaveGame() and onPlayerKicked()
     useEffect(() => {
         if (!isInitialized) return;
         
+        // Only save cookies when we have valid game state
+        // NEVER auto-clear cookies here - that causes race conditions on refresh
         if (game && player) {
             setCookie('currentGame', JSON.stringify(game));
             setCookie('currentPlayer', JSON.stringify(player));
-        } else {
-            // Clear all game-related cookies when no active game
-            removeCookie('currentGame');
-            removeCookie('currentPlayer');
+            console.log('💾 Saved game state to cookies:', game.joinCode, player.name);
         }
     }, [game, player, isInitialized]);
 

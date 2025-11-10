@@ -125,8 +125,9 @@ const HomePage = () => {
 
 const AppRoutes = () => {
   const { game, player, isInitialized, isLoading, loadingMessage } = useGame();
+  const location = window.location.pathname;
 
-  console.log('AppRoutes render:', { isLoading, loadingMessage, isInitialized, hasGame: !!game, hasPlayer: !!player });
+  console.log('AppRoutes render:', { isLoading, loadingMessage, isInitialized, hasGame: !!game, hasPlayer: !!player, location });
 
   // Show loading spinner if app is loading - this takes priority over everything else
   if (isLoading) {
@@ -144,6 +145,12 @@ const AppRoutes = () => {
         <Route path="*" element={<Game />} />
       </Routes>
     );
+  }
+
+  // If we're still initializing and on a game route, show loading instead of redirecting
+  if (!isInitialized && (location === '/game' || location === '/waiting' || location === '/judging')) {
+    console.log('Still initializing on game route, showing loading...');
+    return <LoadingSpinner text="Reconnecting to game..." />;
   }
 
   console.log('Rendering normal routes');
