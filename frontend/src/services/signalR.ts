@@ -31,6 +31,7 @@ class SignalRService {
     private identified: boolean = false;
     private foregroundReconnectTimer: number | null = null;
     private lastForegroundReconnectAt: number = 0;
+    private statusListeners: Set<(status: { connected: boolean; reconnecting: boolean; identified: boolean }) => void> = new Set();
     
     // Callbacks
     private gameStateSyncedCallback: ((payload: GameStatePayload) => void) | null = null;
@@ -71,6 +72,24 @@ class SignalRService {
             window.addEventListener('focus', () => scheduleImmediate());
             window.addEventListener('online', () => scheduleImmediate());
         }
+    }
+    
+    // Subscribe to connection status changes
+    onStatusChange(callback: (status: { connected: boolean; reconnecting: boolean; identified: boolean }) => void): () => void {
+        this.statusListeners.add(callback);
+        // Push initial status
+        try {
+            callback({ connected: this.isConnected(), reconnecting: this.isReconnecting(), identified: this.identified });
+        } catch {}
+        return () => {
+            this.statusListeners.delete(callback);
+        };
+    }
+    private emitStatus() {
+        const snapshot = { connected: this.isConnected(), reconnecting: this.isReconnecting(), identified: this.identified };
+        this.statusListeners.forEach(cb => {
+            try { cb(snapshot); } catch {}
+        });
     }
 
     // ✅ REFACTORED: Get current connection state
@@ -190,11 +209,13 @@ class SignalRService {
                 console.log('SignalR connection closed:', e);
                 this.connectionState = ConnectionState.DISCONNECTED;
                 this.identified = false;
+                this.emitStatus();
                 
                 // Only attempt reconnection if we should
                 if (this.shouldAttemptReconnection()) {
                     console.log('Connection closed, will attempt reconnection');
                     this.connectionState = ConnectionState.RECONNECTING;
+                    this.emitStatus();
                 } else {
                     console.log('Connection closed, not attempting reconnection');
                 }
@@ -203,11 +224,13 @@ class SignalRService {
             this.connection.onreconnecting(e => {
                 console.log('SignalR is reconnecting...', e);
                 this.connectionState = ConnectionState.RECONNECTING;
+                this.emitStatus();
             });
             
             this.connection.onreconnected(id => {
                 console.log('SignalR reconnected successfully:', id);
                 this.connectionState = ConnectionState.CONNECTED;
+                this.emitStatus();
                 
                 // Only try to rejoin if we have valid game info and should reconnect
                 if (this.shouldAttemptReconnection()) {
@@ -232,6 +255,7 @@ class SignalRService {
                     this.connectionPromise = this.connection.start();
                     await this.connectionPromise;
                     this.connectionState = ConnectionState.CONNECTED;
+                    this.emitStatus();
                     console.log(`✅ SignalR Connected - Safari: ${this.isSafari()}, State: ${this.connection.state}`);
                     break;
                 } catch (err) {
@@ -242,6 +266,7 @@ class SignalRService {
                         console.error('❌ All SignalR connection attempts failed');
                         this.connectionState = ConnectionState.DISCONNECTED;
                         this.isConnecting = false;
+                        this.emitStatus();
                         throw err;
                     }
                     
@@ -255,6 +280,7 @@ class SignalRService {
             console.error('❌ SignalR connection error:', err);
             this.connectionState = ConnectionState.DISCONNECTED;
             this.isConnecting = false;
+            this.emitStatus();
             throw err;
         } finally {
             this.isConnecting = false;
@@ -278,6 +304,7 @@ class SignalRService {
         
         // Set reconnecting state immediately so UI can show status
         this.connectionState = ConnectionState.RECONNECTING;
+        this.emitStatus();
         
         this.ongoingReconnectPromise = (async () => {
             // If current connection is in a transitional state, wait a bit
@@ -306,6 +333,7 @@ class SignalRService {
             } catch (error) {
                 console.error('⚡ Force reconnection failed:', error);
                 this.connectionState = ConnectionState.DISCONNECTED;
+                this.emitStatus();
                 throw error;
             } finally {
                 this.ongoingReconnectPromise = null;
@@ -424,6 +452,7 @@ class SignalRService {
                 // Mark the time of the last successful join to enable short throttle for immediate duplicates
                 this.lastJoinAttemptAt = Date.now();
                 this.identified = true;
+                this.emitStatus();
                 
                 // ✅ NEW: Wait for GameStateSynced to ensure complete state sync
                 // This is especially important for players who were away during round start
@@ -434,6 +463,7 @@ class SignalRService {
                 // Clear last successful join time so rejoin is not throttled after a failure
                 this.lastJoinAttemptAt = 0;
                 this.identified = false;
+                this.emitStatus();
                 
                 // Generic retry when the connection closed mid-invoke (not just Safari)
                 const msg = (error as any)?.message || '';
@@ -448,6 +478,7 @@ class SignalRService {
                         console.log('Join retry after reconnect succeeded');
                         this.lastJoinAttemptAt = Date.now();
                         this.identified = true;
+                        this.emitStatus();
                         await new Promise(resolve => setTimeout(resolve, 500));
                         return;
                     } catch (retryErr) {
@@ -473,6 +504,7 @@ class SignalRService {
                             console.log(`Mobile reconnection attempt ${attempt} successful`);
                             this.lastJoinAttemptAt = Date.now();
                             this.identified = true;
+                            this.emitStatus();
                             // Wait a bit for state sync
                             await new Promise(resolve => setTimeout(resolve, 500));
                             return;
@@ -530,6 +562,11 @@ class SignalRService {
             this.foregroundReconnectTimer = null;
         }
         this.foregroundReconnectTimer = window.setTimeout(() => {
+            // Mark state as reconnecting for UI purposes
+            if (this.connectionState !== ConnectionState.RECONNECTING) {
+                this.connectionState = ConnectionState.RECONNECTING;
+                this.emitStatus();
+            }
             if (this.currentJoinCode && this.currentPlayerName) {
                 this.connectAndJoin(this.currentJoinCode, this.currentPlayerName).catch(() => {});
             }

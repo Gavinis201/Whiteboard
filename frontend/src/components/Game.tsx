@@ -879,42 +879,22 @@ export const Game: React.FC = () => {
         );
     };
     
-    // Monitor connection status
+    // Monitor connection status via SignalR service events
     useEffect(() => {
-        const checkConnection = () => {
-            const isInGame = signalRService.isInGame();
-            const isConnected = signalRService.isConnected();
-            const isReconnecting = signalRService.isReconnecting();
-            const isPlayerIdentified = signalRService.isPlayerIdentified();
+        const unsubscribe = signalRService.onStatusChange(s => {
             const isIntentionallyLeaving = signalRService.isIntentionallyLeaving();
-            
-            console.log('🎯 Connection status check:', {
-                isInGame,
-                isConnected,
-                isReconnecting,
-                isPlayerIdentified,
-                isIntentionallyLeaving
-            });
-            
-            if (isIntentionallyLeaving) {
+            const isInGame = signalRService.isInGame();
+            if (isIntentionallyLeaving || !isInGame) {
                 setConnectionStatus('disconnected');
-            } else if (!isInGame) {
-                setConnectionStatus('disconnected');
-            } else if (isReconnecting || !isConnected) {
-                setConnectionStatus('reconnecting');
-            } else if (!isPlayerIdentified) {
-                // Connected but player not properly identified
+            } else if (s.reconnecting || !s.connected || !s.identified) {
                 setConnectionStatus('reconnecting');
             } else {
                 setConnectionStatus('connected');
             }
+        });
+        return () => {
+            unsubscribe && unsubscribe();
         };
-
-        // ✅ OPTIMIZED: Ultra-fast connection checks for maximum responsiveness
-        const interval = setInterval(checkConnection, 1000); // Check every 1 second for instant feedback
-        checkConnection(); // Initial check
-
-        return () => clearInterval(interval);
     }, []);
 
     if (!game || !player) return <div className="text-center p-8">Loading...</div>;

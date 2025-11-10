@@ -82,6 +82,7 @@ const Header: React.FC = () => {
     };
 
     const { theme, setTheme, themes } = useTheme();
+    
 
     return (
         <header className="bg-white shadow-md">
