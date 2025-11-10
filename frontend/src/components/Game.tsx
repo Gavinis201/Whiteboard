@@ -101,6 +101,34 @@ export const Game: React.FC = () => {
         });
     };
 
+    // ✅ REFACTORED: Reset canvas and input state when round changes (especially after reconnection)
+    useEffect(() => {
+        if (currentRound && !isReader && !playersWhoSubmitted.has(player?.playerId || 0)) {
+            console.log('🎨 New round detected, resetting canvas/input state');
+            
+            // Reset input mode and text answer
+            setInputMode('drawing');
+            setTextAnswer('');
+            setIsFillMode(false);
+            
+            // Clear canvas if it exists
+            if (canvasRef.current) {
+                const ctx = canvasRef.current.getContext('2d');
+                if (ctx) {
+                    ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+                }
+            }
+            
+            // Reset drawing history
+            setDrawingHistory([]);
+            setUndoneStrokes([]);
+            
+            console.log('🎨 Canvas and input state reset complete');
+        }
+    }, [currentRound?.roundId, isReader, playersWhoSubmitted, player?.playerId]);
+
     // Set up timer expire callback for auto-submission
     useEffect(() => {
         if (currentRound && !isReader && !playersWhoSubmitted.has(player?.playerId || 0)) {

@@ -84,64 +84,47 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
     // Always show only the current round drawings, regardless of voting mode
     const filteredAnswers = answers.filter(answer => answer.roundId === currentRound?.roundId);
 
-    // ✅ REFACTORED: Simplified reconnection helper with return value
-    const attemptReconnection = async (): Promise<boolean> => {
+    // ✅ REFACTORED: Unified reconnection and state sync
+    const reconnectAndSync = async (): Promise<boolean> => {
         try {
-            // Check if we have valid game state
+            // Validate prerequisites
             if (!game?.joinCode || !player?.name) {
                 console.log('⚡ No valid game state for reconnection');
                 return false;
             }
             
-            // Check if player is intentionally leaving
             if (signalRService.isIntentionallyLeaving()) {
-                console.log('⚡ Player is intentionally leaving, skipping reconnection');
+                console.log('⚡ Player intentionally leaving, skip reconnection');
                 return false;
             }
 
-            console.log(`⚡ Attempting reconnection for game: ${game.joinCode}, player: ${player.name}`);
+            const isConnected = signalRService.isConnected();
+            const needsStateSync = !currentRound || (Date.now() - lastGameStateSyncedRef.current) > 3000;
             
-            // Only reconnect if needed
-            if (!signalRService.isConnected()) {
-                console.log('⚡ Connection lost, attempting reconnection...');
-                await signalRService.reconnectIfNeeded(game.joinCode, player.name);
-                console.log('⚡ Reconnection successful');
-                
-                // Wait for game state sync
-                await new Promise(resolve => setTimeout(resolve, 800));
-                return true;
-            } else {
-                console.log('⚡ Already connected, no reconnection needed');
-                return true;
-            }
-        } catch (error) {
-            console.error('⚡ Reconnection failed:', error);
-            return false;
-        }
-    };
+            console.log(`⚡ Reconnect status: connected=${isConnected}, needsSync=${needsStateSync}`);
 
-    // ✅ NEW: Proactively re-sync full game state when app returns to foreground
-    // This covers cases where the connection stayed up but events were missed while backgrounded
-    const resyncStateIfConnected = async () => {
-        try {
-            if (!game?.joinCode || !player?.name) return;
-            if (!signalRService.isConnected()) return;
-            
-            // Throttle: if we recently received GameStateSynced, skip redundant resync
-            const elapsedMsSinceLastSync = Date.now() - lastGameStateSyncedRef.current;
-            const shouldForceResync =
-                elapsedMsSinceLastSync > 2000 // more than 2s since last sync
-                || !currentRound; // or we don't have an active round locally
-            
-            if (shouldForceResync) {
-                console.log('🔄 Forcing state re-sync from server (joinGame invoke)');
-                await signalRService.joinGame(game.joinCode, player.name);
-                // joinGame triggers GameStateSynced which fully rehydrates state
-            } else {
-                console.log('🔄 Skipping resync - recently synced state');
+            // Handle disconnection
+            if (!isConnected) {
+                console.log('⚡ Reconnecting to SignalR...');
+                await signalRService.reconnectIfNeeded(game.joinCode, player.name);
+                // Wait for GameStateSynced event to process
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                return true;
             }
-        } catch (err) {
-            console.error('🔄 Error during state re-sync:', err);
+            
+            // Handle state desync (already connected but missing round or stale state)
+            if (needsStateSync) {
+                console.log('⚡ Requesting fresh game state from server...');
+                await signalRService.joinGame(game.joinCode, player.name);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                return true;
+            }
+            
+            console.log('⚡ Already connected and synced');
+            return true;
+        } catch (error) {
+            console.error('⚡ Reconnection/sync failed:', error);
+            return false;
         }
     };
 
@@ -153,10 +136,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             console.log('🔄 Page visibility changed:', isVisible);
             
             if (isVisible) {
-                console.log('⚡ Page became visible, checking reconnection...');
-                await attemptReconnection();
-                // Even if already connected, proactively ask server for full state (in case we missed events)
-                await resyncStateIfConnected();
+                console.log('⚡ Page became visible, reconnecting and syncing...');
+                await reconnectAndSync();
                 
             } else {
                 console.log('🔄 Page went to background, saving state');
@@ -174,32 +155,25 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             }
         };
 
-        // ✅ REFACTORED: Simplified network reconnection
-        const handleOnline = async () => {
-            console.log('⚡ Network came online, checking reconnection...');
-            await attemptReconnection();
-            await resyncStateIfConnected();
+        // Network, focus, and mobile resume handlers
+        const handleOnline = () => {
+            console.log('⚡ Network online, reconnecting...');
+            reconnectAndSync();
         };
 
         const handleOffline = () => {
-            console.log('⚡ Network went offline');
+            console.log('⚡ Network offline');
         };
 
-        // ✅ REFACTORED: Simplified focus event
-        const handleFocus = async () => {
-            console.log('⚡ Window focused, checking reconnection...');
-            await attemptReconnection();
-            await resyncStateIfConnected();
+        const handleFocus = () => {
+            console.log('⚡ Window focused, reconnecting...');
+            reconnectAndSync();
         };
 
-        // ✅ REFACTORED: Simplified mobile resume event
-        const handleResume = async () => {
-            console.log('⚡ App resumed (mobile), checking reconnection...');
-            // Small delay to ensure app is fully resumed
-            setTimeout(async () => {
-                await attemptReconnection();
-                await resyncStateIfConnected();
-            }, 500);
+        const handleResume = () => {
+            console.log('⚡ App resumed (mobile), reconnecting...');
+            // Small delay for app resume
+            setTimeout(() => reconnectAndSync(), 500);
         };
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -215,10 +189,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             (window as any).addEventListener('resume', handleResume);
         }
         
-        // ✅ REFACTORED: Simplified periodic connection check
+        // Periodic connection check (every 8s)
         const connectionCheckInterval = setInterval(() => {
             if (!signalRService.isConnected() && !signalRService.isIntentionallyLeaving()) {
-                attemptReconnection();
+                reconnectAndSync();
             }
         }, 8000);
 
@@ -280,40 +254,29 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
         initializeApp();
     }, []);
 
-    // ✅ REFACTORED: Improved auto-reconnection with retry logic
+    // ✅ REFACTORED: Auto-reconnection on startup with retry
     useEffect(() => {
-        // Skip if we're in the process of joining
-        if (isJoiningRef.current || !isInitialized) {
-            return;
-        }
+        if (isJoiningRef.current || !isInitialized) return;
         
-        // Only reconnect if we have both restored state and should reconnect
         if (game?.joinCode && player?.name && !signalRService.isConnected()) {
-            console.log('⚡ Auto-reconnecting to restored game on startup');
+            console.log('⚡ Auto-reconnecting on startup...');
             
-            // Try reconnection with retries for more reliability
             const reconnectWithRetry = async () => {
-                let attempts = 0;
-                const maxAttempts = 3;
-                
-                while (attempts < maxAttempts) {
-                    attempts++;
-                    console.log(`⚡ Reconnection attempt ${attempts}/${maxAttempts}`);
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                    console.log(`⚡ Attempt ${attempt}/3`);
                     
-                    const success = await attemptReconnection();
+                    const success = await reconnectAndSync();
                     if (success) {
-                        console.log('⚡ Reconnection successful');
+                        console.log('⚡ Startup reconnection successful');
                         return;
                     }
                     
-                    // Wait before retry (progressive backoff)
-                    if (attempts < maxAttempts) {
-                        await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+                    if (attempt < 3) {
+                        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
                     }
                 }
                 
-                console.error('⚡ All reconnection attempts failed');
-                // Don't clear state - let the user manually leave or retry
+                console.error('⚡ All startup reconnection attempts failed');
             };
             
             reconnectWithRetry();
