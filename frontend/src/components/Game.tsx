@@ -115,22 +115,29 @@ export const Game: React.FC = () => {
             const resetTimer = setTimeout(() => {
                 if (canvasRef.current) {
                     const ctx = canvasRef.current.getContext('2d');
-                    if (ctx && canvasRef.current.width > 0 && canvasRef.current.height > 0) {
-                        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+                    const width = canvasRef.current.width;
+                    const height = canvasRef.current.height;
+                    
+                    if (ctx && width > 0 && height > 0) {
+                        ctx.clearRect(0, 0, width, height);
                         ctx.fillStyle = '#FFFFFF';
-                        ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-                        console.log('🎨 Canvas cleared and ready for drawing');
+                        ctx.fillRect(0, 0, width, height);
+                        console.log(`🎨 Canvas cleared and ready (${width}x${height})`);
+                    } else if (ctx && (width === 0 || height === 0)) {
+                        // Canvas exists but dimensions not set - force a resize
+                        console.warn('🎨 Canvas has no dimensions, will be initialized on first interaction');
+                        // The canvas will be properly sized by the parent container's CSS
                     } else {
-                        console.warn('🎨 Canvas context not ready, skipping clear');
+                        console.warn('🎨 Canvas context not ready, will initialize on first draw');
                     }
                 } else {
-                    console.warn('🎨 Canvas ref not available, will initialize on first draw');
+                    console.warn('🎨 Canvas ref not available, will initialize on mount');
                 }
                 
                 // Reset drawing history
                 setDrawingHistory([]);
                 setUndoneStrokes([]);
-            }, 100); // Small delay to ensure canvas is mounted
+            }, 150); // Slightly longer delay to ensure full DOM mount after reconnection
             
             return () => clearTimeout(resetTimer);
         }
@@ -652,12 +659,21 @@ export const Game: React.FC = () => {
             } else {
                 // Drawing mode - submit drawing as base64 image
                 const canvas = canvasRef.current;
-                if (!canvas) return;
+                if (!canvas) {
+                    throw new Error('Canvas not initialized. Please wait a moment and try again.');
+                }
+                
+                // Verify canvas has valid dimensions
+                if (canvas.width === 0 || canvas.height === 0) {
+                    throw new Error('Canvas not ready. Please wait a moment and try again.');
+                }
                 
                 // Create a temporary canvas to ensure white background
                 const tempCanvas = document.createElement('canvas');
                 const tempCtx = tempCanvas.getContext('2d');
-                if (!tempCtx) return;
+                if (!tempCtx) {
+                    throw new Error('Canvas error. Please refresh and try again.');
+                }
                 
                 // Set temp canvas to same size
                 tempCanvas.width = canvas.width;
@@ -683,7 +699,7 @@ export const Game: React.FC = () => {
             }
             
             // ✅ ENHANCED: Check connection status before submitting
-            if (connectionStatus === 'disconnected') {
+            if (connectionStatus === 'disconnected' || !signalRService.isConnected()) {
                 console.log('Connection is disconnected, attempting to reconnect before submission');
                 setCompressionStatus('Reconnecting...');
                 
@@ -691,11 +707,18 @@ export const Game: React.FC = () => {
                 try {
                     await signalRService.forceReconnect();
                     await signalRService.joinGame(game.joinCode, player.name);
+                    // Wait a moment for full sync
+                    await new Promise(resolve => setTimeout(resolve, 300));
                     setCompressionStatus('Sending...');
                 } catch (reconnectError) {
                     console.error('Failed to reconnect:', reconnectError);
                     throw new Error('Connection lost. Please refresh the page and try again.');
                 }
+            }
+            
+            // Final check: ensure we're actually connected
+            if (!signalRService.isPlayerIdentified()) {
+                throw new Error('Connection not fully established. Please wait a moment and try again.');
             }
             
             await submitAnswer(contentToSubmit);
@@ -716,11 +739,16 @@ export const Game: React.FC = () => {
                 errorMessage = 'Connection lost. Please refresh the page and try again.';
             } else if (error.message?.includes('No longer in game')) {
                 errorMessage = 'You are no longer in the game. Please refresh and rejoin.';
-            } else if (error.message?.includes('Player not identified')) {
-                errorMessage = 'Connection issue. Please refresh the page and try again.';
+            } else if (error.message?.includes('Player not identified') || error.message?.includes('not fully established')) {
+                errorMessage = 'Connection not ready. Please wait a moment and try again.';
+            } else if (error.message?.includes('Canvas not initialized') || error.message?.includes('Canvas not ready')) {
+                errorMessage = 'Drawing canvas not ready. Please wait a moment and try again.';
             } else if (error.message?.includes('already submitted')) {
                 errorMessage = `You have already submitted ${inputMode === 'text' ? 'a text answer' : 'a drawing'} for this round.`;
             } else if (error.message?.includes('enter a text answer')) {
+                errorMessage = error.message;
+            } else if (error.message) {
+                // Use the error message if it's user-friendly
                 errorMessage = error.message;
             }
             
@@ -925,31 +953,7 @@ export const Game: React.FC = () => {
                 </div>
             )}
             
-            {/* Connection warning when timer is active */}
-            {isTimerActive && connectionStatus === 'disconnected' && !isReader && (
-                <div className="fixed top-20 right-4 z-50 bg-red-50 border border-red-200 rounded-lg p-3 max-w-sm">
-                    <div className="flex items-center gap-2">
-                        <div className="text-red-600">⚠️</div>
-                        <div className="text-sm text-red-700">
-                            <div className="font-semibold">Connection Lost</div>
-                            <div>Your drawing will be submitted automatically when the timer expires.</div>
-                        </div>
-                    </div>
-                </div>
-            )}
-            
-            {/* Connection warning when player is not properly identified
-            {isTimerActive && connectionStatus === 'reconnecting' && !isReader && !playersWhoSubmitted.has(player?.playerId || 0) && (
-                <div className="fixed top-20 right-4 z-50 bg-yellow-50 border border-yellow-200 rounded-lg p-3 max-w-sm">
-                    <div className="flex items-center gap-2">
-                        <div className="text-yellow-600">🔄</div>
-                        <div className="text-sm text-yellow-700">
-                            <div className="font-semibold">Reconnecting...</div>
-                            <div>Please wait while we restore your connection to the game.</div>
-                        </div>
-                    </div>
-                </div>
-            )} */}
+            {/* Connection warnings removed - status indicator in header is sufficient */}
             
             <div className="max-w-7xl mx-auto bg-white rounded-xl shadow-lg p-4 sm:p-6">
                 {/* Header and Player List JSX remains the same */}
