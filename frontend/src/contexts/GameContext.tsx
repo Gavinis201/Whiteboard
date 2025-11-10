@@ -99,7 +99,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             }
 
             const isConnected = signalRService.isConnected();
-            const needsStateSync = !currentRound || (Date.now() - lastGameStateSyncedRef.current) > 3000;
+            const needsStateSync = !currentRound || (Date.now() - lastGameStateSyncedRef.current) > 2000;
             
             console.log(`⚡ Reconnect: connected=${isConnected}, needsSync=${needsStateSync}, hasRound=${!!currentRound}`);
 
@@ -107,8 +107,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             if (!isConnected) {
                 console.log('⚡ Reconnecting to SignalR...');
                 await signalRService.reconnectIfNeeded(game.joinCode, player.name);
-                // Longer wait for full reconnection + GameStateSynced
-                await new Promise(resolve => setTimeout(resolve, 1500));
+                // Quick wait for reconnection + GameStateSynced
+                await new Promise(resolve => setTimeout(resolve, 400));
                 console.log('⚡ Reconnection complete, checking state...');
                 return true;
             }
@@ -117,8 +117,8 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
             if (needsStateSync) {
                 console.log('⚡ Requesting fresh game state from server...');
                 await signalRService.joinGame(game.joinCode, player.name);
-                // Wait for GameStateSynced to process and UI to update
-                await new Promise(resolve => setTimeout(resolve, 1500));
+                // Quick wait for GameStateSynced to process and UI to update
+                await new Promise(resolve => setTimeout(resolve, 400));
                 console.log('⚡ State sync complete');
                 return true;
             }
@@ -142,13 +142,13 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
                 console.log('⚡ Page became visible, reconnecting and syncing...');
                 await reconnectAndSync();
                 
-                // Double-check: if we still don't have round after sync, try one more time
+                // Quick double-check: if we still don't have round after sync, try one more time
                 setTimeout(async () => {
                     if (!currentRound && game?.joinCode && player?.name && signalRService.isConnected()) {
                         console.log('⚡ Round still missing after sync, attempting fallback sync...');
                         await signalRService.joinGame(game.joinCode, player.name);
                     }
-                }, 500);
+                }, 300);
                 
             } else {
                 console.log('🔄 Page went to background, saving state');
