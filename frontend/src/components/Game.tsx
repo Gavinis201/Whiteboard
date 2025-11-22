@@ -802,10 +802,19 @@ export const Game: React.FC = () => {
         });
     };
     
-    // ✅ NEW: Handler to flip all answer cards at once
+    // ✅ NEW: Handler to toggle showing/hiding all answer cards at once
     const handleShowAll = () => {
-        const allAnswerIds = new Set(answers.map(answer => answer.answerId));
-        setFlippedCards(allAnswerIds);
+        // Check if all cards are already flipped
+        const allAnswerIds = answers.map(answer => answer.answerId);
+        const allFlipped = allAnswerIds.length > 0 && allAnswerIds.every(id => flippedCards.has(id));
+        
+        if (allFlipped) {
+            // Hide all cards
+            setFlippedCards(new Set());
+        } else {
+            // Show all cards
+            setFlippedCards(new Set(allAnswerIds));
+        }
     };
     
     const handleLeaveGame = async () => {
@@ -1267,14 +1276,18 @@ export const Game: React.FC = () => {
                             <div>
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-xl font-semibold text-purple-600">Answers</h3>
-                                    {allPlayersSubmitted && (
-                                        <button
-                                            onClick={handleShowAll}
-                                            className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors"
-                                        >
-                                            Show All
-                                        </button>
-                                    )}
+                                    {allPlayersSubmitted && (() => {
+                                        const allAnswerIds = answers.map(answer => answer.answerId);
+                                        const allFlipped = allAnswerIds.length > 0 && allAnswerIds.every(id => flippedCards.has(id));
+                                        return (
+                                            <button
+                                                onClick={handleShowAll}
+                                                className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors"
+                                            >
+                                                {allFlipped ? 'Hide All' : 'Show All'}
+                                            </button>
+                                        );
+                                    })()}
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {answers.map(renderAnswerCard)}
