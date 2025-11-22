@@ -58,6 +58,8 @@ export const Game: React.FC = () => {
     const [lastPointerId, setLastPointerId] = useState<number | null>(null);
     // Add per-round voting mode state
     const [roundVotingMode, setRoundVotingMode] = useState(false);
+    // ✅ NEW: Add anonymous mode state (hide player names on cards)
+    const [anonymousMode, setAnonymousMode] = useState(false);
     // ✅ NEW: Add input mode state (drawing or text)
     const [inputMode, setInputMode] = useState<'drawing' | 'text'>('drawing');
     // ✅ NEW: Add text answer state
@@ -814,11 +816,14 @@ export const Game: React.FC = () => {
         const isTextAnswer = answer.content.startsWith('TEXT:');
         const textContent = isTextAnswer ? answer.content.substring(5) : ''; // Remove 'TEXT:' prefix
         
+        // ✅ NEW: Use empty string for names when anonymous mode is enabled
+        const displayName = anonymousMode ? '' : (answer.playerName || 'Unknown');
+        
         return (
             <div key={answer.answerId} className="answer-card" onClick={() => handleCardClick(answer.answerId)}>
                 <div className={`card-inner ${flippedCards.has(answer.answerId) ? 'flipped' : ''}`}>
                     <div className="card-front">
-                        <p className="player-name">{answer.playerName || 'Unknown'}</p>
+                        <p className="player-name">{displayName}</p>
                         {voteResult && voteResult.voteCount > 0 && (
                             <div className="vote-results">
                                 <div className="vote-badge">
@@ -828,7 +833,7 @@ export const Game: React.FC = () => {
                         )}
                     </div>
                     <div className="card-back">
-                        <h3 className="player-name-back">{answer.playerName || 'Unknown'}</h3>
+                        <h3 className="player-name-back">{displayName}</h3>
                         <div className="drawing-container">
                             {isTextAnswer ? (
                                 <div className="text-answer-display" style={{
@@ -1071,8 +1076,33 @@ export const Game: React.FC = () => {
 
                                     <button onClick={handleStartRound} className="bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700">Start</button>
                                 </div>
-                                <div className="mt-4 flex items-center gap-4">
-                                    
+                                <div className="mt-4 flex items-center gap-4 flex-wrap">
+                                    {/* ✅ NEW: Anonymous Mode Switch */}
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-sm font-medium text-gray-700">Anonymous Mode</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const newValue = !anonymousMode;
+                                                setAnonymousMode(newValue);
+                                            }}
+                                            disabled={!isReader}
+                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+                                                anonymousMode ? 'bg-purple-600' : 'bg-gray-200'
+                                            }`}
+                                            role="switch"
+                                            aria-checked={anonymousMode}
+                                        >
+                                            <div className="absolute inset-0 flex items-center justify-center text-xs text-white font-bold">
+                                                {anonymousMode ? 'ON' : 'OFF'}
+                                            </div>
+                                            <span
+                                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                                    anonymousMode ? 'translate-x-6' : 'translate-x-1'
+                                                }`}
+                                            />
+                                        </button>
+                                    </div>
                                     <div className="flex items-center gap-3">
                                         <span className="text-sm font-medium text-gray-700">Round Voting Mode</span>
                                         <button
@@ -1102,6 +1132,11 @@ export const Game: React.FC = () => {
                                             />
                                         </button>
                                     </div>
+                                    {anonymousMode && (
+                                        <span className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded">
+                                            Player names are hidden on cards
+                                        </span>
+                                    )}
                                     {roundVotingMode && (
                                         <span className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded">
                                             This round will have voting enabled
