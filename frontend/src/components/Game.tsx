@@ -788,6 +788,12 @@ export const Game: React.FC = () => {
         });
     };
     
+    // ✅ NEW: Handler to flip all answer cards at once
+    const handleShowAll = () => {
+        const allAnswerIds = new Set(answers.map(answer => answer.answerId));
+        setFlippedCards(allAnswerIds);
+    };
+    
     const handleLeaveGame = async () => {
         const message = isReader 
             ? 'Are you sure you want to leave? This will end the game for all players.'
@@ -1247,11 +1253,14 @@ export const Game: React.FC = () => {
                             <div>
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-xl font-semibold text-purple-600">Answers</h3>
-                                    {/* {allPlayersSubmitted && judgingModeEnabled && (
-                                        <div className="bg-green-100 border border-green-300 rounded-lg px-3 py-1">
-                                            <span className="text-green-800 text-sm font-medium">All players submitted!</span>
-                                        </div>
-                                    )} */}
+                                    {allPlayersSubmitted && (
+                                        <button
+                                            onClick={handleShowAll}
+                                            className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors"
+                                        >
+                                            Show All
+                                        </button>
+                                    )}
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {answers.map(renderAnswerCard)}
