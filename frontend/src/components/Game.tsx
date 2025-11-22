@@ -104,8 +104,11 @@ export const Game: React.FC = () => {
     };
 
     // ✅ REFACTORED: Reset canvas and input state when round changes (especially after reconnection)
+    // ✅ FIX: Use a derived boolean to avoid re-running when other players submit
+    const hasCurrentPlayerSubmitted = player?.playerId ? playersWhoSubmitted.has(player.playerId) : false;
+    
     useEffect(() => {
-        if (currentRound && !isReader && !playersWhoSubmitted.has(player?.playerId || 0)) {
+        if (currentRound && !isReader && !hasCurrentPlayerSubmitted) {
             console.log('🎨 New round detected, resetting canvas/input state for round:', currentRound.roundId);
             
             // Reset input mode and text answer immediately
@@ -143,7 +146,7 @@ export const Game: React.FC = () => {
             
             return () => clearTimeout(resetTimer);
         }
-    }, [currentRound?.roundId, isReader, playersWhoSubmitted, player?.playerId]);
+    }, [currentRound?.roundId, isReader, hasCurrentPlayerSubmitted, player?.playerId]);
 
     // Set up timer expire callback for auto-submission
     useEffect(() => {
