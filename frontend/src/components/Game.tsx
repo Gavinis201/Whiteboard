@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useGame } from '../contexts/GameContext';
 import { Answer, Prompt, getPrompts, getDetailedVoteResults } from '../services/api';
 import { useNavigate } from 'react-router-dom';
@@ -104,10 +104,21 @@ export const Game: React.FC = () => {
     };
 
     // ✅ REFACTORED: Reset canvas and input state when round changes (especially after reconnection)
-    // ✅ FIX: Use a derived boolean to avoid re-running when other players submit
-    const hasCurrentPlayerSubmitted = player?.playerId ? playersWhoSubmitted.has(player.playerId) : false;
+    // ✅ FIX: Use useMemo to properly memoize the submission check and prevent unnecessary re-renders
+    const hasCurrentPlayerSubmitted = useMemo(() => {
+        const result = player?.playerId ? playersWhoSubmitted.has(player.playerId) : false;
+        console.log('🎨 hasCurrentPlayerSubmitted recalculated:', result, 'playerId:', player?.playerId, 'playersWhoSubmitted:', Array.from(playersWhoSubmitted));
+        return result;
+    }, [player?.playerId, playersWhoSubmitted]);
     
     useEffect(() => {
+        console.log('🎨 Canvas reset effect checking:', {
+            currentRound: currentRound?.roundId,
+            isReader,
+            hasCurrentPlayerSubmitted,
+            playerId: player?.playerId
+        });
+        
         if (currentRound && !isReader && !hasCurrentPlayerSubmitted) {
             console.log('🎨 New round detected, resetting canvas/input state for round:', currentRound.roundId);
             
