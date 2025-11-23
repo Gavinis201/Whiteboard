@@ -46,7 +46,7 @@ export const Game: React.FC = () => {
     const [voteResults, setVoteResults] = useState<any[]>([]);
     const [detailedVoteResults, setDetailedVoteResults] = useState<any[]>([]);
     const [allPlayersSubmitted, setAllPlayersSubmitted] = useState(false);
-    const [gameMode, setGameMode] = useState<'Select' | 'Classic' | 'Blank' | 'Custom' | 'Trivia' | 'Would Ya' | 'Would You Rather'>('Select');
+    const [gameMode, setGameMode] = useState<'Select' | 'Classic' | 'Blank' | 'Custom' | 'Trivia' | 'Would Ya' | 'Would You Rather' | 'Jokes' | 'FinishTheLyric'>('Select');
     // Add subcategory state for Trivia
     const [triviaCategory, setTriviaCategory] = useState('American History');
     // Add answer display state
@@ -309,7 +309,7 @@ export const Game: React.FC = () => {
 
     // Update filtered prompts based on game mode, subcategory, and input
     useEffect(() => {
-        if (gameMode === 'Custom' || gameMode === 'Select') {
+        if (gameMode === 'Custom' || gameMode === 'Select' || gameMode === 'Jokes' || gameMode === 'FinishTheLyric') {
             setFilteredPrompts([]);
         } else if (prompt.trim() === '') {
             // Show all prompts for the selected mode when input is empty
@@ -1042,6 +1042,8 @@ export const Game: React.FC = () => {
                                         <option value="Trivia">Trivia</option>
                                         <option value="Would Ya">Answer as me</option>
                                         <option value="Would You Rather">Would You Rather?</option>
+                                        <option value="Jokes">Jokes</option>
+                                        <option value="Finish The Lyric">Finish the Lyric</option>
                                         </select>
                                     {/* Trivia subcategory dropdown */}
                                     {gameMode === 'Trivia' && (
